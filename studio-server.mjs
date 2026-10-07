@@ -153,6 +153,17 @@ async function hold() {
   log('vidéo libérée : un nouveau rendu la remplace');
 }
 function unhold() { held = false; log('vidéo reprise'); refreshProxy(); }
+// an export about to replace the very video under review (COULISSES REMPLACE, lib/export.mjs): let go of it, take it back after
+let exportHolds = false;
+if (G) setInterval(() => {
+  let x; try { x = exportState(P); } catch { return; }
+  if (!x) return;
+  if (x.state === 'running' && x.remplace && !exportHolds) {
+    const v = pickVideo(P);
+    if (!v || path.resolve(v).toLowerCase() === path.resolve(x.remplace).toLowerCase()) { exportHolds = true; hold().then(() => log(`l'export remplace la vidéo revue : ${path.basename(x.remplace)}`)); }
+  }
+  if (x.state !== 'running' && exportHolds) { exportHolds = false; unhold(); }
+}, 1000).unref();
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },

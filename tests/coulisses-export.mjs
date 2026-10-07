@@ -22,7 +22,7 @@ let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(U + u)).json();
 const post = async (u, b = {}) => (await fetch(U + u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
-const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f)) : []);
+const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f) && !/remplace/.test(f)) : []);
 const frames = (f) => +execFileSync('ffprobe', ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim().replace(/,$/, '');
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 let studio = null;
@@ -45,7 +45,7 @@ try {
   await startStudio(imp.revue);
   const meta = await get('/api/meta');
   check(meta.features.export === true && meta.exportWhy === null, 'the studio offers « Exporter » for this run');
-  check(meta.exportOptions?.map((o) => o.id).join('|') === 'final|test', `the script's variants are offered (${meta.exportOptions?.map((o) => o.label).join(', ')})`);
+  check(meta.exportOptions?.map((o) => o.id).join('|') === 'final|test|remplace', `the script's variants are offered (${meta.exportOptions?.map((o) => o.label).join(', ')})`);
 
   // 1) the button, in the page
   const p = await launch({ port: 9346 });
@@ -79,6 +79,24 @@ try {
   check(sT.ok && sT.qualite === 'test' && dT.state === 'done' && frames(dT.file) === 30, `the test variant runs with --qualite test (${frames(dT.file ?? '')} frames)`);
   const bad = await post('/api/export', { qualite: 'nope' });
   check(!bad.ok && /inconnue/.test(bad.why), 'an unknown variant is refused');
+
+  // 2c) replacing the very video under review while it is being played (a stream open on it)
+  const r1 = await post('/api/export', { qualite: 'remplace' });
+  const d1 = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'first replace export');
+  await sleep(21000);
+  const under = (await get('/api/status')).video;
+  const ac = new AbortController();
+  const reading = fetch(U + '/video', { signal: ac.signal }).then((r) => r.body.getReader().read()).catch(() => null);   // keeps the file open
+  await sleep(800);
+  const sz0 = fs.statSync(d1.file).mtimeMs;
+  await post('/api/export', { qualite: 'remplace' });
+  let sawHeld = false;
+  const d2 = await until(async () => { const s = await get('/api/status'); if (s.held) sawHeld = true; const x = s.export; return x && x.state !== 'running' ? x : null; }, 240000, 'replace export');
+  ac.abort(); await reading; await sleep(2000);   // the studio takes the video back at its next look (1 s)
+  const after = await get('/api/status');
+  console.log('    (remplacement : ' + JSON.stringify({ r1: r1.ok, revue: under?.name, etat: d2.state, remplace: fs.statSync(d2.file).mtimeMs > sz0, vu: sawHeld, tenu: after.held }) + ')');
+  check(r1.ok && under?.name === 'essai-remplace.mp4' && d2.state === 'done' && fs.statSync(d2.file).mtimeMs > sz0 && sawHeld && !after.held,
+    `an export replacing the video under review: the studio lets go of it, the file is replaced, the studio takes it back (held seen: ${sawHeld})`);
 
   // 3) stopped half-way: no final file
   const n2 = finals().length;
