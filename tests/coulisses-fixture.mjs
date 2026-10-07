@@ -87,6 +87,34 @@ export const Root: React.FC = () => (
     durationInFrames={typeof c.durationInFrames === 'function' ? c.durationInFrames() : c.durationInFrames} defaultProps={c.defaultProps} />)}</>
 );
 `);
+  // the export script Coulisses runs on « Exporter » (contract: docs\FICHE-COULISSES-REMOTION.md « Le script d'export »);
+  // --images N renders only the first N frames (tests)
+  w('scripts/coulisses-rendu.mjs', [
+    "// Export du projet d'essai : rendu Remotion, fichier .tmp.mp4 puis renommé, avancement pour Coulisses.",
+    "import fs from 'node:fs';",
+    "import path from 'node:path';",
+    "import { bundle } from '@remotion/bundler';",
+    "import { selectComposition, renderMedia } from '@remotion/renderer';",
+    "const a = process.argv.slice(2), opt = (k) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : null; };",
+    "const id = opt('--composition'), dossier = opt('--dossier'), images = opt('--images');",
+    "const props = opt('--props') ? JSON.parse(fs.readFileSync(opt('--props'), 'utf8')) : {};",
+    "if (!id || !dossier) { console.error('usage : --composition <id> --dossier <dossier> [--props f] [--titre t] [--images N]'); process.exit(2); }",
+    "const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';",
+    "let last = -1; const say = (pct, etape) => { const p = Math.floor(pct); if (p !== last) { last = p; console.log('COULISSES PROGRES ' + p + ' ' + etape); } };",
+    "say(0, 'paquet');",
+    "const serveUrl = await bundle({ entryPoint: path.resolve('src/index.ts') });",
+    "const composition = await selectComposition({ serveUrl, id, inputProps: props, browserExecutable: CHROME, chromiumOptions: { gl: 'angle' } });",
+    "const d = new Date(), z = (n) => String(n).padStart(2, '0');",
+    "const fin = path.join(dossier, 'essai-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + '.mp4');",
+    "const tmp = fin.replace(/\\.mp4$/, '.tmp.mp4');",
+    "fs.mkdirSync(dossier, { recursive: true });",
+    "await renderMedia({ serveUrl, composition, codec: 'h264', outputLocation: tmp, inputProps: props, browserExecutable: CHROME, chromiumOptions: { gl: 'angle' },",
+    "  frameRange: images ? [0, Math.min(composition.durationInFrames, +images) - 1] : undefined, onProgress: ({ progress }) => say(5 + progress * 94, 'rendu') });",
+    "fs.renameSync(tmp, fin);",
+    "say(100, 'fini');",
+    "console.log('COULISSES FIN \"' + fin + '\"');",
+    '',
+  ].join('\n'));
   fs.mkdirSync(path.join(PROJET, 'public', 'essai'), { recursive: true });
   const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=10', '-ac', '1', path.join(PROJET, 'public', 'essai', 'voix.wav')]);
   if (r.status) throw new Error('ffmpeg');

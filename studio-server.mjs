@@ -10,6 +10,8 @@
 //   - /api/render: « Lancer le rendu » = a render request for the Claude session (lot of kind 'render'); its progress is
 //                  revue/render.json, written by `studio-cli.mjs render`; /api/hold and /api/unhold let go of the video
 //                  while finish-render.sh replaces it; /api/compare = the before / after of each corrected note
+//   - /api/export : « Exporter » a run of a Remotion pipeline (.coulisses) with the project's own export script, on the
+//                  user's order (lib/export.mjs); /api/export/stop, /api/export/log
 // usage: node studio-server.mjs E03 [--port N] [--no-open] [--theatre <dir>] [--episodes <dir>] [--remotion <dir>]
 //        node studio-server.mjs --project "<project folder or its revue folder>" [--port N] [--no-open]
 //        (an imported project, lib/projects.mjs: an AItelier run or any video; no live preview, staging nor render)
@@ -24,6 +26,7 @@ import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJs
 import { videoFrame, codeFrame } from './lib/frames.mjs';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
+import { exportAvailable, exportState, startExport, stopExport, exportLog } from './lib/export.mjs';
 import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
@@ -124,7 +127,7 @@ function meta() {
   const snapshot = B ? readJson(SNAP, null) : null;
   const render = video ? stamp(video) : null, pr = probe(video);
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: B, render: B, plan: !!timeline.state.data, video: !!video },
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: B, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null,
     composition: G ? P.remotion.composition : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
@@ -153,7 +156,7 @@ function unhold() { held = false; log('vidéo reprise'); refreshProxy(); }
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
+    render: B ? renderState(P) : null, export: G ? exportState(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -296,6 +299,15 @@ const server = http.createServer(async (req, res) => {
       return json(res, { ok: true, ...r, agent: agentState(), updates: u.line });
     }
     if (pn === '/api/updates') { const u = await updatesFor(url.searchParams.get('agent'), url.searchParams.has('fresh')); return json(res, { line: u.line, ...u.updates }); }
+    // ---- « Exporter » a run of a Remotion pipeline: the project's script, started here, on the user's order ----
+    if (pn === '/api/export' && req.method === 'POST') {
+      if (!G) return json(res, { ok: false, why: 'seul un run Remotion (.coulisses) s\'exporte depuis le studio' });
+      try { return json(res, { ok: true, ...startExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/export/stop' && req.method === 'POST') {
+      try { return json(res, { ok: true, ...stopExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/export/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(G ? exportLog(P) : ''); }
     // ---- the full re-render (asked here, run by Claude: studio-cli.mjs render) ----
     if (pn.startsWith('/api/render') && pn !== '/api/render/log' && !B) return json(res, { ok: false, why: 'ce projet ne se rend pas depuis le studio : exporte-le toi-même, le studio charge seul la nouvelle version' });
     if (pn === '/api/render' && req.method === 'POST') {

@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launch } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
+import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_Episodes');   // tests can run on their own copy
@@ -20,6 +21,9 @@ const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true }
 let ok = 0, ko = 0;
 const check = (cond, what) => { if (cond) { ok++; console.log(`  ✓ ${what}`); } else { ko++; console.log(`  ✗ ${what}`); } };
 
+// what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
+const TEST_TEXTS = ['Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
 const p = await launch();
 try {
   await p.goto(URL);

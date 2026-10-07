@@ -1445,12 +1445,13 @@
   $('#renderPill').onclick = () => setTab('lots');
   let rcKey = '';
   function exportCard(box) {
-    const cur = STATUS.video ?? META.render, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length]);
+    const cur = STATUS.video ?? META.render, X = STATUS.export, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape]);
     if (key === rcKey) return; rcKey = key;
     if (META.kind === 'remotion' && !cur) {
       box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>Pas encore d'export</b><span class="muted">${esc(kindLabel())}</span></div>
         <div class="sub2">Tu relis le code en direct : la composition ${esc(META.composition ?? '')}, ${CW}×${CH} à ${String(FPS).replace('.', ',')} i/s. L'agent corrige le code, et l'aperçu se recharge seul à chaque enregistrement.</div>
-        <div class="sub2 muted">${META.exportDir ? `Quand l'export arrivera dans ${esc(META.exportDir)}, Coulisses le chargera tout seul, et tu pourras comparer.` : 'Le fichier .coulisses ne dit pas où arrive l\'export.'}</div></div>`;
+        <div class="sub2 muted">${META.exportDir ? `Quand l'export arrivera dans ${esc(META.exportDir)}, Coulisses le chargera tout seul, et tu pourras comparer.` : 'Le fichier .coulisses ne dit pas où arrive l\'export.'}</div>${exportBlock()}</div>`;
+      wireExport();
       return;
     }
     const where = META.kind === 'run' ? `Quand une nouvelle version arrive${META.exportDir ? ` dans ${esc(META.exportDir)}` : ''}, le studio la charge tout seul, sur la même image.`
@@ -1459,8 +1460,43 @@
     box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>Vidéo revue</b><span class="muted">${esc(kindLabel())}</span></div>
       <div class="sub2">${cur ? `${esc(cur.name)} · exportée le ${dayTime(cur.mtime)} · ${CW}×${CH} · ${String(FPS).replace('.', ',')} i/s` : 'aucune vidéo'}</div>
       <div class="sub2 muted">${where} ${META.kind === 'run' ? 'L\'agent corrige dans le projet, puis la nouvelle version est rendue ou exportée comme d\'habitude pour cette chaîne.' : 'L\'agent corrige dans le projet, et c\'est toi qui exportes.'}</div>
-      ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}Comparer avant / après (${STATUS.compare.length})</button></div>` : ''}</div>`;
+      ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}Comparer avant / après (${STATUS.compare.length})</button></div>` : ''}${exportBlock()}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
+    wireExport();
+  }
+  // « Exporter » a run of a Remotion pipeline (lib/export.mjs): the project's own export script, on the user's order only
+  function exportBlock() {
+    if (META.kind !== 'remotion') return '';
+    const X = STATUS.export;
+    if (!META.features?.export) return `<div class="sub2 muted">Export depuis Coulisses : ${esc(META.exportWhy ?? 'indisponible')}.</div>`;
+    if (X?.state === 'running') {
+      return `<div class="sub2"><b>Export en cours</b>, lancé le ${dayTime(X.started)}. Tu peux fermer Coulisses : il continue.</div>
+        <div class="rbar"><i style="width:${Math.round(X.pct ?? 0)}%"></i></div>
+        <div class="num2"><span id="exNum">${X.pct != null ? `${Math.round(X.pct)} %` : 'préparation…'}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
+        <div class="acts"><button class="soft danger" id="exStop">${ic('x')}Arrêter l'export</button><button class="soft" id="exLog">Voir le journal</button></div>`;
+    }
+    const last = !X ? '' : X.state === 'done' ? `<div class="ok2"><b>Export terminé</b> le ${dayTime(X.ended)} : ${esc(X.file ?? '')}</div>`
+      : X.state === 'failed' ? `<div class="err">Export en échec${X.error ? ` : ${esc(X.error)}` : ''}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">Export arrêté le ${dayTime(X.ended)}.</div>` : '';
+    return `${last}<div class="acts"><button class="primary" id="exGo">${ic('film')}Exporter la vidéo</button>${X ? '<button class="soft" id="exLog">Voir le journal</button>' : ''}</div>`;
+  }
+  function wireExport() {
+    $('#exGo')?.addEventListener('click', startExportUI);
+    $('#exStop')?.addEventListener('click', stopExportUI);
+    $('#exLog')?.addEventListener('click', showExportLog);
+  }
+  async function startExportUI() {
+    if (!confirm(`Lancer l'export de « ${META.title} » ?\n\nLe projet fait son rendu final${META.exportDir ? ` dans ${META.exportDir}` : ''}. Cela peut être long ; tu peux fermer Coulisses, l'export continue.`)) return;
+    const r = await postJson('/api/export');
+    setSave(r?.ok ? 'Export lancé : l\'avancement s\'affiche dans « Envois »' : `Export impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
+  }
+  async function stopExportUI() {
+    if (!confirm('Arrêter l\'export ? Le fichier en cours est abandonné ; la vidéo actuelle ne change pas.')) return;
+    const r = await postJson('/api/export/stop');
+    setSave(r?.ok ? 'Export arrêté' : `Arrêt impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
+  }
+  async function showExportLog() {
+    let t = ''; try { t = await (await fetch('/api/export/log', { cache: 'no-store' })).text(); } catch { /* */ }
+    showModal('Journal de l\'export', 'Les dernières lignes du script d\'export du projet (les lignes d\'avancement sont omises).', t || '(vide)', 'Le journal complet est dans revue\\export.log.');
   }
   const kindLabel = () => (META.kind === 'run' ? `${META.channel || 'Run'} · vidéo exportée` : META.kind === 'remotion' ? `${META.channel || 'Projet Remotion'}${META.features?.video ? '' : ' · code en direct'}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : 'film long') : ''}` : META.kind === 'video' ? 'vidéo' : 'dossier de vidéos');
   function renderRender() {
