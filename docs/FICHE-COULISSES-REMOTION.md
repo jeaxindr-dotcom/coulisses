@@ -127,7 +127,7 @@ node "<CLI>" projet verifier "<…>.coulisses"         → « PROJET CONFORME »
 
 ## En attendant Remotion : le `.coulisses` « vidéo »
 
-Un pipeline qui n'est pas encore en Remotion (HyperFrames, Resolve, Unreal…) crée **quand même** son `.coulisses` au début du run (décision de l'utilisateur du 07/10/2026). Coulisses ouvre alors le run **sur sa vidéo**, dès qu'un rendu arrive, avec la timeline que le pipeline écrit. Les notes vont déjà dans `<run>\revue\`.
+Coulisses sait aussi ouvrir un run qui n'est pas en Remotion. **Aucun plugin ne s'en sert** : l'utilisateur a choisi le 07/10/2026 de faire passer L'AItelier, Vidéo du monde et 宇宙ちゃん sous Remotion (réécriture en React), le `.coulisses` se créant au moment où l'agent commence à coder le montage. Cette variante reste disponible pour un cas ponctuel. Coulisses ouvre alors le run **sur sa vidéo**, dès qu'un rendu arrive, avec la timeline que le pipeline écrit. Les notes vont déjà dans `<run>\revue\`.
 
 ```
 node "<CLI>" projet creer --moteur video --dossier "<run>" --nom <slug> --titre "<titre ou slug>" --chaine "<chaîne>" --format 16:9
@@ -144,21 +144,18 @@ node "<CLI>" projet creer --moteur video --dossier "<run>" --nom <slug> --titre 
 
 ## Par chaîne
 
-**Depuis le 07/10/2026, les trois plugins créent leur `.coulisses` « vidéo »** (branche git `coulisses` de chaque plugin, appliquée après accord de l'utilisateur) :
-- **L'AItelier** : `scripts\new-run.mjs` crée `<RUN_ROOT>\<slug>.coulisses` juste après `run.json` (rendus : `07-renders`, `07-export`, le dossier de livraison ; timeline : `08-montage\plan-montage.json`). Ses messages vont sur stderr : stdout ne porte que `<RUN_ROOT>`.
-- **Vidéo du monde** : `toolkit/new-project.sh` crée `projects\<slug>\<slug>.coulisses` (rendus : `07-publish`, `06-video\renders`, en 1080p ou 2160p) ; `toolkit/finalize.sh` écrit la timeline (`toolkit/coulisses-timeline.cjs` : chapitres, beats, scènes 3D) et le titre de livraison avant le rendu.
-- **宇宙ちゃん** : `toolkit/new_episode.cjs` et `toolkit/new_long.cjs` créent `<run>\<id>.coulisses` (rendus `…_test`, `…_final`, `…_revision_1080p` à la racine du run) ; `toolkit/coulisses_timeline.cjs` écrit la timeline (beats, médias, voix ; chapitres pour un long), lancé par `render_long.sh` ou après le rendu d'un Short.
+**Décision du 07/10/2026** : L'AItelier (Short et long), Vidéo du monde et 宇宙ちゃん (Short et long) passent sous Remotion, en réécrivant leur montage en React. Le `.coulisses` se crée **quand l'agent commence à coder le montage** du run. Les chaînes musicales ne sont pas concernées.
 
-Pour aller plus loin, **le passage à Remotion**, chaîne par chaîne :
+Le passage à Remotion, chaîne par chaîne :
 
 - **L'AItelier** (`C:\Users\owner\Desktop\Claude Plugin\laitelier-studio`, copie de production) :
   - `08-montage\plan-montage.json` contient déjà tout le montage (V1, V2, V3, A1-A3, chapitres, plages du cadre) : c'est la donnée de la composition.
   - Les calques de `10-overlays\*.mov` sont en `qtrle` : il faut les convertir.
-  - `scripts\new-run.mjs` crée déjà le `.coulisses` « vidéo » : le passage à Remotion y ajoute `--projet` et `--composition`. **L'utilisateur veut voir la modification avant qu'elle soit faite.**
+  - le `.coulisses` se crée au début du montage codé (`projet creer` avec `--projet` et `--composition`). **L'utilisateur veut voir la modification avant qu'elle soit faite.**
   - La règle « l'humain exporte depuis Resolve » devient « rendu Remotion sur ordre de l'utilisateur ».
 - **Vidéo du monde** (`C:\Users\owner\.agents\plugins\plugins\video-du-monde-studio`) et **Uchu-chan** (`C:\Users\owner\.claude\skills\uchuchan-short`) :
-  - compositions HyperFrames rendues par la CLI `hyperframes` (pas de Resolve) ; leurs scripts de début de run créent déjà le `.coulisses` « vidéo » ;
-  - le passage à Remotion y ajoute `--projet` et `--composition` (même `--nom`) ;
+  - compositions HyperFrames rendues par la CLI `hyperframes` (pas de Resolve), à réécrire en composants React ;
+  - le `.coulisses` se crée au début du montage codé (`projet creer` avec `--projet` et `--composition`) ;
   - **montrer d'abord la modification à l'utilisateur**.
 
 ## L'exemple qui marche
