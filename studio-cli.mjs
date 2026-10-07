@@ -32,7 +32,7 @@ import { checkUpdates, updatesLine, updatesMarkdown } from './lib/updates.mjs';
 import { detectAgent, agentById } from './lib/agent.mjs';
 
 const argv = process.argv.slice(2);
-const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur']);
+const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
 const pos = []; const flags = {};
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -62,12 +62,14 @@ if (cmd === 'projet') {
     process.exit(0);
   }
   if (epArg === 'verifier') {
-    const file = rest[0]; if (!file) die('usage: node studio-cli.mjs projet verifier "<fichier.coulisses>" [--rapide]');
-    const r = await checkProject(file, { quick: !!flags['--rapide'], log: (m) => console.error(`… ${m}`) });
+    const file = rest[0]; if (!file) die('usage: node studio-cli.mjs projet verifier "<fichier.coulisses>" [--rapide] [--images 1700,8000]');
+    const frames = flag('--images') ? String(flag('--images')).split(/[,; ]+/).filter(Boolean).map(Number) : null;
+    if (frames && frames.some((f) => !Number.isFinite(f) || f < 0)) die('--images : des numéros d\'image séparés par des virgules (ex. --images 1700,8000)');
+    const r = await checkProject(file, { quick: !!flags['--rapide'], frames, log: (m) => console.error(`… ${m}`) });
     for (const x of r.ok) console.log(`  ok   ${x}`);
     for (const x of r.warnings) console.log(`  !    ${x}`);
     for (const x of r.errors) console.log(`  ÉCHEC ${x}`);
-    console.log(r.errors.length ? `\nPROJET NON CONFORME : ${r.errors.length} problème(s) à corriger, puis relancer cette commande.` : r.video ? '\nPROJET CONFORME : Coulisses l\'ouvrira sur la vidéo du run dès le premier export (un double-clic sur le fichier .coulisses).' : `\nPROJET CONFORME : Coulisses peut l'ouvrir et le rejouer avant tout export.${r.image ? ` Regarder l'image de vérification : "${r.image}".` : ''}`);
+    console.log(r.errors.length ? `\nPROJET NON CONFORME : ${r.errors.length} problème(s) à corriger, puis relancer cette commande.` : r.video ? '\nPROJET CONFORME : Coulisses l\'ouvrira sur la vidéo du run dès le premier export (un double-clic sur le fichier .coulisses).' : `\nPROJET CONFORME : Coulisses peut l'ouvrir et le rejouer avant tout export.${r.images?.length > 1 ? ` Regarder les images de vérification : ${r.images.map((x) => `"${x}"`).join(', ')}.` : r.image ? ` Regarder l'image de vérification : "${r.image}".` : ''}`);
     process.exit(r.errors.length ? 1 : 0);
   }
   die('usage: node studio-cli.mjs projet creer --depuis <spec.json> | --dossier … --titre … (--projet … --composition … | --moteur video [--export … --motif … --plan …])   ·   projet verifier "<fichier.coulisses>"');

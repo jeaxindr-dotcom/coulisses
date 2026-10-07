@@ -94,7 +94,7 @@ node "<CLI>" projet verifier "<…>.coulisses"         → « PROJET CONFORME »
   - compile l'aperçu comme Coulisses ;
   - fait rendre une image par Remotion, l'image de vérification, dans `<run>\revue\images\`. **La regarder.**
 
-  `--rapide` saute ce rendu.
+  `--rapide` saute ce rendu. `--images 1700,8000` rend les images choisies au lieu de celle du milieu (utile quand le milieu tombe dans une vidéo plein cadre).
 - **`<CLI>`** est la commande de Coulisses. C'est `C:\Users\owner\AppData\Local\Programs\Coulisses\studio-cli.mjs`, et le chemin exact est rappelé dans chaque lot `.md`. Un double-clic sur un `.coulisses` ouvre le run dans Coulisses.
 - **Les notes de l'utilisateur** vont dans `<run>\revue\` (`notes.json`, `lots\`…). Le protocole de l'agent est `AGENT.md`, à côté de `studio-cli.mjs` : les commandes prennent le chemin `"<run>\revue"` à la place de « E03 ».
 
@@ -114,6 +114,7 @@ node "<CLI>" projet verifier "<…>.coulisses"         → « PROJET CONFORME »
 - **Skills officiels conseillés** : `npx skills add remotion-dev/skills -g` (`remotion-best-practices`, `remotion-upgrade`…).
 - **Rendu** :
   - `npx remotion render src/index.ts <composition> "<run>\07-renders\master.mp4" --props=<fichier.json> --browser-executable="C:/Program Files/Google/Chrome/Application/chrome.exe" --gl=angle`, puis la finition sonore habituelle de la chaîne (loudnorm) ;
+  - **sur ce PC, si `public\` contient une jonction** (`mklink /J` vers les médias d'un run), cette forme échoue (`EPERM symlink`) : Remotion recopie `public\` dans son paquet et recrée les jonctions en liens symboliques, interdits sans le mode développeur. Il faut alors préparer le paquet soi-même, avec un dossier `public` vide, puis faire de `<paquet>\public` une jonction vers le `public\` du projet, et rendre depuis ce paquet (`npx remotion render <paquet> <composition> …`). C'est ce que font Coulisses pour ses images et les scripts `bundle.mjs` / `prepare-stills.cjs` des projets de L'AItelier et de Vidéo du monde. Avant de refaire le paquet, retirer la jonction par `cmd /c rmdir "<paquet>\public"`, jamais par une suppression récursive ;
   - **seulement sur ordre de l'utilisateur**, une fois la revue faite dans Coulisses ;
   - l'export doit arriver dans le dossier `export` du `.coulisses`. Coulisses le charge seul, et propose « Comparer avant / après ».
 
