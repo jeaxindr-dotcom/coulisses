@@ -119,6 +119,25 @@ node "<CLI>" projet verifier "<…>.coulisses"         → « PROJET CONFORME »
   - **seulement sur ordre de l'utilisateur**, une fois la revue faite dans Coulisses ;
   - l'export doit arriver dans le dossier `export` du `.coulisses`. Coulisses le charge seul, et propose « Comparer avant / après ».
 
+## Le script d'export : ce que Coulisses lance quand l'utilisateur clique « Exporter »
+
+Le projet Remotion de la chaîne fournit **`scripts\coulisses-rendu.mjs`**. Coulisses le lance depuis le dossier du projet, quand l'utilisateur le demande, jamais seul :
+
+```
+node scripts/coulisses-rendu.mjs --composition <id> --props "<props.json>" --dossier "<dossier export du .coulisses>" --titre "<titre>"
+```
+
+Le script :
+- **prépare le paquet** sans casser les jonctions de `public\` (voir plus haut), avec `--browser-executable="C:/Program Files/Google/Chrome/Application/chrome.exe" --gl=angle` ;
+- **rend puis finit** comme la chaîne le fait : volume, 4K, assemblage des morceaux… ;
+- **choisit le nom** du fichier final selon les habitudes de la chaîne (`master.mp4`, `<Nom>-1080p.mp4`, `shortNN_4k_final.mp4`…) ;
+- **écrit d'abord dans un fichier `….tmp.mp4`**, puis le renomme à la fin : Coulisses ne charge jamais un fichier en cours d'écriture ;
+- **affiche son avancement** sur la sortie standard, une ligne par étape ou par pour cent : `COULISSES PROGRES <0-100> <étape>` (ex. `COULISSES PROGRES 42 rendu`), et finit par **`COULISSES FIN "<chemin du fichier final>"`** ;
+- **sort avec le code 0** s'il a réussi, sinon avec un autre code et l'erreur sur la sortie d'erreur ;
+- **peut être arrêté à tout moment** : Coulisses arrête alors le processus et ses enfants. Il ne reste qu'un `….tmp.mp4`, jamais un faux fichier final.
+
+Le `.coulisses` doit avoir un dossier `export`, sinon Coulisses ne propose pas l'export.
+
 ## Comment migrer sans tout refaire d'un coup
 
 1. **D'abord le montage**. Le montage Resolve devient une composition Remotion : une `<Sequence>` par clip, une piste par calque.
