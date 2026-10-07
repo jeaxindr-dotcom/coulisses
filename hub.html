@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coulisses</title>
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Coulisses (formerly « Brambleshire Studio ») — home screen of the app: the episodes and the imported projects, open one in the review studio
+     (same « glass » design). « Importer un projet… » works like DaVinci Resolve's Project Manager: a folder (an AItelier
+     run, a folder of videos) or a video file joins the list; removing it from the list deletes nothing. -->
+<style>
+  :root {
+    --s12: #f4f5fa; --s11: #aeb2c4; --s9: #6f748a; --stroke: rgba(255,255,255,.075); --stroke-2: rgba(255,255,255,.14);
+    --lime: #c9f26b; --mint: #6fe7c8; --violet: #b49cff; --sky: #8fcdff; --coral: #ff8f7e; --amber: #ffd27f;
+    --grad-lime: linear-gradient(135deg, #dcf77a 0%, #9dee9a 48%, #6fe2c9 100%);
+    --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; --font-d: "Outfit", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; color: var(--s12); font: 13.5px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  body { background:
+      radial-gradient(900px 620px at 8% -8%, rgba(140,110,255,.30), transparent 62%),
+      radial-gradient(760px 560px at 102% 12%, rgba(90,210,255,.16), transparent 60%),
+      radial-gradient(900px 640px at 70% 118%, rgba(110,231,200,.18), transparent 60%),
+      radial-gradient(700px 500px at -6% 96%, rgba(247,168,207,.12), transparent 60%), #090b12; background-attachment: fixed; }
+  header { display: flex; align-items: center; gap: 14px; padding: 26px 40px 6px; }
+  .logo { width: 44px; height: 44px; border-radius: 14px; background: var(--grad-lime); display: grid; place-items: center; color: #10140a; font: 700 22px var(--font-d); box-shadow: 0 10px 28px rgba(150,230,140,.28); }
+  h1 { margin: 0; font: 600 26px var(--font-d); letter-spacing: .005em; }
+  .sub { color: var(--s9); font-size: 13px; }
+  header .grow { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(24,27,40,.58); backdrop-filter: blur(20px); border: 1px solid var(--stroke); color: var(--s11); font: 500 12.5px var(--font-d); }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px var(--lime); }
+  main { padding: 18px 40px 50px; }
+  h2 { font: 600 15px var(--font-d); color: var(--s11); margin: 8px 4px 16px; letter-spacing: .02em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  .card { position: relative; border-radius: 24px; overflow: hidden; background: rgba(24,27,40,.58); backdrop-filter: blur(26px) saturate(160%); border: 1px solid var(--stroke);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 24px 60px rgba(0,0,0,.35); cursor: pointer; transition: transform .18s, border-color .18s, box-shadow .18s; }
+  .card:hover { transform: translateY(-3px); border-color: rgba(201,242,107,.45); box-shadow: 0 0 0 4px rgba(201,242,107,.06), 0 30px 70px rgba(0,0,0,.45); }
+  .card.off { cursor: default; opacity: .55; } .card.off:hover { transform: none; border-color: var(--stroke); }
+  .thumb { aspect-ratio: 16 / 9; background: #000 center / cover no-repeat; position: relative; }
+  .thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(9,11,18,.75)); }
+  .id { position: absolute; left: 14px; top: 14px; z-index: 1; height: 26px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; background: rgba(9,11,18,.6); backdrop-filter: blur(10px); font: 600 12px var(--font-d); border: 1px solid var(--stroke-2); }
+  .live { position: absolute; right: 14px; top: 14px; z-index: 1; height: 26px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; background: var(--lime); color: #10140a; font: 600 11.5px var(--font-d); }
+  .body { padding: 16px 18px 18px; }
+  .title { font: 600 19px var(--font-d); margin: 0 0 4px; }
+  .meta { color: var(--s9); font-size: 12.5px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .chip { height: 24px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font: 600 11.5px var(--font-d); background: rgba(255,255,255,.08); color: var(--s11); }
+  .chip.open { background: rgba(255,143,126,.15); color: var(--coral); }
+  .chip.ok { background: rgba(111,231,200,.14); color: var(--mint); }
+  .chip.draft { background: rgba(180,156,255,.16); color: #c9bdff; }
+  .chip.render { background: var(--grad-lime); color: #10140a; }
+  .chip.renderbad { background: rgba(255,143,126,.15); color: var(--coral); }
+  .row { display: flex; align-items: center; margin-top: 16px; gap: 10px; }
+  .row .grow { flex: 1; }
+  button { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--grad-lime); color: #10140a; font: 600 13.5px var(--font-d); cursor: pointer; box-shadow: 0 10px 28px rgba(150,230,140,.22); }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .6; cursor: default; }
+  .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(16,20,10,.25); border-top-color: #10140a; animation: r .8s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .err { color: var(--coral); font-size: 12.5px; margin-top: 10px; white-space: pre-wrap; }
+  .empty { color: var(--s9); padding: 60px 0; text-align: center; }
+  footer { color: var(--s9); font-size: 12px; padding: 0 44px 30px; }
+  h2 { display: flex; align-items: center; gap: 10px; }
+  h2 .n { font: 600 11px var(--font-d); color: var(--s9); }
+  section + section { margin-top: 34px; }
+  .kind { position: absolute; left: 14px; bottom: 12px; z-index: 1; height: 24px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; background: rgba(9,11,18,.62); backdrop-filter: blur(10px); font: 600 11px var(--font-d); color: var(--sky); border: 1px solid var(--stroke-2); }
+  .card .more { height: 32px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--s11); box-shadow: none; font: 500 12px var(--font-d); border: 1px solid var(--stroke); }
+  .card .more:hover { color: var(--coral); border-color: rgba(255,143,126,.35); background: rgba(255,143,126,.1); filter: none; }
+  .card .body { position: relative; }
+  .imp { border: 1.5px dashed rgba(201,242,107,.35); background: rgba(24,27,40,.35); cursor: default; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 26px 22px; min-height: 300px; gap: 10px; }
+  .imp:hover { transform: none; border-color: rgba(201,242,107,.6); }
+  .imp .plus { width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center; background: var(--grad-lime); color: #10140a; font: 600 30px/1 var(--font-d); box-shadow: 0 12px 30px rgba(150,230,140,.25); }
+  .imp .t { font: 600 18px var(--font-d); }
+  .imp .d { color: var(--s9); font-size: 12.5px; max-width: 300px; }
+  .imp .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+  .imp .btns button.soft { background: rgba(255,255,255,.08); color: var(--s12); box-shadow: none; border: 1px solid var(--stroke-2); }
+  .imp .paste { display: none; gap: 6px; width: 100%; margin-top: 4px; }
+  .imp.pasting .paste { display: flex; }
+  .imp .paste input { flex: 1; min-width: 0; height: 38px; border-radius: 999px; border: 1px solid var(--stroke-2); background: rgba(0,0,0,.3); color: var(--s12); padding: 0 14px; font: 12.5px var(--font); }
+  .imp a { color: var(--s9); font-size: 12px; cursor: pointer; text-decoration: underline dotted; }
+  .imp .err { max-width: 320px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">C</span>
+  <div><h1>Coulisses</h1><div class="sub">Revue vidéo · annoter, envoyer à l'agent, corriger</div></div>
+  <span class="grow"></span>
+  <span class="pill" id="where"><span class="dot"></span>Pipeline</span>
+</header>
+<main>
+  <section><h2>Brambleshire Theatre</h2>
+  <div class="grid" id="grid"><div class="empty">Chargement…</div></div></section>
+  <section><h2>Projets importés <span class="n" id="nproj"></span></h2>
+  <div class="grid" id="pgrid"></div></section>
+</main>
+<footer id="foot"></footer>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const dur = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '');
+  const day = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+  let busy = null, last = '';
+  const KIND = { aitelier: 'AItelier', folder: 'Dossier', video: 'Vidéo', remotion: 'Remotion' };
+  // a run of a Remotion pipeline (.coulisses) opens on its code, before any export
+  const openable = (e) => !e.missing && (!!e.video || e.kind === 'remotion');
+  const kindOf = (e) => (e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : ' · code en direct'}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : 'long') : ''}` : KIND[e.kind] ?? 'Projet');
+  function chipsOf(e) {
+    const R = e.render;
+    return [
+      R ? (R.state === 'running' ? `<span class="chip render">${R.pct != null ? `Rendu ${R.pct} %` : R.phase === 'checks' ? 'Rendu : contrôles' : R.phase === 'finish' ? 'Rendu : finition' : 'Rendu : préparation'}</span>`
+        : R.state === 'rendered' ? '<span class="chip render">Nouvelle vidéo prête</span>' : `<span class="chip renderbad">${R.state === 'blocked' ? 'Rendu bloqué' : 'Rendu en échec'}</span>`) : '',
+      e.notes ? `<span class="chip">${e.notes} note${e.notes > 1 ? 's' : ''}</span>` : '',
+      e.open ? `<span class="chip open">${e.open} à corriger</span>` : (e.notes ? '<span class="chip ok">tout corrigé</span>' : ''),
+      e.drafts ? `<span class="chip draft">${e.drafts} en attente</span>` : '',
+      e.lots ? `<span class="chip">${e.lots} lot${e.lots > 1 ? 's' : ''}</span>` : '',
+    ].join('');
+  }
+  function card(e) {
+    const c = document.createElement('div'); c.className = 'card' + (openable(e) ? '' : ' off'); c.dataset.id = e.id;
+    const what = e.project ? (e.video ? `exporté le ${esc(day(e.video.mtime))}` : e.missing ? 'dossier introuvable' : e.kind === 'remotion' ? 'pas encore exporté · relecture du code' : 'pas encore de vidéo') : (e.video ? `rendu du ${esc(day(e.video.mtime))}` : 'pas encore rendu');
+    c.innerHTML = `<div class="thumb" style="${e.thumb ? `background-image:url('/thumb/${e.id}?v=${encodeURIComponent(e.video?.mtime ?? '')}')` : ''}"><span class="id">${esc(e.project ? (e.missing ? 'introuvable' : 'Projet') : e.id)}</span>${e.studio && !e.studio.paused ? '<span class="live">ouvert</span>' : ''}${e.project && !e.missing ? `<span class="kind">${esc(kindOf(e))}</span>` : ''}</div>
+      <div class="body"><div class="title">${esc(e.title)}</div>
+        <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? `revu le ${esc(day(e.reviewed))}` : ''].filter(Boolean).join(' · ')}</div>
+        ${e.project ? `<div class="meta" title="${esc(e.root ?? e.revue)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.root ?? e.why ?? '')}</div>` : ''}
+        <div class="chips">${chipsOf(e)}</div>
+        <div class="row">${e.project ? '<button class="more" title="Retirer ce projet de la liste (rien n\'est supprimé)">Retirer</button>' : ''}<span class="grow"></span><button class="open" ${openable(e) ? '' : 'disabled'}>Ouvrir le studio</button></div>
+        <div class="err"></div></div>`;
+    c.addEventListener('click', (ev) => { if (!ev.target.closest('.more')) openEp(e, c); });
+    c.querySelector('.more')?.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Retirer « ${e.title} » de la liste ?\n\nRien n'est supprimé : la vidéo et les notes restent dans\n${e.revue}\n\nTu pourras le réimporter quand tu veux.`)) return;
+      await fetch('/api/remove?ep=' + e.id, { method: 'POST' }); last = ''; load(true);
+    });
+    return c;
+  }
+  // « Importer un projet » : the Windows dialog (a folder, or a video), or a pasted path
+  function importCard() {
+    const c = document.createElement('div'); c.className = 'card imp';
+    c.innerHTML = `<div class="plus">+</div><div class="t">Importer un projet</div>
+      <div class="d">Un run de L'AItelier, un dossier de vidéos, ou une seule vidéo. Ses notes vont dans son dossier, sous revue\\.</div>
+      <div class="btns"><button id="impFolder">Un dossier…</button><button class="soft" id="impVideo">Une vidéo…</button></div>
+      <a id="impPaste">ou colle un chemin</a>
+      <div class="paste"><input id="impPath" placeholder="C:\\…\\dossier du projet ou vidéo.mp4" spellcheck="false"><button id="impGo">Importer</button></div>
+      <div class="err" id="impErr"></div>`;
+    const err = (m) => { c.querySelector('#impErr').textContent = m || ''; };
+    const doImport = async (p) => {
+      err('');
+      const r = await (await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: p }) })).json().catch(() => null);
+      if (!r?.ok) { err(r?.why ?? 'import impossible'); return; }
+      last = ''; await load(true);
+      const el = document.querySelector(`.card[data-id="${r.project.id}"]`); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.animate([{ boxShadow: '0 0 0 4px rgba(201,242,107,.5)' }, { boxShadow: '0 0 0 0 rgba(201,242,107,0)' }], { duration: 1600 });
+    };
+    const pickAnd = async (what, b) => {
+      err(''); const t = b.textContent; b.disabled = true; b.innerHTML = '<span class="spin"></span>Fenêtre ouverte…';
+      try {
+        const r = await (await fetch('/api/import/pick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ what }) })).json();
+        if (r.ok) await doImport(r.path); else if (!r.cancelled) err(r.why ?? 'la fenêtre ne s\'est pas ouverte : colle le chemin');
+      } catch { err('la fenêtre ne s\'est pas ouverte : colle le chemin'); }
+      b.disabled = false; b.textContent = t;
+    };
+    c.querySelector('#impFolder').onclick = (e) => pickAnd('folder', e.currentTarget);
+    c.querySelector('#impVideo').onclick = (e) => pickAnd('video', e.currentTarget);
+    c.querySelector('#impPaste').onclick = () => { c.classList.add('pasting'); c.querySelector('#impPath').focus(); };
+    const go = () => { const v = c.querySelector('#impPath').value.trim(); if (v) doImport(v); };
+    c.querySelector('#impGo').onclick = go;
+    c.querySelector('#impPath').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    return c;
+  }
+  async function openEp(e, card) {
+    if (busy || !openable(e)) return;
+    busy = e.id;
+    const b = card.querySelector('button.open'); b.disabled = true; b.innerHTML = '<span class="spin"></span>Ouverture…';
+    try {
+      const r = await (await fetch('/api/open?ep=' + e.id, { method: 'POST' })).json();
+      if (!r.ok) throw new Error(r.why || 'erreur');
+      location.href = r.url;
+    } catch (err) { busy = null; b.disabled = false; b.textContent = 'Réessayer'; card.querySelector('.err').textContent = err.message; }
+  }
+  let timer = null, impCard = null;
+  async function load(once) {
+    try {
+      const r = await (await fetch('/api/episodes', { cache: 'no-store' })).json();
+      const sig = JSON.stringify(r);
+      if (sig !== last) {
+        last = sig;
+        $('#where').innerHTML = `<span class="dot"></span>${r.installed ? 'Pipeline Brambleshire' : 'Atelier · bac à sable'}`;
+        $('#foot').textContent = r.episodesDir;
+        const pg = $('#pgrid'), keep = document.activeElement?.closest?.('.imp');
+        impCard ??= importCard();
+        [...pg.children].forEach((x) => { if (x !== impCard) x.remove(); });
+        if (!pg.contains(impCard)) pg.appendChild(impCard);
+        for (const p of r.projects ?? []) pg.insertBefore(card(p), impCard);
+        $('#nproj').textContent = r.projects?.length ? String(r.projects.length) : '';
+        if (keep) keep.querySelector('input')?.focus();
+        const grid = $('#grid'); grid.innerHTML = '';
+        if (!r.episodes.length) grid.innerHTML = '<div class="empty">Aucun épisode trouvé.</div>';
+        for (const e of r.episodes) {
+          grid.appendChild(card(e));
+        }
+      }
+    } catch { /* the hub restarts: retried */ }
+    if (!once) { clearTimeout(timer); timer = setTimeout(load, 5000); }
+  }
+  load();
+})();
+</script>
+</body>
+</html>

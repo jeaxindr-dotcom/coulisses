@@ -1,0 +1,223 @@
+// Coulisses (formerly « Brambleshire Studio ») — the home screen of the app (« Coulisses.exe »): lists the episodes, opens the review
+// studio of one of them (a studio-server.mjs child process per episode), pauses / resumes a studio around a render.
+// Started by the launcher (hidden, no console); also usable by hand: node hub-server.mjs [--episode E03] [--port N]
+//   GET  /                 the home screen (hub.html)
+//   GET  /go/E03           starts (or reuses) the studio of E03, then redirects the window to it
+//   GET  /api/episodes     the episodes (title, render, thumbnail, notes, batches) and the imported projects
+//   POST /api/import {path} imports a project (lib/projects.mjs: an AItelier run, a folder of videos, a video file)
+//   POST /api/import/pick {what: 'folder'|'video'}  the Windows file dialog (« Coulisses.exe --pick »)
+//   POST /api/remove?ep=P…  removes an imported project from the list (nothing is deleted)
+//   GET  /import?path=…    import then open (a folder or a video dropped on the app's icon)
+//   GET  /api/ping         { hub: true, studios }
+//   POST /api/open?ep=E03  { url }      POST /api/pause?ep=E03 (stops its server: the video can be replaced by a render)
+//   POST /api/resume?ep=E03             POST /api/quit (stops everything)
+// Port: 4170 (installed in the pipeline) or 4171 (Dev workshop), the next one if taken. --lock <file> = where the launcher
+// waits for { pid, port } (written once listening). The Dev workshop lists its sandbox episodes, not the real ones.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn, execFile } from 'node:child_process';
+import { optionsFrom, readJson, stamp } from './lib/episode.mjs';
+import { STUDIO, INSTALLED, CACHE } from './lib/place.mjs';
+import { ffmpeg } from './lib/frames.mjs';
+import { renderState } from './lib/render.mjs';
+import { registry, importProject, removeProject, project, revueOf } from './lib/projects.mjs';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+
+let args = process.argv.slice(2);
+const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
+const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes');
+if (!INSTALLED && !args.includes('--episodes') && fs.existsSync(SANDBOX)) args = [...args, '--episodes', SANDBOX];
+const O = optionsFrom(args);
+const PASS = ['--theatre', '--episodes', '--remotion'].flatMap((k) => (opt(k) ? [k, opt(k)] : []));   // given to every studio
+const LOGS = path.join(CACHE, 'logs'); fs.mkdirSync(LOGS, { recursive: true });
+const logFile = fs.createWriteStream(path.join(LOGS, 'hub.log'), { flags: 'a' });
+const log = (m) => { const line = `${new Date().toLocaleString()}  ${m}`; logFile.write(line + '\n'); console.log(line); };
+process.on('uncaughtException', (e) => log(`erreur ignorée : ${e.stack || e.message}`));
+
+// ---------- episodes and imported projects ----------
+// ids: E03 (an episode), P1a2b3c4d (an imported project, lib/projects.mjs)
+const normId = (x) => { const v = String(x ?? '').trim(); return /^E\d+$/i.test(v) ? v.toUpperCase() : /^P[0-9a-f]{8}$/i.test(v) ? 'P' + v.slice(1).toLowerCase() : null; };
+function reviewStats(revue) {
+  const notes = readJson(path.join(revue, 'notes.json'), { notes: [] }).notes ?? [];
+  const replies = readJson(path.join(revue, 'replies.json'), { notes: {} }).notes ?? {};
+  const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return (r?.status && ct > ut ? r.status : n.status) === 'done'; };
+  const lots = fs.existsSync(path.join(revue, 'lots')) ? fs.readdirSync(path.join(revue, 'lots')).filter((f) => /^\d{3}\.json$/.test(f)).length : 0;
+  return { notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
+    reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null };
+}
+const durations = new Map();
+function durationOf(file, st) {
+  const key = `${file}|${st.size}|${st.mtime}`;
+  if (!durations.has(key)) {
+    const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8', windowsHide: true });
+    durations.set(key, +r.stdout.trim() || null);
+  }
+  return durations.get(key);
+}
+function projects() {
+  return registry().projects.map(({ id, revue }) => {
+    const st = studios.get(id), live = st ? { url: st.url, paused: !!st.paused } : null;
+    try {
+      const p = project(revue), v = p.summary.video;
+      return { id, project: true, kind: p.kind, channel: p.summary.channel ?? null, format: p.summary.format, title: p.title, root: p.EP, revue, video: v, thumb: !!v,
+        duration: v ? durationOf(p.summary.videoPath, v) : null, ...reviewStats(revue), studio: live };
+    } catch (e) { return { id, project: true, missing: true, revue, title: path.basename(path.dirname(revue)), why: e.message, studio: live }; }
+  });
+}
+function episodes() {
+  if (!fs.existsSync(O.episodesDir)) return [];
+  return fs.readdirSync(O.episodesDir).filter((d) => /^E\d+ - /i.test(d)).sort().map((folder) => {
+    const id = folder.split(' - ')[0].toUpperCase(), dir = path.join(O.episodesDir, folder), revue = path.join(dir, 'revue');
+    const mp4 = path.join(dir, `${folder}.mp4`), video = fs.existsSync(mp4) ? stamp(mp4) : null;
+    const notes = readJson(path.join(revue, 'notes.json'), { notes: [] }).notes ?? [];
+    const replies = readJson(path.join(revue, 'replies.json'), { notes: {} }).notes ?? {};
+    const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return (r?.status && ct > ut ? r.status : n.status) === 'done'; };
+    const snap = readJson(path.join(revue, 'timeline.json'), null);
+    const lots = fs.existsSync(path.join(revue, 'lots')) ? fs.readdirSync(path.join(revue, 'lots')).filter((f) => /^\d{3}\.json$/.test(f)).length : 0;
+    const st = studios.get(id), R = renderState({ REVUE: revue });   // a re-render asked from the studio (lib/render.mjs)
+    const render = R && (R.state === 'running' || ((R.state === 'rendered' || R.state === 'blocked' || R.state === 'failed') && Date.now() - Date.parse(R.updatedAt) < 3 * 86400e3))
+      ? { state: R.state, phase: R.phase, pct: R.render?.stage === 'frames' ? Math.floor(R.render.pct) : null } : null;
+    return {
+      render,
+      id, folder, title: folder.replace(/^E\d+ - /i, ''), video, duration: snap ? snap.frames / (snap.fps || 30) : null,
+      notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
+      thumb: fs.existsSync(path.join(dir, 'thumbnail.jpg')) || !!video, reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null,
+      studio: st ? { url: st.url, paused: !!st.paused } : null,
+    };
+  });
+}
+// a small thumbnail (the 4K thumbnail.jpg scaled, else a frame of the video), cached
+async function thumb(id) {
+  let src = null, at = 20;
+  if (id.startsWith('P')) {   // an imported project: a frame of its video, 10 % in
+    const pr = projects().find((x) => x.id === id); if (!pr?.video) return null;
+    src = project(pr.revue).summary.videoPath; at = Math.max(0.5, Math.min(20, (pr.duration ?? 20) * 0.1));
+  } else {
+    const e = episodes().find((x) => x.id === id); if (!e) return null;
+    const dir = path.join(O.episodesDir, e.folder);
+    src = fs.existsSync(path.join(dir, 'thumbnail.jpg')) ? path.join(dir, 'thumbnail.jpg') : (e.video ? path.join(dir, `${e.folder}.mp4`) : null);
+  }
+  if (!src) return null;
+  const out = path.join(CACHE, 'hub', `thumb-${id}-${Math.round(fs.statSync(src).mtimeMs)}.jpg`);
+  if (!fs.existsSync(out)) {
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    await ffmpeg([...(/\.jpe?g$/i.test(src) ? [] : ['-ss', String(at)]), '-i', src, '-frames:v', '1', '-vf', 'scale=720:-2', '-q:v', '3', out]);
+  }
+  return out;
+}
+
+// ---------- studios (one child process per episode) ----------
+const studios = new Map();   // id -> { proc, url, ready, paused }
+let hubUrl = '';
+function open(id) {
+  const cur = studios.get(id);
+  if (cur && !cur.paused && cur.proc.exitCode === null) return cur.ready;
+  if (id.startsWith('P') && !revueOf(id)) return Promise.reject(new Error('ce projet n\'est plus dans la liste'));
+  // after a pause (render), the studio comes back on ITS port: the window, still open on it, finds it again
+  const again = cur?.url ? ['--port', new URL(cur.url).port] : [];
+  const st = { proc: null, url: null, paused: false };
+  const out = fs.createWriteStream(path.join(LOGS, `${id}.log`), { flags: 'a' });
+  const proj = id.startsWith('P'), target = proj ? ['--project', revueOf(id) ?? ''] : [id];
+  st.proc = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), ...target, '--no-open', '--hub', hubUrl, ...again, ...(proj ? [] : PASS)], { cwd: STUDIO, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  st.ready = new Promise((resolve, reject) => {
+    let buf = '';
+    const timer = setTimeout(() => reject(new Error('le studio ne répond pas (voir ' + path.join(LOGS, `${id}.log`) + ')')), 60000);
+    st.proc.stdout.on('data', (d) => {
+      out.write(d); buf += d;
+      const m = /Ouvre : (http:\/\/localhost:\d+\/)/.exec(buf);
+      if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); }
+    });
+    st.proc.stderr.on('data', (d) => { out.write(d); buf += d; });
+    st.proc.on('exit', (c) => { clearTimeout(timer); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || `arrêt (${c})`)); });
+  });
+  studios.set(id, st);
+  log(`studio ${id} : démarrage`);
+  st.ready.then((u) => log(`studio ${id} : ${u}`), (e) => log(`studio ${id} : ${e.message}`));
+  return st.ready;
+}
+// the whole process tree (the studio's ffmpeg, its headless Chrome for the eyes…)
+const killTree = (pid) => new Promise((r) => execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => r()));
+async function pause(id) {
+  const st = studios.get(id); if (!st) return false;
+  st.paused = true; await killTree(st.proc.pid); log(`studio ${id} : en pause (rendu)`); return true;
+}
+async function quit() { for (const st of studios.values()) if (st.proc.exitCode === null) await killTree(st.proc.pid); log('arrêt'); process.exit(0); }
+for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, quit);
+
+// ---------- « Importer un projet… » ----------
+const APP_EXE = path.join(STUDIO, 'Coulisses.exe');
+const startDir = () => [path.join(os.homedir(), 'Desktop', 'Youtube', 'AItelier', 'long'), path.join(os.homedir(), 'Desktop', 'Youtube'), path.join(os.homedir(), 'Desktop')].find((d) => fs.existsSync(d)) ?? os.homedir();
+let picking = null;
+function pick(what) {
+  if (picking) return picking;
+  if (!fs.existsSync(APP_EXE)) return Promise.reject(new Error('Coulisses.exe introuvable : colle le chemin à la place'));
+  const out = path.join(CACHE, 'hub', `pick-${Date.now()}.txt`); fs.mkdirSync(path.dirname(out), { recursive: true });
+  picking = new Promise((resolve) => {
+    execFile(APP_EXE, ['--pick', what === 'video' ? 'video' : 'folder', out, startDir()], { windowsHide: false }, () => {
+      let p = ''; try { p = fs.readFileSync(out, 'utf8').trim(); fs.rmSync(out, { force: true }); } catch { /* cancelled */ }
+      picking = null; resolve(p || null);
+    });
+  });
+  return picking;
+}
+const readBody = (req) => new Promise((r) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch { r({}); } }); });
+function doImport(p) {
+  const r = importProject(p, { episodesDir: O.episodesDir });
+  log(r.episode ? `épisode ouvert depuis son fichier .coulisses : ${r.id}` : `projet importé : ${r.title} (${r.kind}) -> ${r.revue}`);
+  return r;
+}
+
+// ---------- http ----------
+const send = (res, code, type, body) => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-cache' }); res.end(body); };
+const json = (res, data, code = 200) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(data));
+const page = (title, msg) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">Retour à l'accueil</a></p></div>`;
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x'), pn = decodeURIComponent(url.pathname), ep = normId(url.searchParams.get('ep')) ?? '';
+  try {
+    if (pn === '/' || pn === '/index.html') return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(path.join(STUDIO, 'hub.html')));
+    if (pn === '/favicon.png') return send(res, 200, 'image/png', fs.readFileSync(path.join(STUDIO, 'favicon.png')));
+    if (pn === '/api/ping') return json(res, { hub: true, installed: INSTALLED, episodesDir: O.episodesDir, studios: Object.fromEntries([...studios].map(([k, s]) => [k, { url: s.url, paused: s.paused }])) });
+    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes(), projects: projects() });
+    if (pn.startsWith('/thumb/')) { const f = await thumb(normId(pn.slice(7)) ?? ''); if (!f) return send(res, 404, 'text/plain', 'no thumbnail'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=3600' }); return fs.createReadStream(f).pipe(res); }
+    const go = /^\/go\/(E\d+|P[0-9a-f]{8})$/i.exec(pn);
+    if (go) {
+      const id = normId(go[1]);
+      try { const u = await open(id); res.writeHead(302, { Location: u }); return res.end(); }
+      catch (e) { return send(res, 500, 'text/html; charset=utf-8', page(`Le studio de ${id} n'a pas démarré`, e.message)); }
+    }
+    if (pn === '/import') {   // a folder or a video dropped on the app's icon: import, then open it
+      try { const r = doImport(url.searchParams.get('path') ?? ''); res.writeHead(302, { Location: r.video || r.episode || r.kind === 'remotion' ? `/go/${r.id}` : '/' }); return res.end(); }
+      catch (e) { return send(res, 400, 'text/html; charset=utf-8', page('Import impossible', e.message)); }
+    }
+    if (req.method === 'POST' && pn === '/api/import/pick') { const b = await readBody(req); const p = await pick(b.what); return json(res, p ? { ok: true, path: p } : { ok: false, cancelled: true }); }
+    if (req.method === 'POST' && pn === '/api/import') {
+      const b = await readBody(req);
+      try { return json(res, { ok: true, project: doImport(b.path) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (req.method === 'POST' && pn === '/api/remove') {
+      if (!ep.startsWith('P')) return json(res, { ok: false, why: 'seuls les projets importés se retirent' }, 400);
+      const st = studios.get(ep); if (st && st.proc.exitCode === null) await killTree(st.proc.pid);
+      studios.delete(ep);
+      const ok = removeProject(ep); log(`projet retiré de la liste : ${ep}`);
+      return json(res, { ok });
+    }
+    if (req.method === 'POST' && pn === '/api/open') { if (!ep) return json(res, { ok: false, why: 'épisode ou projet ?' }, 400); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/pause') return json(res, { ok: await pause(ep) });
+    if (req.method === 'POST' && pn === '/api/resume') { const st = studios.get(ep); if (!st) return json(res, { ok: false, why: 'pas de studio ' + ep }); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/quit') { json(res, { ok: true }); return setTimeout(quit, 100); }
+    send(res, 404, 'text/plain', 'not found');
+  } catch (e) { json(res, { ok: false, why: e.message }, 500); }
+});
+let port = +(opt('--port') ?? 0) || (INSTALLED ? 4170 : 4171);
+server.on('error', (e) => { if (e.code === 'EADDRINUSE' && port < 4199) { port++; server.listen(port, '127.0.0.1'); } else { log(`impossible d'écouter : ${e.message}`); process.exit(1); } });
+server.on('listening', () => {
+  hubUrl = `http://127.0.0.1:${port}/`;
+  log(`accueil prêt : ${hubUrl} (épisodes : ${O.episodesDir})`);
+  if (opt('--lock')) fs.writeFileSync(opt('--lock'), JSON.stringify({ pid: process.pid, port, url: hubUrl, studio: STUDIO }));
+  console.log(`HUB_READY ${hubUrl}`);
+  if (opt('--episode')) open(opt('--episode').toUpperCase()).catch(() => {});
+  if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion') open(r.id).catch(() => {}); } catch (e) { log(`import impossible : ${e.message}`); } }
+});
+server.listen(port, '127.0.0.1');

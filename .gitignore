@@ -1,0 +1,5 @@
+# Coulisses : ce qui se refait ou se régénère (≈ 3 Go), hors du dépôt
+.cache/
+sandbox/
+node_modules/
+*.log
