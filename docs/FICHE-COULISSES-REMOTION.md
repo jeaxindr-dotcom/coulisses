@@ -109,6 +109,7 @@ node "<CLI>" projet verifier "<…>.coulisses"         → « PROJET CONFORME »
 - **Vidéos** : `<OffthreadVideo>`, en H.264 MP4, ou en WebM VP9 pour une vidéo avec transparence.
   - **Le QuickTime Animation (`qtrle`, les `.mov` de calques) ne se lit pas dans Chrome**. Le convertir une fois : `ffmpeg -i calque.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 30 calque.webm`.
 - **Sons** : `<Audio>` avec `volume` (constante ou fonction de l'image). La voix, la musique et les bruitages peuvent rester des fichiers pré-mixés.
+- **Identifiant de composition** : lettres, chiffres et `-` seulement. Remotion refuse le `_` : `short11_biosignature` devient `UCHU-short11-biosignature`.
 - **Polices** : `@remotion/google-fonts`, ou une police locale chargée avant le rendu (`@remotion/fonts`).
 - **Versions** : `remotion` et tous les `@remotion/*` à **la même version exacte**, sans `^`. **`@remotion/player` doit être installé**, c'est l'aperçu de Coulisses. Les montées de version se font avec `npx remotion upgrade`, puis une vérification.
 - **Skills officiels conseillés** : `npx skills add remotion-dev/skills -g` (`remotion-best-practices`, `remotion-upgrade`…).
