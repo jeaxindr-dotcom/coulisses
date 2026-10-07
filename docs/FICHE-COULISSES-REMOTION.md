@@ -138,6 +138,14 @@ Le script :
 
 Le `.coulisses` doit avoir un dossier `export`, sinon Coulisses ne propose pas l'export.
 
+**Les variantes d'export** (un bouton chacune dans Coulisses) : `node scripts/coulisses-rendu.mjs --options` affiche sur la sortie standard un tableau JSON, puis sort aussitôt, sans rien rendre :
+
+```json
+[{ "id": "test", "label": "Rendu test (1080p)" }, { "id": "final", "label": "Exporter en 4K" }]
+```
+
+Coulisses relance alors le script avec `--qualite <id>` pour la variante choisie. Le premier élément est le bouton principal. Sans `--options` (le script ne le connaît pas, ou renvoie autre chose qu'un tableau), Coulisses montre un seul bouton, « Exporter la vidéo », sans `--qualite`.
+
 ## Comment migrer sans tout refaire d'un coup
 
 1. **D'abord le montage**. Le montage Resolve devient une composition Remotion : une `<Sequence>` par clip, une piste par calque.

@@ -26,7 +26,7 @@ import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJs
 import { videoFrame, codeFrame } from './lib/frames.mjs';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
-import { exportAvailable, exportState, startExport, stopExport, exportLog } from './lib/export.mjs';
+import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions } from './lib/export.mjs';
 import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
@@ -127,7 +127,7 @@ function meta() {
   const snapshot = B ? readJson(SNAP, null) : null;
   const render = video ? stamp(video) : null, pr = probe(video);
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: B, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null,
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: B, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null, exportOptions: G && exportAvailable(P).ok ? exportOptions(P) : [],
     composition: G ? P.remotion.composition : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
@@ -302,7 +302,8 @@ const server = http.createServer(async (req, res) => {
     // ---- « Exporter » a run of a Remotion pipeline: the project's script, started here, on the user's order ----
     if (pn === '/api/export' && req.method === 'POST') {
       if (!G) return json(res, { ok: false, why: 'seul un run Remotion (.coulisses) s\'exporte depuis le studio' });
-      try { return json(res, { ok: true, ...startExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     if (pn === '/api/export/stop' && req.method === 'POST') {
       try { return json(res, { ok: true, ...stopExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }

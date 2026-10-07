@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(U + u)).json();
-const post = async (u) => (await fetch(U + u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
+const post = async (u, b = {}) => (await fetch(U + u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
 const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f)) : []);
 const frames = (f) => +execFileSync('ffprobe', ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim().replace(/,$/, '');
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
@@ -45,6 +45,7 @@ try {
   await startStudio(imp.revue);
   const meta = await get('/api/meta');
   check(meta.features.export === true && meta.exportWhy === null, 'the studio offers « Exporter » for this run');
+  check(meta.exportOptions?.map((o) => o.id).join('|') === 'final|test', `the script's variants are offered (${meta.exportOptions?.map((o) => o.label).join(', ')})`);
 
   // 1) the button, in the page
   const p = await launch({ port: 9346 });
@@ -53,7 +54,7 @@ try {
     await sleep(1500); await p.eval(`document.querySelector('[data-tab="lots"]').click(); return 1`).catch(() => {});
     const t0 = Date.now(); let html = '';
     while (Date.now() - t0 < 30000 && !/exGo/.test(html)) { await sleep(400); html = (await p.eval(`return document.querySelector('#renderCard')?.innerHTML ?? ''`).catch(() => '')) ?? ''; }
-    check(/Exporter la vidéo/.test(html), 'the page shows « Exporter la vidéo » in the send card');
+    check(/Exporter la vidéo/.test(html) && /Rendu test \(30 images\)/.test(html), 'the page shows one button per variant in the send card');
   } finally { await p.close(); }
 
   // 2) a whole export
@@ -71,6 +72,13 @@ try {
   check(st.video?.name === path.basename(done.file), `the studio now reviews the new export (${st.video?.name})`);
   const log = await (await fetch(U + '/api/export/log')).text();
   check(!/COULISSES PROGRES/.test(log) && /COULISSES FIN/.test(log), 'the log keeps the lines that matter (no progress lines)');
+
+  // 2b) the test variant: --qualite test (30 frames here)
+  const sT = await post('/api/export', { qualite: 'test' });
+  const dT = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'test export');
+  check(sT.ok && sT.qualite === 'test' && dT.state === 'done' && frames(dT.file) === 30, `the test variant runs with --qualite test (${frames(dT.file ?? '')} frames)`);
+  const bad = await post('/api/export', { qualite: 'nope' });
+  check(!bad.ok && /inconnue/.test(bad.why), 'an unknown variant is refused');
 
   // 3) stopped half-way: no final file
   const n2 = finals().length;

@@ -1470,23 +1470,25 @@
     const X = STATUS.export;
     if (!META.features?.export) return `<div class="sub2 muted">Export depuis Coulisses : ${esc(META.exportWhy ?? 'indisponible')}.</div>`;
     if (X?.state === 'running') {
-      return `<div class="sub2"><b>Export en cours</b>, lancé le ${dayTime(X.started)}. Tu peux fermer Coulisses : il continue.</div>
+      return `<div class="sub2"><b>${esc(X.label && X.label !== 'Exporter la vidéo' ? X.label : 'Export')} en cours</b>, lancé le ${dayTime(X.started)}. Tu peux fermer Coulisses : il continue.</div>
         <div class="rbar"><i style="width:${Math.round(X.pct ?? 0)}%"></i></div>
         <div class="num2"><span id="exNum">${X.pct != null ? `${Math.round(X.pct)} %` : 'préparation…'}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
         <div class="acts"><button class="soft danger" id="exStop">${ic('x')}Arrêter l'export</button><button class="soft" id="exLog">Voir le journal</button></div>`;
     }
     const last = !X ? '' : X.state === 'done' ? `<div class="ok2"><b>Export terminé</b> le ${dayTime(X.ended)} : ${esc(X.file ?? '')}</div>`
       : X.state === 'failed' ? `<div class="err">Export en échec${X.error ? ` : ${esc(X.error)}` : ''}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">Export arrêté le ${dayTime(X.ended)}.</div>` : '';
-    return `${last}<div class="acts"><button class="primary" id="exGo">${ic('film')}Exporter la vidéo</button>${X ? '<button class="soft" id="exLog">Voir le journal</button>' : ''}</div>`;
+    const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: 'Exporter la vidéo' }];
+    const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
+    return `${last}<div class="acts">${btns}${X ? '<button class="soft" id="exLog">Voir le journal</button>' : ''}</div>`;
   }
   function wireExport() {
-    $('#exGo')?.addEventListener('click', startExportUI);
+    for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
   }
-  async function startExportUI() {
-    if (!confirm(`Lancer l'export de « ${META.title} » ?\n\nLe projet fait son rendu final${META.exportDir ? ` dans ${META.exportDir}` : ''}. Cela peut être long ; tu peux fermer Coulisses, l'export continue.`)) return;
-    const r = await postJson('/api/export');
+  async function startExportUI(qualite, label) {
+    if (!confirm(`${label || 'Exporter la vidéo'} : « ${META.title} » ?\n\nLe projet fait son rendu${META.exportDir ? ` dans ${META.exportDir}` : ''}. Cela peut être long ; tu peux fermer Coulisses, l'export continue.`)) return;
+    const r = await postJson('/api/export', { qualite });
     setSave(r?.ok ? 'Export lancé : l\'avancement s\'affiche dans « Envois »' : `Export impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
   }
   async function stopExportUI() {
