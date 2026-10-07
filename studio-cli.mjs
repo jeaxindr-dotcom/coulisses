@@ -32,7 +32,7 @@ import { checkUpdates, updatesLine, updatesMarkdown } from './lib/updates.mjs';
 import { detectAgent, agentById } from './lib/agent.mjs';
 
 const argv = process.argv.slice(2);
-const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom']);
+const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur']);
 const pos = []; const flags = {};
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -56,7 +56,7 @@ if (cmd === 'projet') {
     if (flag('--props')) { props = readJson(path.resolve(flag('--props')), null); if (!props) die('--props : fichier JSON illisible'); }
     try {
       const file = createCoulisses({ dossier: v('dossier') && path.resolve(v('dossier')), titre: v('titre'), chaine: v('chaine'), format: v('format'), projet: v('projet') && path.resolve(v('projet')),
-        entree: v('entree'), module: v('module'), timeline: v('timeline'), composition: v('composition'), props, exportDossier: v('export'), exportMotif: v('motif'), nom: v('nom') });
+        entree: v('entree'), module: v('module'), timeline: v('timeline'), composition: v('composition'), props, exportDossier: v('export'), exportMotif: v('motif'), exportProfondeur: v('profondeur'), plan: v('plan'), nom: v('nom'), moteur: v('moteur') });
       console.log(file);
     } catch (e) { die(e.message); }
     process.exit(0);
@@ -67,10 +67,10 @@ if (cmd === 'projet') {
     for (const x of r.ok) console.log(`  ok   ${x}`);
     for (const x of r.warnings) console.log(`  !    ${x}`);
     for (const x of r.errors) console.log(`  ÉCHEC ${x}`);
-    console.log(r.errors.length ? `\nPROJET NON CONFORME : ${r.errors.length} problème(s) à corriger, puis relancer cette commande.` : `\nPROJET CONFORME : Coulisses peut l'ouvrir et le rejouer avant tout export.${r.image ? ` Regarder l'image de vérification : "${r.image}".` : ''}`);
+    console.log(r.errors.length ? `\nPROJET NON CONFORME : ${r.errors.length} problème(s) à corriger, puis relancer cette commande.` : r.video ? '\nPROJET CONFORME : Coulisses l\'ouvrira sur la vidéo du run dès le premier export (un double-clic sur le fichier .coulisses).' : `\nPROJET CONFORME : Coulisses peut l'ouvrir et le rejouer avant tout export.${r.image ? ` Regarder l'image de vérification : "${r.image}".` : ''}`);
     process.exit(r.errors.length ? 1 : 0);
   }
-  die('usage: node studio-cli.mjs projet creer --depuis <spec.json> | --dossier … --titre … --projet … --composition …   ·   projet verifier "<fichier.coulisses>"');
+  die('usage: node studio-cli.mjs projet creer --depuis <spec.json> | --dossier … --titre … (--projet … --composition … | --moteur video [--export … --motif … --plan …])   ·   projet verifier "<fichier.coulisses>"');
 }
 if (!cmd || !epArg) die('usage: node studio-cli.mjs <wait|take|snapshot|frame|sheet|reply|done|render|undo|status> <ep> …  (voir AGENT.md)');
 const P = resolveTarget(epArg, optionsFrom(argv));

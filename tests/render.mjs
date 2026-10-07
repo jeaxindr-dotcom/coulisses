@@ -66,6 +66,14 @@ const until = async (expr, ms = 30000) => {   // survives the page reloading by 
 const ev = (e) => p.eval(e).catch(() => null);
 const card = () => ev(`return document.querySelector('#renderCard').innerText`);
 try {
+  // 0) a previous run leaves its note and the statuses of its batches behind (replies.json): start from none, so that
+  //    the test can run again on the same sandbox (07/10/2026: « lot 1 déjà done » after an interrupted run)
+  const nb0 = await (await fetch(`http://127.0.0.1:${PORT}/api/notes`)).json();
+  nb0.notes = nb0.notes.filter((n) => !/^rtest/.test(n.id));
+  await fetch(`http://127.0.0.1:${PORT}/api/notes`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nb0) });
+  const RP = path.join(REVUE, 'replies.json');
+  if (fs.existsSync(RP)) { const rp = JSON.parse(fs.readFileSync(RP, 'utf8')); rp.lots = {}; for (const k of Object.keys(rp.notes ?? {})) if (/^rtest/.test(k)) delete rp.notes[k]; fs.writeFileSync(RP, JSON.stringify(rp, null, 1)); }
+
   // 1) one corrected batch on the current video (through the API, before the page is open)
   const meta = await api('/api/meta', undefined);
   const nb = await (await fetch(`http://127.0.0.1:${PORT}/api/notes`)).json();

@@ -104,10 +104,10 @@
   const dur = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '');
   const day = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
   let busy = null, last = '';
-  const KIND = { aitelier: 'AItelier', folder: 'Dossier', video: 'Vidéo', remotion: 'Remotion' };
+  const KIND = { aitelier: 'AItelier', folder: 'Dossier', video: 'Vidéo', remotion: 'Remotion', run: 'Run' };
   // a run of a Remotion pipeline (.coulisses) opens on its code, before any export
   const openable = (e) => !e.missing && (!!e.video || e.kind === 'remotion');
-  const kindOf = (e) => (e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : ' · code en direct'}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : 'long') : ''}` : KIND[e.kind] ?? 'Projet');
+  const kindOf = (e) => (e.kind === 'run' ? (e.channel || 'Run') : e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : ' · code en direct'}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : 'long') : ''}` : KIND[e.kind] ?? 'Projet');
   function chipsOf(e) {
     const R = e.render;
     return [
@@ -121,7 +121,7 @@
   }
   function card(e) {
     const c = document.createElement('div'); c.className = 'card' + (openable(e) ? '' : ' off'); c.dataset.id = e.id;
-    const what = e.project ? (e.video ? `exporté le ${esc(day(e.video.mtime))}` : e.missing ? 'dossier introuvable' : e.kind === 'remotion' ? 'pas encore exporté · relecture du code' : 'pas encore de vidéo') : (e.video ? `rendu du ${esc(day(e.video.mtime))}` : 'pas encore rendu');
+    const what = e.project ? (e.video ? `exporté le ${esc(day(e.video.mtime))}` : e.missing ? 'dossier introuvable' : e.kind === 'remotion' ? 'pas encore exporté · relecture du code' : e.kind === 'run' ? 'en attente du premier export' : 'pas encore de vidéo') : (e.video ? `rendu du ${esc(day(e.video.mtime))}` : 'pas encore rendu');
     c.innerHTML = `<div class="thumb" style="${e.thumb ? `background-image:url('/thumb/${e.id}?v=${encodeURIComponent(e.video?.mtime ?? '')}')` : ''}"><span class="id">${esc(e.project ? (e.missing ? 'introuvable' : 'Projet') : e.id)}</span>${e.studio && !e.studio.paused ? '<span class="live">ouvert</span>' : ''}${e.project && !e.missing ? `<span class="kind">${esc(kindOf(e))}</span>` : ''}</div>
       <div class="body"><div class="title">${esc(e.title)}</div>
         <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? `revu le ${esc(day(e.reviewed))}` : ''].filter(Boolean).join(' · ')}</div>

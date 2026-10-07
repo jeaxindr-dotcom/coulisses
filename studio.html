@@ -1453,15 +1453,16 @@
         <div class="sub2 muted">${META.exportDir ? `Quand l'export arrivera dans ${esc(META.exportDir)}, Coulisses le chargera tout seul, et tu pourras comparer.` : 'Le fichier .coulisses ne dit pas où arrive l\'export.'}</div></div>`;
       return;
     }
-    const where = META.kind === 'aitelier' ? 'Quand tu exportes une nouvelle version depuis Resolve (dans 07-renders), le studio la charge tout seul, sur la même image.'
+    const where = META.kind === 'run' ? `Quand une nouvelle version arrive${META.exportDir ? ` dans ${esc(META.exportDir)}` : ''}, le studio la charge tout seul, sur la même image.`
+      : META.kind === 'aitelier' ? 'Quand tu exportes une nouvelle version depuis Resolve (dans 07-renders), le studio la charge tout seul, sur la même image.'
       : META.kind === 'video' ? 'Si cette vidéo est remplacée par une nouvelle version, le studio la recharge tout seul.' : 'Quand une nouvelle vidéo arrive dans le dossier, le studio la charge tout seul.';
     box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>Vidéo revue</b><span class="muted">${esc(kindLabel())}</span></div>
       <div class="sub2">${cur ? `${esc(cur.name)} · exportée le ${dayTime(cur.mtime)} · ${CW}×${CH} · ${String(FPS).replace('.', ',')} i/s` : 'aucune vidéo'}</div>
-      <div class="sub2 muted">${where} L'agent corrige dans le projet, et c'est toi qui exportes.</div>
+      <div class="sub2 muted">${where} ${META.kind === 'run' ? 'L\'agent corrige dans le projet, puis la nouvelle version est rendue ou exportée comme d\'habitude pour cette chaîne.' : 'L\'agent corrige dans le projet, et c\'est toi qui exportes.'}</div>
       ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}Comparer avant / après (${STATUS.compare.length})</button></div>` : ''}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
   }
-  const kindLabel = () => (META.kind === 'remotion' ? `${META.channel || 'Projet Remotion'}${META.features?.video ? '' : ' · code en direct'}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : 'film long') : ''}` : META.kind === 'video' ? 'vidéo' : 'dossier de vidéos');
+  const kindLabel = () => (META.kind === 'run' ? `${META.channel || 'Run'} · vidéo exportée` : META.kind === 'remotion' ? `${META.channel || 'Projet Remotion'}${META.features?.video ? '' : ' · code en direct'}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : 'film long') : ''}` : META.kind === 'video' ? 'vidéo' : 'dossier de vidéos');
   function renderRender() {
     const box = $('#renderCard'); if (!box || !META) return;
     if (PROJ) return exportCard(box);
