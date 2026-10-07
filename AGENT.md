@@ -72,6 +72,15 @@ L'utilisateur peut importer dans le studio un autre projet que Brambleshire. Ce 
 - **Les règles du projet s'appliquent** : pour L'AItelier, son `CLAUDE.md` et la doctrine du plugin (corrections chirurgicales sous un nouveau nom, preuve visuelle). **Je n'exporte jamais** : l'utilisateur exporte depuis Resolve, et le studio charge seul le nouvel export (« Comparer avant / après » compare alors l'ancien et le nouvel export).
 - `snapshot` accepte les fichiers du dossier du projet, en chemins relatifs à ce dossier ou absolus.
 
+## Un run en Remotion (L'AItelier, Vidéo du monde, 宇宙ちゃん)
+
+Depuis octobre 2026, ces trois chaînes montent leurs runs en Remotion. Le `.coulisses` du run pointe vers le projet Remotion de la chaîne, et l'utilisateur relit **le code en direct**, avant tout export. Ce qui change par rapport à un projet importé :
+
+- **Les fichiers à corriger sont le code** du projet Remotion de la chaîne : les scènes `.tsx` de L'AItelier, les chapitres `.tsx` de Vidéo du monde, `scenes.ts` / `cams.ts` de 宇宙ちゃん. Chaque modif du lot nomme le clip et son `fichier`, et l'élément visé (`data-coulisses`).
+- **Les yeux** : `frame … --source code` rend l'image depuis le code, et `sheet` montre « avant » (la vidéo ou le code avant) et « après » (le code). Pas besoin de capture à joindre quand l'image vient du code.
+- **Le skill de la chaîne fixe le reste** : ses contrôles après une correction (tsc, `controler-scene.mjs`, text-audit…), et ses règles.
+- **Je n'exporte jamais.** L'utilisateur lance lui-même l'export depuis Coulisses (onglet Envois, bouton du script d'export de la chaîne). Le studio charge seul la nouvelle vidéo à la fin, et propose « Comparer avant / après ».
+
 ## Une demande de rendu
 
 Le bouton « Lancer le rendu » de l'onglet Envois envoie une **demande de rendu** : c'est un lot sans modif (`"kind": "render"`). Elle arrive comme les autres : par la ligne collée `Coulisses · E03 · rendu (lot N) → …`, ou par `wait`, qui imprime alors « DEMANDE DE RENDU (lot N) REÇUE ». Son `.md` dit ce que le rendu emporte, c'est-à-dire les lots envoyés depuis la vidéo actuelle, avec leur état et les fichiers touchés. Il signale aussi si le moteur a changé.
