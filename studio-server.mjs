@@ -32,7 +32,7 @@ import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
 import { peaksOf } from './lib/peaks.mjs';
 import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
-import { project, tracksOf } from './lib/projects.mjs';
+import { project, tracksOf, shotsUsedIn } from './lib/projects.mjs';
 import { genericTimelineBuilder } from './lib/remotion-module.mjs';
 import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/updates.mjs';
 import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
@@ -145,6 +145,8 @@ function meta() {
     agent: agentState(), connectLine: connectLine(P),
     hub: args.includes('--hub') ? args[args.indexOf('--hub') + 1] : null, held,
     lang: lang(), langSource: langSource(), coulissesFile: coulissesOf(P),
+    // the 3D shots this run shows as media (« Ouvrir la scène 3D » on their clip), and where this run's render is used
+    shots3d: G && P.coulisses ? shotsUsedIn(P.coulisses) : [], usedIn: G ? (P.uses ?? []) : [],
   };
 }
 // ---- hold: a new render is replacing the video (studio-cli.mjs render, around finish-render.sh) ----

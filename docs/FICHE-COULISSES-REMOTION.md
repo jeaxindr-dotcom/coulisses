@@ -147,6 +147,24 @@ Le `.coulisses` doit avoir un dossier `export`, sinon Coulisses ne propose pas l
 
 Coulisses relance alors le script avec `--qualite <id>` pour la variante choisie. Le premier élément est le bouton principal. Sans `--options` (le script ne le connaît pas, ou renvoie autre chose qu'un tableau), Coulisses montre un seul bouton, « Exporter la vidéo », sans `--qualite`.
 
+## Un plan 3D rendu à part et monté en vidéo (« utilise »)
+
+Quand une scène 3D est faite dans un autre projet Remotion (le théâtre d'Uchu-chan, par exemple), puis rendue en MP4 et montée dans le run comme une vidéo, le run ne voit qu'une image plate. Pour la retoucher en 3D :
+
+1. **Le projet de la scène** a lui aussi `src/coulisses.ts` (ses compositions de plans) et, si possible, `src/coulisses-timeline.ts`. S'il utilise React Three Fiber, Coulisses lui donne d'office la mise en scène 3D du Théâtre : choisir un objet, le déplacer, le tourner, et la caméra libre.
+2. **Chaque plan a son `.coulisses`**, dans son propre dossier (un dossier `revue` par plan), avec en plus :
+
+```json
+"utilise": [{ "coulisses": "C:\\…\\shorts\\short12\\short12.coulisses", "fichier": "public/short12/mg/chibi1.mp4" }]
+```
+
+`coulisses` est le `.coulisses` du run qui montre ce plan. `fichier` est le fichier du plan dans ce run, tel que sa timeline le donne, relatif au projet Remotion du run.
+
+3. **Dans le studio du run**, sur ce clip, un bouton « Ouvrir la scène 3D » ouvre le plan dans son propre studio. Le plan doit être importé dans l'accueil de Coulisses.
+4. **Le lot du plan** dit à l'agent où va son rendu : refaire le rendu de la composition et remplacer ce fichier du run, même nom, même format et même durée.
+
+`studio-cli.mjs projet creer --depuis spec.json` accepte `utilise` dans le fichier JSON.
+
 ## Comment migrer sans tout refaire d'un coup
 
 1. **D'abord le montage**. Le montage Resolve devient une composition Remotion : une `<Sequence>` par clip, une piste par calque.

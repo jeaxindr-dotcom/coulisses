@@ -150,6 +150,24 @@ The `.coulisses` must have an `export` folder, otherwise Coulisses does not offe
 
 Coulisses then runs the script again with `--qualite <id>` for the chosen variant. The first element is the main button. The labels are shown as they are: write them in the user's language. Without `--options` (the script does not know it, or returns anything other than an array), Coulisses shows a single button, "Export the video" ("Exporter la vidéo" in French), without `--qualite`.
 
+## A 3D shot rendered elsewhere and edited in as a video ("utilise")
+
+When a 3D scene is made in another Remotion project (Uchu-chan's theatre, for example), then rendered to MP4 and edited into the run as a video, the run only sees a flat picture. To rework it in 3D:
+
+1. **The scene's project** has its own `src/coulisses.ts` (its shots' compositions) and, if possible, `src/coulisses-timeline.ts`. If it uses React Three Fiber, Coulisses gives it the Theatre's 3D staging by itself: pick an object, move it, turn it, and the free camera.
+2. **Each shot has its own `.coulisses`**, in its own folder (one `revue` folder per shot), with in addition:
+
+```json
+"utilise": [{ "coulisses": "C:\\…\\shorts\\short12\\short12.coulisses", "fichier": "public/short12/mg/chibi1.mp4" }]
+```
+
+`coulisses` is the `.coulisses` of the run that shows this shot. `fichier` is the shot's file in that run, as its timeline gives it, relative to the run's Remotion project.
+
+3. **In the run's studio**, on that clip, an "Open the 3D scene" button opens the shot in its own studio. The shot must be imported in the Coulisses home screen.
+4. **The shot's batch** tells the agent where its render goes: render the composition again and replace that file of the run, with the same name, format and length.
+
+`studio-cli.mjs projet creer --depuis spec.json` accepts `utilise` in the JSON file.
+
 ## How to migrate without redoing everything at once
 
 1. **First the edit**. The Resolve edit becomes a Remotion composition: one `<Sequence>` per clip, one track per layer.

@@ -64,7 +64,7 @@ if (cmd === 'projet') {
     if (flag('--props')) { props = readJson(path.resolve(flag('--props')), null); if (!props) die(t('cli.badProps')); }
     try {
       const file = createCoulisses({ dossier: v('dossier') && path.resolve(v('dossier')), titre: v('titre'), chaine: v('chaine'), format: v('format'), projet: v('projet') && path.resolve(v('projet')),
-        entree: v('entree'), module: v('module'), timeline: v('timeline'), composition: v('composition'), props, exportDossier: v('export'), exportMotif: v('motif'), exportProfondeur: v('profondeur'), plan: v('plan'), nom: v('nom'), moteur: v('moteur') });
+        entree: v('entree'), module: v('module'), timeline: v('timeline'), composition: v('composition'), props, exportDossier: v('export'), exportMotif: v('motif'), exportProfondeur: v('profondeur'), plan: v('plan'), nom: v('nom'), moteur: v('moteur'), utilise: spec?.utilise });
       console.log(file);
     } catch (e) { die(e.message); }
     process.exit(0);

@@ -131,6 +131,10 @@ Pour l'appliquer :
 
 L'écrire là où le projet place cet élément (sa position, sa taille, son animation), seulement dans la portée. **« Caméra »** désigne l'image entière : ce qu'on voit glisse ou zoome autour du centre. L'écrire comme un mouvement de caméra ou un cadrage du plan (le fichier de caméras du run s'il en a un, par exemple `cams.ts` pour 宇宙ちゃん).
 
+**Dans un run dont l'image est une scène 3D** (React Three Fiber : un plan du théâtre d'Uchu-chan, un décor 3D de Vidéo du monde), la mise en scène est la 3D du Théâtre, avec les mêmes blocs que ci-dessus. Le décalage est alors en unités du monde 3D de la scène.
+
+**Un plan 3D monté ailleurs en vidéo** : son lot commence par « Ce plan 3D est utilisé dans … ». Après la correction, refaire le rendu de la composition du plan et remplacer le fichier indiqué dans l'autre run, avec le même nom, le même format et la même durée. Le studio de cet autre run recharge la vidéo tout seul.
+
 ## Une image de la bibliothèque à placer
 
 Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) : ses personnages, décors, accessoires et effets, rangés par catégorie dans `Documents\Coulisses\Médias\<chaîne>\`. L'utilisateur y crée des images avec l'atelier d'images (Codex et son outil image_gen), ou y dépose les siennes. Quand il glisse une image sur la vidéo, la modif contient un bloc **« Média de la bibliothèque à placer »** :

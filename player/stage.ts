@@ -21,6 +21,7 @@ interface Deps {
   seen: (hit: THREE.Intersection) => boolean;
   frame: () => number;
   noise: RegExp;
+  W?: number; H?: number;                               // the frame (1920 × 1080 for an episode; a run's 3D shot: its own size)
 }
 export const ZERO: Delta = { p: [0, 0, 0], r: [0, 0, 0], s: 1 };
 const isZero = (d: Delta) => d.p.every((v) => Math.abs(v) < 1e-6) && d.r.every((v) => Math.abs(v) < 1e-6) && Math.abs(d.s - 1) < 1e-6;
@@ -235,9 +236,10 @@ export function createStage(D: Deps) {
       const saved = cam.matrixWorldInverse.clone();
       if (scenePose && freeCam) { const tmp = (cam as any).clone(); tmp.position.copy(scenePose.p); tmp.quaternion.copy(scenePose.q); tmp.updateMatrixWorld(); v.project(tmp); } else v.project(cam);
       cam.matrixWorldInverse.copy(saved);
-      const stage = document.getElementById('stage')!.getBoundingClientRect(), r = c.getBoundingClientRect(), k = Math.min(stage.width / 1920, stage.height / 1080);
+      const FW = D.W ?? 1920, FH = D.H ?? 1080;
+      const stage = document.getElementById('stage')!.getBoundingClientRect(), r = c.getBoundingClientRect(), k = Math.min(stage.width / FW, stage.height / FH);
       const px = r.left + (v.x + 1) / 2 * r.width, py = r.top + (1 - v.y) / 2 * r.height;
-      return [Math.round((px - stage.left - (stage.width - 1920 * k) / 2) / k), Math.round((py - stage.top - (stage.height - 1080 * k) / 2) / k)];
+      return [Math.round((px - stage.left - (stage.width - FW * k) / 2) / k), Math.round((py - stage.top - (stage.height - FH * k) / 2) / k)];
     },
   };
 }

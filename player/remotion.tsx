@@ -11,6 +11,8 @@ import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
 import { createStage2d } from './stage2d';
+// @ts-ignore resolved by lib/player-build.mjs: player/three-stage.ts when the project has @react-three/fiber, else player/no3d.ts
+import { create3d } from '@coulisses-3d';
 // @ts-ignore resolved through esbuild's alias
 import * as M from '@coulisses-module';
 
@@ -42,8 +44,40 @@ function pick(x: number, y: number) {
   }
   return hits;
 }
-const settle = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80))));
-const stage = createStage2d({ W, H, frame: () => ref?.getCurrentFrame() ?? 0, root: () => document.getElementById('coulisses-camera') });
+const settle = async () => { if (s3?.hasScene()) await s3.settle(); await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80)))); };
+// what is under the point: the 3D objects of a 3D scene first (named by their React components), then the HTML element
+// named data-coulisses
+const pickAll = (x: number, y: number) => [...(s3?.hasScene() ? s3.pick(x, y) : []), ...pick(x, y)];
+const stage2d = createStage2d({ W, H, frame: () => ref?.getCurrentFrame() ?? 0, root: () => document.getElementById('coulisses-camera') });
+// a 3D scene on screen (a React Three Fiber canvas: a theatre shot, a 3D set): the Theatre's own 3D staging, else the 2D
+// one — chosen when the staging starts; each offset goes back to the stage it belongs to (2D ids are @root, @camera or
+// [data-coulisses="…"], 3D ids are React paths)
+const s3 = create3d({ W, H, frame: () => ref?.getCurrentFrame() ?? 0 });
+const is2d = (id: string) => /^(@root|@camera|\[data-coulisses=)/.test(String(id));
+let active: any = stage2d;
+const by = (id: string) => (is2d(id) || !s3 ? stage2d : s3.stage);
+const stage: any = {
+  get kind() { return active === stage2d ? '2d' : '3d'; },
+  get selected() { return active.selected; }, get enabled() { return active.enabled; },
+  enable(want: boolean) {
+    if (!want) { const r = active.enable(false); active = stage2d; return r; }
+    if (s3 && s3.hasScene() && s3.stage.enable(true)) { active = s3.stage; return true; }
+    active = stage2d; return stage2d.enable(true);
+  },
+  on: (fn: any) => { const a = stage2d.on(fn), b = s3?.stage.on(fn); return () => { a(); b?.(); }; },
+  list: () => [...stage2d.list(), ...(s3 ? s3.stage.list() : [])],
+  info: (id: string) => by(id).info(id),
+  setDelta: (id: string, d: any, from?: number, to?: number) => by(id).setDelta(id, d, from, to),
+  reset: (id: string) => by(id).reset(id),
+  select: (id: string | null) => active.select(id),
+  selectParent: () => active.selectParent?.() ?? false,
+  setMode: (m: any) => active.setMode(m),
+  freeCamera: (want: boolean) => active.freeCamera(want),
+  snapshot: () => active.snapshot(),
+  screenPos: (id: string) => by(id).screenPos(id),
+  edits: () => stage2d.edits(),
+  applyNow: () => stage2d.applyNow(),
+};
 // the composition inside the camera's frame (an AbsoluteFill-like box: the project's own AbsoluteFills fill it as before)
 const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses-camera', style: { position: 'absolute', inset: 0, width: '100%', height: '100%' } }, React.createElement(comp.component, p));
 
@@ -56,13 +90,13 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
-  pick: async (frame: number, x: number, y: number) => { if (ref && ref.getCurrentFrame() !== frame) { ref.pause(); ref.seekTo(frame); } await settle(); return pick(x, y); },
-  hover: (frame: number, x: number, y: number) => (ref && ref.getCurrentFrame() === frame ? pick(x, y)[0] ?? null : undefined),
+  pick: async (frame: number, x: number, y: number) => { if (ref && ref.getCurrentFrame() !== frame) { ref.pause(); ref.seekTo(frame); } await settle(); return pickAll(x, y); },
+  hover: (frame: number, x: number, y: number) => (ref && ref.getCurrentFrame() === frame ? pickAll(x, y)[0] ?? null : undefined),
   pickMany: async (frame: number, points: [number, number][]) => {
     if (ref && ref.getCurrentFrame() !== frame) { ref.pause(); ref.seekTo(frame); }
     await settle();
     const seen = new Map<string, any>();
-    for (const [x, y] of points) { const first = pick(x, y)[0]; if (!first) continue; const s = seen.get(first.label) ?? { ...first, count: 0 }; s.count++; seen.set(first.label, s); }
+    for (const [x, y] of points) { const first = pickAll(x, y)[0]; if (!first) continue; const key = first.label ?? first.textures?.[0] ?? first.names?.[0] ?? first.type; const s = seen.get(key) ?? { ...first, count: 0 }; s.count++; seen.set(key, s); }
     return [...seen.values()].sort((a, b) => b.count - a.count);
   },
 };

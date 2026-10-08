@@ -448,6 +448,7 @@
       </span>
       <span id="codeStatus"></span>
       <span class="grow"></span>
+      <button id="open3d" class="soft" style="display:none"><i data-ic="move"></i><span></span></button>
       <span id="proxy"></span>
     </div>
     <div id="warn"></div>
@@ -772,6 +773,28 @@
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');
     seekFrame(f); if (was) M.play();
   }
+  // a 3D shot of the theatre shown here as a video (a Short's chibi shot): « Ouvrir la scène 3D » opens it in its own
+  // studio (the home screen starts it), where the staging is the Theatre's 3D one; the agent then renders it again into
+  // this run (the shot's .coulisses « utilise », lib/projects.mjs shotsUsedIn)
+  const norm3d = (f) => String(f ?? '').replace(/\\/g, '/').toLowerCase();
+  function shotHere() {
+    const shots = META?.shots3d ?? []; if (!shots.length || !LIVE?.tracks) return null;
+    const t = (curFrame() + 0.5) / FPS;
+    for (const { c } of clipsAt(t)) { const s = shots.find((x) => c.file && norm3d(c.file) === norm3d(x.fichier)); if (s) return s; }
+    return null;
+  }
+  let lastShot = undefined;
+  function showShot() {
+    const s = shotHere(), b = $('#open3d');
+    if (s === lastShot) return; lastShot = s;
+    b.style.display = s ? '' : 'none';
+    if (s) { b.querySelector('span').textContent = T('st.s3.open', { title: s.title }); b.title = META.hub ? T('st.s3.openTitle', { file: s.fichier }) : T('st.s3.noHub'); b.classList.toggle('off', !META.hub); }
+  }
+  $('#open3d').onclick = async () => {
+    const s = shotHere(); if (!s) return;
+    if (!META.hub) return setSave(T('st.s3.noHub'), 'err');
+    await flushNow(); location.href = `${META.hub.replace(/\/$/, '')}/go/${s.id}`;
+  };
   // the same tools in every project: one that does not apply here is greyed, with the reason in its tooltip
   const stageWhy = () => (META?.features?.code ? null : T('st.why.stageNoCode'));
   const srcWhy = () => (!META?.features?.code ? T('st.why.srcNoCode') : !META?.render ? T('menu.why.noVideo') : null);
@@ -1425,7 +1448,7 @@
           <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(3), 0.05)}${num('y', d.p[1].toFixed(3), 0.05)}${num('z', d.p[2].toFixed(3), 0.05)}
           <span class="lbl">${T('st.scene.rotation')}</span>${num('rx', deg(d.r[0]).toFixed(1), 1)}${num('ry', deg(d.r[1]).toFixed(1), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
           <span class="lbl">${T('st.scene.sizePct')}</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
-        <p class="muted" style="margin:10px 0 0">${T('st.scene.units')}</p>
+        <p class="muted" style="margin:10px 0 0">${T(PROJ ? 'st.scene.unitsRun' : 'st.scene.units')}</p>
         <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">${T('st.scene.scope')}</span><select id="sc-scope">
           <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>${T('st.scene.thisScene', { name: esc(sceneAt(curFrame()).name) })}</option>
           <option value="here" ${stScope === 'here' ? 'selected' : ''}>${T('st.scene.fromHere')}</option>
@@ -2553,7 +2576,7 @@
     const f = curFrame();
     if (f !== lastF || !M.paused) {
       if (f !== lastF) { if (pickPt && pickPt.frame !== f) { pickPt = null; $('#pickBtn').style.display = 'none'; } hideHover(); }
-      lastF = f; updateHud(); draw(); drawOv();
+      lastF = f; updateHud(); draw(); drawOv(); showShot();
     }
     requestAnimationFrame(tick);
   })();

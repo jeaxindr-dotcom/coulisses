@@ -144,6 +144,10 @@ To apply it:
 
 Write it where the project places this element (its position, its size, its animation), only within the scope. **"Camera"** means the whole picture: what is seen slides or zooms around the centre. Write it as a camera move or a framing of the shot (the run's camera file if it has one, for example `cams.ts` for 宇宙ちゃん).
 
+**In a run whose picture is a 3D scene** (React Three Fiber: a shot of Uchu-chan's theatre, a 3D set of Vidéo du monde), the staging is the Theatre's 3D one, with the same blocks as above. The offset is then in the scene's 3D world units.
+
+**A 3D shot edited elsewhere as a video**: its batch starts with "This 3D shot is used in …". After the fix, render the shot's composition again and replace the file named in the other run, with the same name, format and length. The studio of that other run reloads the video by itself.
+
 ## A library image to place
 
 Each channel has a media library (the studio's "Media" tab): its characters, sets, props and effects, sorted by category in `Documents\Coulisses\Media\<channel>\` (`Médias` when Coulisses was first used in French). The user creates images there with the image workshop (Codex and its image_gen tool), or drops their own. When they drag an image onto the video, the edit holds a **"Library image to place"** block:
