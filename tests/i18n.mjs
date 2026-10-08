@@ -233,7 +233,7 @@ try {
   st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), 'E03', '--no-open', '--episodes', path.join(STUDIO, 'sandbox', '07_Episodes'), '--port', String(ST_PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stOut = ''; st.stdout.on('data', (d) => { stOut += d; }); st.stderr.on('data', (d) => { stOut += d; });
   for (let i = 0; i < 120 && !/Open: http/.test(stOut); i++) await sleep(250);
-  const stUrl = /Open: (http:\/\/localhost:\d+\/)/.exec(stOut)?.[1];
+  const stUrl = /Open: (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(stOut)?.[1];
   check(!!stUrl && /review studio for E03/.test(stOut) && /Close this window to stop the tool\./.test(stOut), `the studio's console, in English (« Open: ${stUrl} »)`);
   await p.goto(stUrl);
   await until(`document.querySelector('#v').readyState >= 2`, 60000); await sleep(2500);

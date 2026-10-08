@@ -64,7 +64,9 @@ try {
   const list = await (await fetch(H + '/api/episodes')).json();
   check(again.ok && list.projects.length === 3, 'importing the same project again does not duplicate it');
   check(!ep.ok && /épisode du Théâtre/.test(ep.why) && !bad.ok && /introuvable/.test(bad.why), `refused: a Brambleshire episode (« ${ep.why} »), a missing path`);
-  const run = list.projects.find((x) => x.kind === 'aitelier' && x.format === 'long');
+  let run = list.projects.find((x) => x.kind === 'aitelier' && x.format === 'long');
+  // the duration is measured in the background (never inside the request): known at a next refresh of the list
+  for (let i = 0; i < 40 && !run?.duration; i++) { await new Promise((r) => setTimeout(r, 250)); run = (await (await fetch(H + '/api/episodes')).json()).projects.find((x) => x.kind === 'aitelier' && x.format === 'long'); }
   check(run.video?.name === 'master-test-run-v1.mp4' && Math.abs(run.duration - 10) < 0.2, `the run's video is its export (${run.video?.name}, ${run.duration?.toFixed(1)} s)`);
 
   // 2) the home screen

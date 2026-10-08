@@ -326,12 +326,12 @@ export function createStage(D: Deps) {
     if (want && !root) return false;
     on = want;
     if (on) {
-      st = root.store.getState(); canvas = st.gl.domElement;
-      tc = new TransformControls(st.camera, canvas); tc.setSize(0.8); tc.setMode(mode);
+      st = root.store.getState(); const cv: HTMLCanvasElement = st.gl.domElement; canvas = cv;
+      tc = new TransformControls(st.camera, cv); tc.setSize(0.8); tc.setMode(mode);
       helper = (tc as any).getHelper ? (tc as any).getHelper() : (tc as any); st.scene.add(helper);
       // OrbitControls aims the camera at its target as soon as it is created: the shot's pose is put back at once
       const pose0 = { p: st.camera.position.clone(), q: st.camera.quaternion.clone() };
-      orbit = new OrbitControls(st.camera, canvas); orbit.enableDamping = false;
+      orbit = new OrbitControls(st.camera, cv); orbit.enableDamping = false;
       st.camera.position.copy(pose0.p); st.camera.quaternion.copy(pose0.q); st.camera.updateMatrixWorld();
       const target = new THREE.Vector3(0, 0, -1).applyQuaternion(st.camera.quaternion).multiplyScalar(8).add(st.camera.position);
       orbit.target.copy(target); orbit.enabled = false;
@@ -347,9 +347,9 @@ export function createStage(D: Deps) {
         e.delta = delta(e); e.applied = { p: e.obj.position.clone(), r: e.obj.rotation.clone(), s: e.obj.scale.clone() };
         emit({ type: 'change', ...info(e.id) });
       });
-      canvas.addEventListener('pointerdown', onDown); canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointermove', onMove);
+      cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointerup', onUp); cv.addEventListener('pointermove', onMove);
       window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp);
-      canvas.style.cursor = 'crosshair'; canvas.tabIndex = 0; canvas.focus();
+      cv.style.cursor = 'crosshair'; cv.tabIndex = 0; cv.focus();
       // the bubbles / curtain / titles are HTML layers above the 3D canvas: in this mode only the canvas takes the mouse
       const css = document.createElement('style'); css.id = 'studio-staging'; css.textContent = '#stage * { pointer-events: none !important } #stage canvas { pointer-events: auto !important }'; document.head.appendChild(css);
     } else {

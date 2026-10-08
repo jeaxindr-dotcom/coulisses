@@ -82,7 +82,7 @@ try {
   studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', REVUE, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; studio.stdout.on('data', (d) => { out += d; }); studio.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 120 && !/Ouvre : http/.test(out); i++) await sleep(250);
-  const url = /Ouvre : (http:\/\/localhost:\d+\/)/.exec(out)?.[1];
+  const url = /Ouvre : (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(out)?.[1];
   const meta = url ? await (await fetch(url + 'api/meta')).json() : {};
   check(meta.kind === 'run' && meta.features?.code === false && meta.features?.plan === true && meta.features?.video === true && meta.channel === 'Vidéo du monde' && /07-publish$/.test(meta.exportDir ?? ''),
     `the studio: kind run, no code preview, the plan, the video, the channel (${url ?? out.split('\n').slice(-2).join(' ')})`);

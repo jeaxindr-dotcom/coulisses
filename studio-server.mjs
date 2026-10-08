@@ -26,7 +26,7 @@ import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJs
 import { videoFrame, codeFrame } from './lib/frames.mjs';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
-import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions } from './lib/export.mjs';
+import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
 import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
@@ -39,8 +39,9 @@ import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/
 import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { fromApp, refuse } from './lib/guard.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
 import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
@@ -107,18 +108,29 @@ const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, 
 const player = CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
-// size and frame rate of a project's video (a Short is 1080×1920), measured once per file
-const probed = new Map();
+// size and frame rate of a project's video (a Short is 1080×1920), measured once per file — by ffprobe in the background
+// (code review, 08/10/2026: never a synchronous ffprobe inside a request: it froze every request until it answered).
+// The first one is measured before the server listens; a new export is measured on the next request, the previous size
+// answering meanwhile.
+const probed = new Map(), probing = new Map();
+let lastProbe = null;
+function probeNow(video, key) {
+  if (!probing.has(key)) probing.set(key, new Promise((resolve) => {
+    execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', video], { encoding: 'utf8', windowsHide: true, timeout: 30000 }, (err, out) => {
+      let w = 1920, h = 1080, fps = 30;
+      try { const v = JSON.parse(out).streams[0]; w = v.width; h = v.height; const [a, b2] = v.r_frame_rate.split('/').map(Number); fps = b2 ? Math.round((a / b2) * 1000) / 1000 : a; } catch { /* defaults */ }
+      probed.set(key, lastProbe = { size: [w, h], fps }); probing.delete(key); resolve();
+    });
+  }));
+  return probing.get(key);
+}
+const probeKey = (video) => { const st = stamp(video); return `${video}|${st.size}:${st.mtime}`; };
 function probe(video) {
   if (B || !video) return { size: [1920, 1080], fps: null };
-  const st = stamp(video), key = `${st.size}:${st.mtime}`;
-  if (!probed.has(key)) {
-    const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', video], { encoding: 'utf8', windowsHide: true });
-    let w = 1920, h = 1080, fps = 30;
-    try { const v = JSON.parse(r.stdout).streams[0]; w = v.width; h = v.height; const [a, b2] = v.r_frame_rate.split('/').map(Number); fps = b2 ? Math.round((a / b2) * 1000) / 1000 : a; } catch { /* defaults */ }
-    probed.set(key, { size: [w, h], fps });
-  }
-  return probed.get(key);
+  const key = probeKey(video);
+  if (probed.has(key)) return probed.get(key);
+  probeNow(video, key);
+  return lastProbe ?? { size: [1920, 1080], fps: 30 };
 }
 
 // a Claude session watching the tool (studio-cli.mjs wait) beats every few seconds in revue/studio-agent.json
@@ -166,16 +178,18 @@ async function hold() {
 }
 function unhold() { held = false; log(t('srv.unheld')); refreshProxy(); }
 // an export about to replace the very video under review (COULISSES REMPLACE, lib/export.mjs): let go of it, take it back after
+// (every second while an export runs, every 4 s otherwise: an export can also be started without this studio)
 let exportHolds = false;
-if (G) setInterval(() => {
-  let x; try { x = exportState(P); } catch { return; }
-  if (!x) return;
-  if (x.state === 'running' && x.remplace && !exportHolds) {
+function watchExport() {
+  let x = null; try { x = exportState(P); } catch { /* none */ }
+  if (x?.state === 'running' && x.remplace && !exportHolds) {
     const v = pickVideo(P);
     if (!v || path.resolve(v).toLowerCase() === path.resolve(x.remplace).toLowerCase()) { exportHolds = true; hold().then(() => log(t('srv.exportHolds', { name: path.basename(x.remplace) }))); }
   }
-  if (x.state !== 'running' && exportHolds) { exportHolds = false; unhold(); }
-}, 1000).unref();
+  if (x && x.state !== 'running' && exportHolds) { exportHolds = false; unhold(); }
+  setTimeout(watchExport, x?.state === 'running' ? 1000 : 4000).unref();
+}
+if (G) watchExport();
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
@@ -183,7 +197,7 @@ function status() {   // what changes often: polled by the page every 3 s with t
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
-  const tmp = NOTES + '.tmp';
+  const tmp = `${NOTES}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 1));
   if (fs.existsSync(NOTES)) fs.copyFileSync(NOTES, NOTES.replace(/\.json$/, '.bak.json'));
   fs.renameSync(tmp, NOTES);
@@ -248,11 +262,13 @@ const episodeChannel = () => { try { const f = fs.readdirSync(P.EP).find((x) => 
 const CHANNEL = P.channel ?? (B ? episodeChannel() : P.kind === 'aitelier' ? "L'AItelier" : null);
 let LIB = null;
 const lib = () => (LIB ??= library(CHANNEL));
-const projTitle = () => (B ? folder.replace(/^Ed+ - /, '') : P.title);
+const projTitle = () => (B ? folder.replace(/^E\d+ - /, '') : P.title);
 const server = http.createServer(async (req, res) => {
+  if (!fromApp(req)) return refuse(res);   // only Coulisses itself (lib/guard.mjs)
   const url = new URL(req.url, 'http://x');
   const pn = decodeURIComponent(url.pathname);
   try {
+    if (pn === '/api/ping') return json(res, { studio: true, pid: process.pid, notesFile: NOTES });
     if (pn === '/' || pn === '/index.html') {   // in the user's language (lib/i18n.mjs: {{key}} and window.T)
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(renderPage(fs.readFileSync(path.join(HERE, 'studio.html'), 'utf8'), { prefixes: ['st.', 'common.', 'menu.'] }));
@@ -490,9 +506,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 let port = +(args[args.indexOf('--port') + 1] || 0) || DEFAULT_PORT;
-server.on('error', (e) => { if (e.code === 'EADDRINUSE') { port++; server.listen(port, '127.0.0.1'); } else throw e; });
+// a taken port: the next one, up to 4199 (where lib/render.mjs looks for the studios of an episode)
+server.on('error', (e) => { if (e.code === 'EADDRINUSE' && port < 4199) { port++; server.listen(port, '127.0.0.1'); } else throw e; });
 server.on('listening', async () => {
-  const url = `http://localhost:${port}/`;
+  const url = `http://127.0.0.1:${port}/`;   // the home screen's address too: one site for the browser (lib/guard.mjs)
   const dev = INSTALLED ? '' : t('srv.dev');
   console.log(B ? t('srv.titleEp', { ep, folder, dev }) : t('srv.titleProj', { title: P.title, dir: P.EP, dev }));
   console.log(t('srv.open', { url }));   // « Ouvre : <url> » / « Open: <url> »: the home screen reads it (hub-server.mjs)
@@ -502,4 +519,32 @@ server.on('listening', async () => {
   buildProxy();
   await player.build(); player.watch();
 });
-server.listen(port, '127.0.0.1');
+// One studio per project (code review, 08/10/2026): the page of a studio is the only writer of revue/notes.json, so two
+// studios on one project (a home screen restarted while its studio still runs, a studio started by hand) would
+// overwrite each other's notes. revue/studio.lock.json says which one is open; a second one hands over to it: it says
+// where it is (« Ouvre : <its address> », which the home screen reads), opens it, and stops. A lock whose studio is gone
+// (closed by force, the PC restarted) is taken over.
+const LOCK = path.join(REVUE, 'studio.lock.json');
+async function openElsewhere() {
+  const l = readJson(LOCK, null);
+  if (!l?.pid || !l.url || l.pid === process.pid) return null;
+  try { process.kill(l.pid, 0); } catch { return null; }   // that process is gone
+  try { const j = await (await fetch(new URL('api/ping', l.url), { signal: AbortSignal.timeout(2000) })).json(); return j?.studio && path.resolve(j.notesFile ?? '') === path.resolve(NOTES) ? l.url : null; }
+  catch { return null; }
+}
+const other = await openElsewhere();
+if (other) {
+  console.log(t('srv.already', { url: other }));
+  console.log(t('srv.open', { url: other }));
+  if (!args.includes('--no-open')) exec(process.platform === 'win32' ? `start "" "${other}"` : `open "${other}"`);
+  process.exit(0);
+}
+server.on('listening', () => {
+  try { writeJson(LOCK, { pid: process.pid, port, url: `http://127.0.0.1:${port}/`, since: nowIso() }); } catch { /* a read-only revue: no lock */ }
+});
+process.on('exit', () => { try { if (readJson(LOCK, null)?.pid === process.pid) fs.rmSync(LOCK, { force: true }); } catch { /* */ } });
+for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, () => process.exit(0));
+const first = [];
+if (!B) { const v = pickVideo(P); if (v) first.push(probeNow(v, probeKey(v))); }
+if (G && exportAvailable(P).ok) first.push(exportOptionsReady(P));
+Promise.all(first).catch(() => {}).finally(() => server.listen(port, '127.0.0.1'));

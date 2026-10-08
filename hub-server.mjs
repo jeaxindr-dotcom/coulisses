@@ -26,10 +26,10 @@ import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
 import { workspace, startInstall, installState, createProject, projectsRoot, FORMATS } from './lib/new-project.mjs';
 import { DATA } from './lib/place.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { fromApp, refuse } from './lib/guard.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { docText, about, openOnline, logRing } from './lib/menu.mjs';
 import os from 'node:os';
-import { spawnSync } from 'node:child_process';
 
 let args = process.argv.slice(2);
 const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
@@ -54,14 +54,18 @@ function reviewStats(revue) {
   return { notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
     reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null };
 }
-const durations = new Map();
+// a video's duration, by ffprobe in the background (never inside the request: the list is asked every 5 s); unknown
+// until it answers, then shown on the next refresh
+const durations = new Map(), measuring = new Set();
 function durationOf(file, st) {
   const key = `${file}|${st.size}|${st.mtime}`;
-  if (!durations.has(key)) {
-    const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8', windowsHide: true });
-    durations.set(key, +r.stdout.trim() || null);
+  if (!durations.has(key) && !measuring.has(key)) {
+    measuring.add(key);
+    execFile('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8', windowsHide: true, timeout: 30000 }, (err, out) => {
+      durations.set(key, +String(out ?? '').trim() || null); measuring.delete(key);
+    });
   }
-  return durations.get(key);
+  return durations.get(key) ?? null;
 }
 function projects() {
   return registry().projects.map(({ id, revue }) => {
@@ -148,7 +152,7 @@ function open(id) {
     const timer = setTimeout(() => reject(new Error(t('hubsrv.noAnswer', { log: path.join(LOGS, `${id}.log`) }))), 60000);
     st.proc.stdout.on('data', (d) => {
       out.write(d); buf += d;
-      const m = /(?:Ouvre :|Open:) (http:\/\/localhost:\d+\/)/.exec(buf);   // the studio's language (studio-server.mjs)
+      const m = /(?:Ouvre :|Open:) (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(buf);   // the studio's language (studio-server.mjs)
       if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); }
     });
     st.proc.stderr.on('data', (d) => { out.write(d); buf += d; });
@@ -197,6 +201,7 @@ const send = (res, code, type, body) => { res.writeHead(code, { 'Content-Type': 
 const json = (res, data, code = 200) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(data));
 const page = (title, msg) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">${t('hubsrv.back')}</a></p></div>`;
 const server = http.createServer(async (req, res) => {
+  if (!fromApp(req)) return refuse(res);   // only Coulisses itself (lib/guard.mjs)
   const url = new URL(req.url, 'http://x'), pn = decodeURIComponent(url.pathname), ep = normId(url.searchParams.get('ep')) ?? '';
   try {
     // the home screen, in the user's language (lib/i18n.mjs: {{key}} and window.T)
