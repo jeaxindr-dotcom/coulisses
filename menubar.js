@@ -127,9 +127,11 @@
   // the keyboard: captured before the page's own shortcuts while the bar has it
   window.addEventListener('keydown', (e) => {
     if (!bar) return;
-    if (document.querySelector('.mb-dlg')) {   // a dialog of the bar has the keyboard: Escape closes it, the page's shortcuts wait
+    const dl = document.querySelector('.mb-dlg');
+    if (dl) {   // a dialog of the bar has the keyboard: Escape closes it, the page's shortcuts wait
       e.stopPropagation();
-      if (e.key === 'Escape') { e.preventDefault(); document.querySelector('.mb-dlg').__close(); }
+      if (dl.__onKey?.(e)) return;   // the dialog's own use of the keys first (Aide › Raccourcis clavier: the key being set)
+      if (e.key === 'Escape') { e.preventDefault(); dl.__close(); }
       return;
     }
     if (e.key === 'Alt') { altAlone = !e.repeat; return; }

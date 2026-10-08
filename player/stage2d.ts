@@ -11,6 +11,7 @@
 // (translate / rotate / scale), which compose with the transform the engine animates (GSAP, React styles) without
 // touching it, re-applied every frame inside its scope (the engine may rebuild the element), and the camera is a
 // wrapper around the composition (#coulisses-camera, preview only). The offset is in pixels of the frame, as seen.
+import { stageModeKey } from './keys';
 type V3 = [number, number, number];
 export interface Delta { p: V3; r: V3; s: number }   // p: frame pixels (x right, y down); r[2]: turn (radians); s: size factor
 interface Edit { id: string; name: string; kind: string; delta: Delta; from: number; to: number; base: number[] | null }
@@ -207,8 +208,7 @@ export function createStage2d(D: Deps) {
   };
   const onKey = (ev: KeyboardEvent) => {
     if (!on) return;
-    const key = ev.key.toLowerCase();
-    if (key === 'w') return setMode('translate'); if (key === 'e') return setMode('rotate'); if (key === 'r' && !ev.ctrlKey) return setMode('scale');
+    const m = stageModeKey(ev); if (m) { ev.preventDefault(); return setMode(m); }
     if (ev.key === 'Escape' && selected) { select(null); return; }
     if (selected && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) {
       ev.preventDefault();

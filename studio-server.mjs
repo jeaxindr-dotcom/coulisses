@@ -39,6 +39,7 @@ import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/
 import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { spawnSync } from 'node:child_process';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
@@ -266,6 +267,13 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/lang') return json(res, { lang: lang(), source: langSource(), langs: LANGS });
     // ---- the menu bar (menubar.js): documents, About, the Explorer on a path this server knows, its log, `projet verifier` ----
     if (pn === '/menubar.js') return sendFile(req, res, path.join(HERE, 'menubar.js'), 'text/javascript; charset=utf-8');
+    // « Raccourcis clavier » (shortcuts.js): the user's keys, the same for the home screen and every studio (settings.json)
+    if (pn === '/shortcuts.js') return sendFile(req, res, path.join(HERE, 'shortcuts.js'), 'text/javascript; charset=utf-8');
+    if (pn === '/api/shortcuts' && req.method === 'PUT') {
+      let b = {}; try { b = JSON.parse((await body(req, 1e6)).toString('utf8') || '{}'); } catch { return json(res, { ok: false, why: 'json' }, 400); }
+      return json(res, { ok: true, shortcuts: setShortcuts(b.shortcuts) });
+    }
+    if (pn === '/api/shortcuts') return json(res, { shortcuts: getShortcuts() });
     if (pn === '/api/doc') { const d = docText(url.searchParams.get('name')); if (!d) { res.writeHead(404); return res.end('not found'); } res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(d.text); }
     if (pn === '/api/about') return json(res, about());
     if (pn === '/api/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(ring.text()); }

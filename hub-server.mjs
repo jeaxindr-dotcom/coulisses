@@ -26,6 +26,7 @@ import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
 import { workspace, startInstall, installState, createProject, projectsRoot, FORMATS } from './lib/new-project.mjs';
 import { DATA } from './lib/place.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { docText, about, openOnline, logRing } from './lib/menu.mjs';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -210,6 +211,10 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/lang') return json(res, { lang: lang(), source: langSource(), langs: LANGS });
     // the menu bar (menubar.js): documents, About, the online documentation, the home screen's log
     if (pn === '/menubar.js') return send(res, 200, 'text/javascript; charset=utf-8', fs.readFileSync(path.join(STUDIO, 'menubar.js')));
+    // « Raccourcis clavier » (shortcuts.js): the user's keys, the same here and in every studio (settings.json)
+    if (pn === '/shortcuts.js') return send(res, 200, 'text/javascript; charset=utf-8', fs.readFileSync(path.join(STUDIO, 'shortcuts.js')));
+    if (pn === '/api/shortcuts' && req.method === 'PUT') { const b = await readBody(req); return json(res, { ok: true, shortcuts: setShortcuts(b.shortcuts) }); }
+    if (pn === '/api/shortcuts') return json(res, { shortcuts: getShortcuts() });
     if (pn === '/api/doc') { const d = docText(url.searchParams.get('name')); return d ? send(res, 200, 'text/plain; charset=utf-8', d.text) : send(res, 404, 'text/plain', 'not found'); }
     if (pn === '/api/about') return json(res, about());
     if (pn === '/api/log') return send(res, 200, 'text/plain; charset=utf-8', ring.text());

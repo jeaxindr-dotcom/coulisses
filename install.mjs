@@ -27,7 +27,7 @@ const OLD = path.join(DEFAULT_THEATRE, '06_Remotion', 'review', 'studio');
 const DRY = args.includes('--dry'), FORCE = args.includes('--force');
 if (args.includes('--where')) { console.log(TO); process.exit(0); }   // for « Coulisses Setup.exe »
 // the app: « Coulisses.exe » (built by app\build.ps1) + its home screen (hub-server.mjs, hub.html) and icon
-const FILES = ['studio-server.mjs', 'studio.html', 'studio-cli.mjs', 'hub-server.mjs', 'hub.html', 'menubar.js', 'medias.js', 'favicon.png', 'Coulisses.exe', 'AGENT.md', 'AGENT.en.md', 'README.md', 'README.fr.md'];
+const FILES = ['studio-server.mjs', 'studio.html', 'studio-cli.mjs', 'hub-server.mjs', 'hub.html', 'menubar.js', 'shortcuts.js', 'medias.js', 'favicon.png', 'Coulisses.exe', 'AGENT.md', 'AGENT.en.md', 'README.md', 'README.fr.md'];
 const DIRS = ['lib', 'player', 'tests', 'docs'];
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 

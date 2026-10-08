@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { addEffect, addAfterEffect } from '@react-three/fiber';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { stageModeKey } from './keys';
 
 type V3 = [number, number, number];
 export interface Delta { p: V3; r: V3; s: number }          // position (world units), rotation (radians), uniform scale factor
@@ -194,8 +195,7 @@ export function createStage(D: Deps) {
   };
   const onKey = (e: KeyboardEvent) => {
     if (!on) return;
-    const k = e.key.toLowerCase();
-    if (k === 'w') return setMode('translate'); if (k === 'e') return setMode('rotate'); if (k === 'r' && !e.ctrlKey) return setMode('scale');
+    const m = stageModeKey(e); if (m) { e.preventDefault(); return setMode(m); }
     if (e.key === 'Escape' && selected) { select(null); return; }
     if (selected && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
       e.preventDefault();

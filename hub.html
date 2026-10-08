@@ -161,6 +161,7 @@
 </main>
 <footer id="foot"></footer>
 <script src="/menubar.js"></script>
+<script src="/shortcuts.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -454,6 +455,7 @@
   }
 
   // ---------- the menu bar (menubar.js): the same four menus as the studio; what needs a studio is greyed, with why ----------
+  const SC = window.Shortcuts ?? { is: () => false, show: () => '', open: () => null };
   const postJSON = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b ?? {}) }).then((r) => r.json()).catch(() => null);
   const dlg = (o) => window.MenuBar?.dialog({ buttons: [{ label: T('menu.dlg.close'), primary: true }], ...o });
   const inStudio = () => T('menu.why.inStudio');
@@ -495,8 +497,8 @@
   window.MenuBar?.mount($('#menubar'), [
     { id: 'file', label: T('menu.file'), items: [
       { id: 'home', label: T('menu.home'), disabled: () => T('menu.why.here') },
-      { id: 'newProject', label: T('menu.newProject'), run: openNew },
-      { id: 'open', label: T('menu.open'), key: 'Ctrl+O', run: () => menuPick('project', true) },
+      { id: 'newProject', label: T('menu.newProject'), key: () => SC.show('newProject'), run: openNew },
+      { id: 'open', label: T('menu.open'), key: () => SC.show('open'), run: () => menuPick('project', true) },
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
       { id: 'importVideo', label: T('menu.importVideo'), run: () => menuPick('video', false) },
       { id: 'scan', label: T('menu.scan'), run: openScan },
@@ -509,8 +511,8 @@
     ] },
     { id: 'edit', label: T('menu.edit'), items: [
       // the same entries as the studio's Edit menu
-      { id: 'undo', label: T('menu.undoAction'), key: 'Ctrl+Z', disabled: inStudio },
-      { id: 'redo', label: T('menu.redoAction'), key: 'Ctrl+Y', disabled: inStudio },
+      { id: 'undo', label: T('menu.undoAction'), key: () => SC.show('undo'), disabled: inStudio },
+      { id: 'redo', label: T('menu.redoAction'), key: () => SC.show('redo'), disabled: inStudio },
       '-',
       { id: 'undoLot', label: T('menu.undo'), disabled: inStudio },
       { id: 'redoLot', label: T('menu.redo'), disabled: inStudio },
@@ -525,8 +527,8 @@
       { id: 'send', label: T('menu.send'), disabled: inStudio },
       '-',
       // the same entries as the studio's Tools menu (they act on the project open in a studio)
-      { id: 'staging', label: T('menu.staging'), key: 'M', disabled: inStudio },
-      { id: 'source', label: T('menu.source'), key: 'P', disabled: inStudio },
+      { id: 'staging', label: T('menu.staging'), key: () => SC.show('staging'), disabled: inStudio },
+      { id: 'source', label: T('menu.source'), key: () => SC.show('source'), disabled: inStudio },
       { id: 'export', label: T('menu.export'), disabled: inStudio },
       { id: 'stopExport', label: T('menu.stopExport'), disabled: inStudio },
       { id: 'compare', label: T('menu.compare'), disabled: inStudio },
@@ -536,7 +538,7 @@
       { id: 'log', label: T('menu.log'), items: () => [{ id: 'logHub', label: T('menu.logHub'), run: showLog }] },
     ] },
     { id: 'help', label: T('menu.help'), items: [
-      { id: 'shortcuts', label: T('menu.shortcuts'), key: 'F1', disabled: () => T('menu.why.shortcutsStudio') },
+      { id: 'shortcuts', label: T('menu.shortcuts'), key: () => SC.show('help'), run: () => SC.open() },
       '-',
       { id: 'agentDoc', label: T('menu.agentDoc'), run: () => showDoc('agent', T('menu.agentDoc')) },
       { id: 'contract', label: T('menu.contract'), run: () => showDoc('contract', T('menu.contract')) },
@@ -545,10 +547,12 @@
       { id: 'about', label: T('menu.about'), run: showAbout },
     ] },
   ]);
+  // the keys of shortcuts.js (Aide › Raccourcis clavier: the defaults, or the user's own), the ones of the home screen
   window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); menuPick('project', true); }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n' && !document.querySelector('.mb-dlg')) { e.preventDefault(); openNew(); }
-    if (e.key === 'F1') e.preventDefault();
+    if (SC.is(e, 'open')) { e.preventDefault(); menuPick('project', true); }
+    else if (SC.is(e, 'newProject') && !document.querySelector('.mb-dlg')) { e.preventDefault(); openNew(); }
+    else if (SC.is(e, 'help')) { e.preventDefault(); SC.open(); }
+    else if (e.key === 'F1') e.preventDefault();
   });
   // File › Open a project… / Import… chosen in a studio: it comes back here (?menu=open|folder|video) to use the dialog
   const asked = new URLSearchParams(location.search).get('menu');

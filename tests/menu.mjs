@@ -76,9 +76,12 @@ try {
   await escape(); check(!(await state()).focus, 'Escape again: the bar lets go');
   await p.key('F10', 'F10'); await p.key('ArrowLeft', 'ArrowLeft'); await sleep(80);
   check((await state()).focus && (await state()).cur === 3, 'F10 then ←: the bar, on « Aide »');
-  // ↓ opens « Aide » on its first usable item (Raccourcis clavier is greyed on the home screen: Protocole de l'agent)
+  // ↓ opens « Aide » on its first item: Raccourcis clavier, here too (the keys are the same for the whole app)
   await p.key('ArrowDown', 'ArrowDown'); await sleep(80); await p.key('Enter', 'Enter'); await sleep(600);
-  check(/# Coulisses : protocole de l'agent/.test(await ev(`return document.querySelector('.mb-dlg .body')?.textContent ?? ''`)), '↓ Enter: Aide › Protocole de l\'agent (the greyed item skipped), in French (AGENT.md)');
+  check(await ev(`const d = document.querySelector('.mb-dlg.sc-dlg'); return !!d && d.querySelectorAll('.sc-row').length > 20`), '↓ Enter: Aide › Raccourcis clavier, on the home screen too');
+  await escape(); await p.key('F10', 'F10'); await p.key('ArrowLeft', 'ArrowLeft'); await sleep(80);
+  await p.key('ArrowDown', 'ArrowDown'); await sleep(80); await p.key('ArrowDown', 'ArrowDown'); await sleep(80); await p.key('Enter', 'Enter'); await sleep(600);
+  check(/# Coulisses : protocole de l'agent/.test(await ev(`return document.querySelector('.mb-dlg .body')?.textContent ?? ''`)), '↓ ↓ Enter: Aide › Protocole de l\'agent (the separator skipped), in French (AGENT.md)');
   await escape(); check(!(await ev(`return document.querySelector('.mb-dlg')`)), 'Escape closes the window');
   await run('tools', 'log'); await sleep(150);
   check((await rows(1))?.[0]?.label === 'Journal de l\'accueil', 'Outils › Journal ▸ « Journal de l\'accueil »');
@@ -123,9 +126,11 @@ try {
   await p.shot(path.join(shots, 'menu-2-export.png'));
   await escape(3);
   await run('help', 'shortcuts');
-  check(await ev(`return document.querySelector('#help').classList.contains('open')`), 'Aide › Raccourcis clavier opens the help');
-  await p.key('F1', 'F1'); await sleep(100);
-  check(!(await ev(`return document.querySelector('#help').classList.contains('open')`)), 'F1 closes it again');
+  check(await ev(`const d = document.querySelector('.mb-dlg.sc-dlg'); return !!d && /Raccourcis clavier/.test(d.querySelector('h2').textContent) && d.querySelectorAll('.sc-row').length > 20`), 'Aide › Raccourcis clavier opens the window of the shortcuts');
+  await escape();
+  await p.key('F1', 'F1'); await sleep(150);
+  check(await ev(`return !!document.querySelector('.mb-dlg.sc-dlg')`), 'F1 opens it too');
+  await escape();
   await run('edit', 'copyConnect'); await sleep(300);
   check(/^Copié/.test(await ev(`return document.querySelector('#save').textContent`)), 'Édition › Copier la ligne de connexion: « Copié »');
   await run('tools', 'verify');

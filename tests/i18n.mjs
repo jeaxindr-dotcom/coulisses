@@ -203,9 +203,9 @@ try {
   check(/Batch 1/.test(await ev(`return document.querySelector('#lots').innerText`)) && /Fixed by the agent/.test(await ev(`return document.querySelector('#lots').innerText`)), '« Batches »: « Batch 1 · Fixed by the agent »');
   await scan('studio, tab Batches after the fix');
   await p.eval(`document.querySelector('#helpBtn').click(); return 1`); await sleep(200);
-  check(/ON THE IMAGE/i.test(await ev(`return document.querySelector('#help').innerText`)), 'the help panel, in English');
-  await scan('studio, the help panel');
-  await p.eval(`document.querySelector('#helpBtn').click(); return 1`);
+  check(/ON THE IMAGE/i.test(await ev(`return document.querySelector('.mb-dlg.sc-dlg')?.innerText ?? ''`)) && /Undo: one step back/.test(await ev(`return document.querySelector('.mb-dlg.sc-dlg')?.innerText ?? ''`)), 'the keyboard shortcuts window, in English');
+  await scan('studio, the keyboard shortcuts window');
+  await p.eval(`document.querySelector('.mb-dlg').__close(); return 1`);
   await p.eval(`document.querySelector('#agent').click(); return 1`); await sleep(300);
   check(/^Coulisses · Essai de Coulisses · connect → read ".*AGENT\.en\.md" then watch what I send: /.test(await ev(`return document.querySelector('#mLine').textContent`)), 'the connect line, in English');
   await scan('studio, the connect window');
