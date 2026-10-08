@@ -223,7 +223,7 @@ Le protocole complet est dans `AGENT.md` : `wait`, `take`, `snapshot`, correctio
 ## Fichiers
 
 - `studio-server.mjs` : le serveur local, sur 127.0.0.1, port 4174 par défaut.
-- `studio.html` : la page.
+- `studio.html` : la page (son balisage) ; `page/studio.css` son style ; `page/studio/*.js` son script, en parties (`00-base.js` … `10-start.js` : aperçu, notes, gestes, mise en scène, agent, rendu, cartes, timeline, clavier et menus, démarrage), que le serveur recolle dans l'ordre en un seul script (`/studio.js`), sans étape de compilation.
 - `studio-cli.mjs` : la ligne de commande de l'agent.
 - `lib\` : chemins, captures, lots, instantanés, compilation de l'aperçu, rendu complet (`render.mjs`).
 - `player\` : le Remotion Player de l'aperçu vivant (`entry.tsx`, et la mise en scène dans `stage.ts`), compilé par l'esbuild du projet Remotion dans `.cache\`.

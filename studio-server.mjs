@@ -203,6 +203,13 @@ function writeNotes(data) {
   fs.renameSync(tmp, NOTES);
 }
 
+// the studio page's script: the parts of page/studio/ (00-base.js … 10-start.js), in their order, inside one function as
+// the inline script was (they share its names); a banner names each part, for the browser's tools
+function studioScript() {
+  const dir = path.join(HERE, 'page', 'studio');
+  const parts = fs.readdirSync(dir).filter((f) => /^\d\d-[\w-]+\.js$/.test(f)).sort();
+  return '(() => {\n' + parts.map((f) => `// ===== page/studio/${f} =====\n${fs.readFileSync(path.join(dir, f), 'utf8')}`).join('\n') + '})();\n//# sourceURL=studio.js\n';
+}
 function sendFile(req, res, file, type, track) {
   const st = file && fs.existsSync(file) ? fs.statSync(file) : null;
   if (!st || !st.isFile()) { res.writeHead(404); return res.end('not found'); }
@@ -283,6 +290,10 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/lang') return json(res, { lang: lang(), source: langSource(), langs: LANGS });
     // ---- the menu bar (menubar.js): documents, About, the Explorer on a path this server knows, its log, `projet verifier` ----
     if (pn === '/menubar.js') return sendFile(req, res, path.join(HERE, 'menubar.js'), 'text/javascript; charset=utf-8');
+    // the page's styles and script (code review, 08/10/2026: one file of 3 000 lines): page/studio.css, and the parts of
+    // page/studio/ joined in their order inside one function — the browser gets the one script it always had
+    if (pn === '/studio.css') return sendFile(req, res, path.join(HERE, 'page', 'studio.css'), 'text/css; charset=utf-8');
+    if (pn === '/studio.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(studioScript()); }
     // « Raccourcis clavier » (shortcuts.js): the user's keys, the same for the home screen and every studio (settings.json)
     if (pn === '/shortcuts.js') return sendFile(req, res, path.join(HERE, 'shortcuts.js'), 'text/javascript; charset=utf-8');
     if (pn === '/api/shortcuts' && req.method === 'PUT') {

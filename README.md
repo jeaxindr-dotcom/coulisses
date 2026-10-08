@@ -128,6 +128,7 @@ A pipeline whose edit is a Remotion composition becomes reviewable **before any 
 | `app\` | `Launcher.cs` (`Coulisses.exe`: starts the home screen hidden, opens the app window, stops everything when it closes; the Windows file dialog), `Setup.cs` (`Coulisses Setup.exe`), `Lang.cs` (the dialogs' language), `build.ps1` |
 | `hub-server.mjs` + `hub.html` | the home screen (port 4170, or 4171 in the workshop): the list, imports, one studio process per episode or project |
 | `studio-server.mjs` + `studio.html` | a studio (port 4173 installed, 4174 in the workshop): the video, notes, batches, the live preview, render, export |
+| `page/studio.css`, `page/studio/*.js` | the studio page's styles and script, in parts (`00-base.js` … `10-start.js`: preview, notes, gestures, staging, agent, render, cards, timeline, keys and menus, start); the server joins the parts in their order into one script (`/studio.js`), no build step |
 | `menubar.js` | the menu bar of both pages, and their small dialogs |
 | `studio-cli.mjs` | the agent's command line |
 | `install.mjs` | copies the workshop into the installed app |

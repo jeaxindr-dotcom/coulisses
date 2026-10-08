@@ -38,5 +38,14 @@ const r = spawnSync(process.execPath, [path.join(NM, 'typescript', 'bin', 'tsc')
 const errors = (r.stdout + r.stderr).split(/\r?\n/).filter((l) => /error TS\d+/.test(l)).map((l) => l.replace(fwd(STUDIO) + '/', '').replace(STUDIO + path.sep, ''));
 for (const e of errors) console.log('  ✗ ' + e);
 if (!errors.length) console.log('  ✓ player/*.ts, *.tsx : aucune erreur de type');
+// the studio page's script, as studio-server.mjs joins it (page/studio/*.js in one function): valid JavaScript
+{
+  const dir = path.join(STUDIO, 'page', 'studio'), parts = fs.readdirSync(dir).filter((f) => /^\d\d-[\w-]+\.js$/.test(f)).sort();
+  const joined = path.join(out, 'studio.js');
+  fs.writeFileSync(joined, '(() => {\n' + parts.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n') + '})();\n');
+  const c = spawnSync(process.execPath, ['--check', joined], { encoding: 'utf8', windowsHide: true });
+  if (c.status) errors.push('page/studio : ' + (c.stderr.split(/\r?\n/).find((l) => /Error/.test(l)) ?? 'syntaxe'));
+  console.log(c.status ? `  ✗ page/studio/*.js joints : ${c.stderr.trim().split(/\r?\n/).slice(0, 4).join(' ')}` : `  ✓ page/studio/*.js joints (${parts.length} parties) : JavaScript valide`);
+}
 console.log(`\n${errors.length ? 0 : 1} ok, ${errors.length ? 1 : 0} ko${errors.length ? ` (${errors.length} erreur(s))` : ''}`);
 process.exit(errors.length ? 1 : 0);

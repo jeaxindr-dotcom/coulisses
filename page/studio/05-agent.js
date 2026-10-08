@@ -1,0 +1,157 @@
+// The studio's page (studio.html), part 05: the queue sent to the agent, the Agent tab, the batches sent.
+// The parts of page/studio/ are one script: studio-server.mjs joins them in their order inside one function (/studio.js),
+// so they share their names as the one inline script did; hence the two-space indent.
+  // ---------- pending edits -> Claude ----------
+  let sending = false;
+  function renderQueue() {
+    const d = drafts();
+    $('#qcnt').textContent = `${d.length} / ${MAXQ}`; $('#qcnt').classList.toggle('full', d.length >= MAXQ);
+    const nq = $('#nQueue'); nq.textContent = d.length; nq.classList.toggle('hot', d.length > 0); nq.classList.toggle('zero', !d.length);
+    const empty = d.filter((n) => !n.text.trim() && !n.mark && !n.images?.length).length;
+    $('#qsend').disabled = !d.length || !!empty || sending;
+    $('#qsend').innerHTML = sending ? T('st.send.preparing') : `${ic('send')}${d.length > 1 ? T('st.send.many', { n: d.length }) : d.length ? T('st.send.one') : T('st.send.zero')}`;
+    $('#qhint').textContent = empty ? T('st.send.empty', { n: empty }) : (STATUS.agent?.watching && d.length ? T('st.send.watching', { name: agentName() }) : '');
+  }
+  async function sendQueue() {
+    const d = drafts(); if (!d.length || sending) return;
+    sending = true; renderQueue();
+    try {
+      if (!(await flushNow())) throw new Error(T('st.send.notSaved'));
+      const marks = {}, cnv = document.createElement('canvas'); cnv.width = CW; cnv.height = CH;
+      const num = new Map(sorted().map((n, i) => [n.id, i + 1]));
+      for (const n of d) if (n.mark) { const g = cnv.getContext('2d'); g.clearRect(0, 0, CW, CH); paintMark(g, n.mark, String(num.get(n.id)), 1, '#b49cff'); marks[n.id] = cnv.toDataURL('image/png'); }
+      const r = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: d.map((n) => n.id), words: $('#qwords').value, marks, agent: AGENT_PICK, fps: FPS, size: [CW, CH] }) });
+      const res = r.ok ? await r.json() : null;
+      if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
+      for (const n of d) { n.draft = false; n.lot = res.lot; n.sentAt = now(); }
+      HIST.back = []; HIST.fwd = []; HIST.last = null;   // a batch sent is not taken back with Ctrl+Z
+      if (d.some((n) => n.stage)) setTimeout(() => setSave(T('st.send.offsets'), 'ok'), 1600);
+      $('#qwords').value = ''; save();
+      showModal(T('st.send.title', { lot: res.lot, n: res.count }),
+        res.agent?.watching ? T('st.send.gotIt', { name: agentName() }) : T('st.send.paste', { name: agentName() }),
+        res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk });
+      setTab('lots');
+    } catch (e) { setSave(T('st.send.failed', { msg: e.message }), 'err'); }
+    sending = false; renderAll();
+  }
+  $('#qsend').onclick = sendQueue;
+
+  // ---------- the Agent tab: a request written to the connected agent, sent at once as a batch (a note of kind « prompt »,
+  // at the frame shown), its answers read from revue/replies.json like any note's (user's choice, 08/10/2026: « l'agent
+  // connecté »: Coulisses starts nothing itself). A project made with « Nouveau projet » opens on this tab.
+  const prompts = () => notes.filter((n) => n.kind === 'prompt').sort((a, b) => (a.created ?? '').localeCompare(b.created ?? ''));
+  async function sendPrompt() {
+    const ta = $('#agentText'), text = ta.value.trim();
+    if (!text || sending) return;
+    const n = { id: uid(), kind: 'prompt', frame: curFrame(), end: null, text, images: [], thread: [], status: 'open', created: now(), render: META.render, draft: true, source: mode };
+    stamp(n); notes.push(n); ta.value = ''; persist(); renderAgent();
+    sending = true; $('#agentSend').disabled = true;
+    try {
+      if (!(await flushNow())) throw new Error(T('st.send.notSaved'));
+      const r = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [n.id], words: '', marks: {}, agent: AGENT_PICK, fps: FPS, size: [CW, CH] }) });
+      const res = r.ok ? await r.json() : null;
+      if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
+      n.draft = false; n.lot = res.lot; n.sentAt = now(); HIST.back = []; HIST.fwd = []; HIST.last = null; persist();
+      if (!res.agent?.watching) showModal(T('st.ag.sentTitle', { lot: res.lot }), T('st.send.paste', { name: agentName() }), res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk });
+      else setSave(T('st.ag.sent', { name: agentName() }), 'ok');
+    } catch (e) {
+      notes = notes.filter((x) => x.id !== n.id); persist(); ta.value = text;   // nothing sent: the words come back
+      setSave(T('st.send.failed', { msg: e.message }), 'err');
+    }
+    sending = false; $('#agentSend').disabled = false; renderAll();
+  }
+  let agentSig = '';
+  function renderAgent() {
+    const box = $('#agentList'); if (!box) return;
+    const a = STATUS.agent ?? {}, who = $('#agentWho');
+    who.classList.toggle('on', !!a.watching);
+    who.querySelector('.t').innerHTML = a.watching ? esc(T('st.ag.connected', { name: agentName() })) : `${esc(T('st.ag.notConnected'))} <button class="soft" id="agentConnect">${T('st.agent.connect')}</button>`;
+    $('#agentConnect')?.addEventListener('click', openConnect);
+    const list = prompts(), lots = Object.fromEntries((STATUS.lots ?? []).map((L) => [L.lot, L]));
+    const busy = list.filter((n) => !n.draft && statusOf(n) !== 'done').length;
+    $('#nAgent').textContent = busy; $('#nAgent').classList.toggle('zero', !busy); $('#nAgent').classList.toggle('hot', busy > 0);
+    $('#agentHint').textContent = T(a.watching ? 'st.ag.hintOn' : 'st.ag.hintOff');
+    const sig = JSON.stringify([list.map((n) => [n.id, n.draft, n.lot, statusOf(n), threadOf(n).length, lots[n.lot]?.claude?.status]), a.watching]);
+    if (sig === agentSig) return; agentSig = sig;
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    if (!list.length) {
+      box.innerHTML = `<div class="ag-intro">${T(META.newProject ? 'st.ag.introNew' : 'st.ag.intro')}</div>`;
+      return;
+    }
+    box.innerHTML = list.map((n) => {
+      const st = statusOf(n), L = lots[n.lot];
+      const chip = n.draft ? `<span class="st wait">${T('st.ag.sending')}</span>`
+        : st === 'done' ? `<span class="st ok">${ic('check')}${T('st.ag.done')}</span>`
+        : st === 'working' || L?.claude?.status === 'taken' ? `<span class="st work">${T('st.ag.working')}</span>`
+        : `<span class="st wait">${T(a.watching ? 'st.ag.sentOk' : 'st.ag.waiting')}</span>`;
+      const answers = threadOf(n).filter((m) => m.from === 'claude').map((m) => `<div class="it">${esc(m.text)}${m.images?.length ? `<div class="thumbs">${m.images.map((im) => `<img src="/${esc(im.file ?? im)}" data-full="/${esc(im.file ?? im)}" alt="">`).join('')}</div>` : ''}</div>`).join('');
+      return `<div class="ag" data-id="${n.id}"><div class="me">${esc(n.text)}</div><div class="meta">${n.lot ? T('st.rc.lot', { lot: n.lot }) + ' · ' : ''}${hhmm(n.created)} ${chip}</div>${answers}</div>`;
+    }).join('');
+    box.querySelectorAll('.thumbs img').forEach((im) => im.onclick = () => openLightbox(im.dataset.full));
+    if (atBottom || list.length) box.scrollTop = box.scrollHeight;
+  }
+  $('#agentSend').onclick = sendPrompt;
+  $('#agentText').addEventListener('keydown', (e) => {   // Entrée sends, Maj+Entrée goes to the line
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sendPrompt(); }
+    e.stopPropagation();
+  });
+
+  // ---------- batches sent ----------
+  const lotState = (L) => {
+    if (L.run?.state === 'undone') return ['undone', T('st.lot.undone')];
+    const c = L.claude?.status;
+    if (c === 'done') return ['done', T('st.lot.done')];
+    if (c === 'declined') return ['done', T('st.lot.declined')];
+    if (c === 'taken') return ['taken', T('st.lot.taken')];
+    return ['', T('st.lot.waiting')];
+  };
+  // « Annuler cette correction » / « Rétablir » of a batch (the card's buttons, and Edit › Undo / Redo of the menu bar)
+  async function stepLot(L, verb, resEl) {
+    if (verb === 'undo' && !confirm(T('st.lot.undoConfirm', { lot: L.lot }))) return null;
+    const r = await (await fetch('/api/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lot: L.lot, verb }) })).json();
+    const msg = r.ok ? T(verb === 'undo' ? 'st.lot.undoneRes' : 'st.lot.redoneRes', { files: r.files.join(', ') }) : r.why;
+    if (resEl) resEl.textContent = msg; else setSave(msg, r.ok ? 'ok' : 'err');
+    if (r.ok) {
+      for (const id of L.ids) { const n = byId(id); if (!n) continue; (n.thread ??= []).push({ text: T(verb === 'undo' ? 'st.lot.undoneThread' : 'st.lot.redoneThread', { lot: L.lot }), images: [], at: now() }); n.status = verb === 'undo' ? 'open' : 'done'; n.statusAt = now(); }
+      save(); setTimeout(() => { statusTxt = ''; }, 0);
+    }
+    return r;
+  }
+  function renderLots() {
+    const box = $('#lots'), lots = [...(STATUS.lots ?? [])].reverse();
+    $('#nLots').textContent = lots.length; $('#nLots').classList.toggle('zero', !lots.length);
+    $('#nLots').classList.toggle('hot', lots.some((L) => L.claude?.status === 'taken'));
+    if (tab !== 'lots') { rcKey = ''; return; }
+    renderRender();
+    if (!lots.length) { box.innerHTML = `<div class="empty">${T('st.lot.none')}</div>`; return; }
+    box.innerHTML = '';
+    for (const L of lots) {
+      if (L.kind === 'render') {   // a render request: no edits, no undo
+        const el = document.createElement('div'); el.className = 'lot req';
+        const R = STATUS.render, mine = R?.lot === L.lot;
+        const [cls, key] = L.claude?.status === 'done' ? ['done', 'reviewed'] : !L.claude ? ['', 'waiting']
+          : !mine ? (R && Date.parse(R.startedAt) > Date.parse(L.sentAt) ? ['undone', 'replaced'] : ['taken', 'preparing'])
+          : ({ running: ['taken', 'running'], blocked: ['undone', 'blocked'], failed: ['undone', 'failed'], interrupted: ['undone', 'interrupted'],
+            cancelled: ['undone', 'cancelled'], rendered: ['taken', 'watching'], reviewed: ['done', 'reviewed'] }[R.state] ?? ['taken', 'preparing']);
+        const txt = key === 'waiting' ? T('st.lot.waiting') : T(`st.req.${key}`);
+        el.innerHTML = `<div class="lh"><b>${T('st.rc.render')}</b><span class="muted" style="font-size:12px">${T('st.lot.reqSub', { lot: L.lot, at: esc(hhmm(L.sentAt)) })}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
+          ${L.claude?.message ? `<div class="msg2">${esc(L.claude.message)}</div>` : ''}<div class="acts"><button class="soft cp">${ic('copy')}${T('st.lot.copy')}</button></div>`;
+        el.querySelector('.cp').onclick = () => copy(L.line);
+        box.appendChild(el); continue;
+      }
+      const [cls, txt] = lotState(L), el = document.createElement('div'); el.className = 'lot';
+      const canUndo = L.run?.finished && L.run.state !== 'undone', canRedo = L.run?.state === 'undone';
+      el.innerHTML = `<div class="lh"><b>${T('st.lot.title', { lot: L.lot })}</b><span class="muted" style="font-size:12px">${T('st.lot.sub', { n: L.ids.length, at: esc(hhmm(L.sentAt)) })}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
+        ${L.claude?.message ? `<div class="msg2">${esc(L.claude.message)}</div>` : ''}
+        ${L.run?.files?.length ? `<div class="msg2">${T('st.lot.files', { files: esc(L.run.files.join(', ')) })}</div>` : ''}
+        <div class="msg2 res"></div>
+        <div class="acts"><button class="soft cp">${ic('copy')}${T('st.lot.copy')}</button><button class="soft go">${T('st.lot.notes')}</button>
+        ${canUndo ? `<button class="soft danger un">${ic('undo')}${T('st.lot.undo')}</button>` : ''}${canRedo ? `<button class="soft re">${ic('redo')}${T('st.lot.redo')}</button>` : ''}</div>`;
+      el.querySelector('.cp').onclick = () => copy(L.line);
+      el.querySelector('.go').onclick = () => { const n = byId(L.ids[0]); if (n) { sel = n.id; M.pause(); seekFrame(n.frame); renderAll(); showCard(n.id); } };
+      el.querySelector('.un')?.addEventListener('click', () => stepLot(L, 'undo', el.querySelector('.res')));
+      el.querySelector('.re')?.addEventListener('click', () => stepLot(L, 'redo', el.querySelector('.res')));
+      box.appendChild(el);
+    }
+  }
+
