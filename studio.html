@@ -198,8 +198,31 @@
   #tabs { display: flex; gap: 2px; margin: 12px 12px 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--stroke); overflow-x: auto; scrollbar-width: none; }
   #tabs::-webkit-scrollbar { display: none; }
   /* six tabs in a narrow panel: each keeps its whole name (never cut), the bar scrolls if the panel is narrower still */
-  #tabs button { flex: 1 0 auto; justify-content: center; height: 34px; padding: 0 7px; gap: 5px; border: 0; background: transparent; color: var(--s11); font-size: 12.5px; white-space: nowrap; }
+  #tabs button { position: relative; flex: 1 0 auto; justify-content: center; height: 34px; padding: 0 6px; gap: 5px; border: 0; background: transparent; color: var(--s11); font-size: 12.5px; white-space: nowrap; }
   #tabs .n.zero { display: none; }
+  /* the counters float above the tab's name (seven tabs keep their whole names in the panel) */
+  #tabs .n { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 15px; padding: 0 4px; font: 600 9.5px/15px var(--font-d); z-index: 1; box-shadow: 0 0 0 2px rgba(9, 11, 18, 0.9); }
+  /* the Agent tab: the requests written to the connected agent, and its answers (a project built live) */
+  #tab-agent .who { font-size: 12px; color: var(--s9); padding: 0 18px 6px; display: flex; gap: 8px; align-items: center; }
+  #tab-agent .who .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--s9); }
+  #tab-agent .who.on .dot { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+  #tab-agent .who button { height: 24px; padding: 0 10px; font-size: 11.5px; }
+  #agentList { gap: 8px; }
+  .ag { display: flex; flex-direction: column; gap: 6px; }
+  .ag .me, .ag .it { max-width: 92%; padding: 9px 12px; border-radius: 16px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .ag .me { align-self: flex-end; background: rgba(201, 242, 107, 0.12); border: 1px solid rgba(201, 242, 107, 0.22); }
+  .ag .it { align-self: flex-start; background: var(--glass-2); border: 1px solid var(--stroke); }
+  .ag .meta { align-self: flex-end; font-size: 11px; color: var(--s9); display: flex; gap: 6px; align-items: center; }
+  .ag .meta .st { font: 600 10.5px var(--font-d); padding: 1px 8px; border-radius: 99px; background: rgba(255,255,255,.08); color: var(--s11); }
+  .ag .meta .st.work { background: rgba(143, 205, 255, 0.16); color: var(--sky); }
+  .ag .meta .st.ok { background: rgba(111, 231, 200, 0.14); color: var(--mint); }
+  .ag .meta .st.wait { background: rgba(255, 210, 127, 0.14); color: var(--amber); }
+  .ag .it .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ag .it .thumbs img { width: 96px; border-radius: 8px; cursor: zoom-in; }
+  .ag-intro { color: var(--s9); font-size: 12.5px; line-height: 1.6; padding: 6px 4px; }
+  .ag-intro b { color: var(--s11); }
+  #agentText { width: 100%; min-height: 64px; max-height: 180px; resize: vertical; background: rgba(0, 0, 0, 0.22); color: var(--s12); border: 1px solid var(--stroke); border-radius: 14px; padding: 10px 12px; font: 13.5px/1.55 var(--font); }
+  #agentText:focus { outline: none; border-color: rgba(201, 242, 107, 0.45); }
   #tabs button:hover { background: var(--glass-3); color: var(--s12); }
   #tabs button.on { background: #f4f5fa; color: #11131c; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
   #tabs .n { min-width: 19px; height: 18px; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font: 600 10.5px/18px var(--font-d); color: var(--s11); text-align: center; }
@@ -477,12 +500,23 @@
   <div class="split v" id="splitV" title="{{st.splitV}}"></div>
   <aside id="side" class="glass">
     <div id="tabs">
+      <button data-tab="agent">{{st.tab.agent}}<span class="n zero" id="nAgent">0</span></button>
       <button data-tab="queue">{{st.tab.queue}}<span class="n zero" id="nQueue">0</span></button>
       <button data-tab="notes">{{st.tab.notes}}<span class="n zero" id="nNotes">0</span></button>
       <button data-tab="lots">{{st.tab.lots}}<span class="n zero" id="nLots">0</span></button>
       <button data-tab="insp">{{st.tab.insp}}</button>
       <button data-tab="medias">{{st.tab.medias}}<span class="n" id="nMedias"></span></button>
       <button data-tab="scene">{{st.tab.scene}}</button>
+    </div>
+    <div class="tab" id="tab-agent">
+      <div class="bar"><b>{{st.ag.title}}</b><span class="grow"></span><span class="muted">{{st.ag.sub}}</span></div>
+      <div class="who" id="agentWho"><span class="dot"></span><span class="t"></span></div>
+      <div class="scroll" id="agentList"></div>
+      <div class="foot">
+        <textarea id="agentText" placeholder="{{st.ag.placeholder}}"></textarea>
+        <button id="agentSend" class="primary">{{st.ag.send}}</button>
+        <span class="muted" id="agentHint" style="font-size:11.5px"></span>
+      </div>
     </div>
     <div class="tab" id="tab-queue">
       <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
@@ -883,7 +917,7 @@
   // ---------- notes ----------
   const sorted = () => [...notes].sort((a, b) => a.frame - b.frame || (a.end ?? a.frame) - (b.end ?? b.frame));
   const byId = (id) => notes.find((n) => n.id === id);
-  const drafts = () => sorted().filter((n) => n.draft);
+  const drafts = () => sorted().filter((n) => n.draft && n.kind !== 'prompt');
   const reply = (n) => REPLIES.notes?.[n.id] ?? null;
   function statusOf(n) {
     const r = reply(n), ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0;
@@ -1588,6 +1622,66 @@
   }
   $('#qsend').onclick = sendQueue;
 
+  // ---------- the Agent tab: a request written to the connected agent, sent at once as a batch (a note of kind « prompt »,
+  // at the frame shown), its answers read from revue/replies.json like any note's (user's choice, 08/10/2026: « l'agent
+  // connecté »: Coulisses starts nothing itself). A project made with « Nouveau projet » opens on this tab.
+  const prompts = () => notes.filter((n) => n.kind === 'prompt').sort((a, b) => (a.created ?? '').localeCompare(b.created ?? ''));
+  async function sendPrompt() {
+    const ta = $('#agentText'), text = ta.value.trim();
+    if (!text || sending) return;
+    const n = { id: uid(), kind: 'prompt', frame: curFrame(), end: null, text, images: [], thread: [], status: 'open', created: now(), render: META.render, draft: true, source: mode };
+    stamp(n); notes.push(n); ta.value = ''; persist(); renderAgent();
+    sending = true; $('#agentSend').disabled = true;
+    try {
+      if (!(await flushNow())) throw new Error(T('st.send.notSaved'));
+      const r = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [n.id], words: '', marks: {}, agent: AGENT_PICK, fps: FPS, size: [CW, CH] }) });
+      const res = r.ok ? await r.json() : null;
+      if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
+      n.draft = false; n.lot = res.lot; n.sentAt = now(); HIST.back = []; HIST.fwd = []; HIST.last = null; persist();
+      if (!res.agent?.watching) showModal(T('st.ag.sentTitle', { lot: res.lot }), T('st.send.paste', { name: agentName() }), res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk });
+      else setSave(T('st.ag.sent', { name: agentName() }), 'ok');
+    } catch (e) {
+      notes = notes.filter((x) => x.id !== n.id); persist(); ta.value = text;   // nothing sent: the words come back
+      setSave(T('st.send.failed', { msg: e.message }), 'err');
+    }
+    sending = false; $('#agentSend').disabled = false; renderAll();
+  }
+  let agentSig = '';
+  function renderAgent() {
+    const box = $('#agentList'); if (!box) return;
+    const a = STATUS.agent ?? {}, who = $('#agentWho');
+    who.classList.toggle('on', !!a.watching);
+    who.querySelector('.t').innerHTML = a.watching ? esc(T('st.ag.connected', { name: agentName() })) : `${esc(T('st.ag.notConnected'))} <button class="soft" id="agentConnect">${T('st.agent.connect')}</button>`;
+    $('#agentConnect')?.addEventListener('click', openConnect);
+    const list = prompts(), lots = Object.fromEntries((STATUS.lots ?? []).map((L) => [L.lot, L]));
+    const busy = list.filter((n) => !n.draft && statusOf(n) !== 'done').length;
+    $('#nAgent').textContent = busy; $('#nAgent').classList.toggle('zero', !busy); $('#nAgent').classList.toggle('hot', busy > 0);
+    $('#agentHint').textContent = T(a.watching ? 'st.ag.hintOn' : 'st.ag.hintOff');
+    const sig = JSON.stringify([list.map((n) => [n.id, n.draft, n.lot, statusOf(n), threadOf(n).length, lots[n.lot]?.claude?.status]), a.watching]);
+    if (sig === agentSig) return; agentSig = sig;
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    if (!list.length) {
+      box.innerHTML = `<div class="ag-intro">${T(META.newProject ? 'st.ag.introNew' : 'st.ag.intro')}</div>`;
+      return;
+    }
+    box.innerHTML = list.map((n) => {
+      const st = statusOf(n), L = lots[n.lot];
+      const chip = n.draft ? `<span class="st wait">${T('st.ag.sending')}</span>`
+        : st === 'done' ? `<span class="st ok">${ic('check')}${T('st.ag.done')}</span>`
+        : st === 'working' || L?.claude?.status === 'taken' ? `<span class="st work">${T('st.ag.working')}</span>`
+        : `<span class="st wait">${T(a.watching ? 'st.ag.sentOk' : 'st.ag.waiting')}</span>`;
+      const answers = threadOf(n).filter((m) => m.from === 'claude').map((m) => `<div class="it">${esc(m.text)}${m.images?.length ? `<div class="thumbs">${m.images.map((im) => `<img src="/${esc(im.file ?? im)}" data-full="/${esc(im.file ?? im)}" alt="">`).join('')}</div>` : ''}</div>`).join('');
+      return `<div class="ag" data-id="${n.id}"><div class="me">${esc(n.text)}</div><div class="meta">${n.lot ? T('st.rc.lot', { lot: n.lot }) + ' · ' : ''}${hhmm(n.created)} ${chip}</div>${answers}</div>`;
+    }).join('');
+    box.querySelectorAll('.thumbs img').forEach((im) => im.onclick = () => openLightbox(im.dataset.full));
+    if (atBottom || list.length) box.scrollTop = box.scrollHeight;
+  }
+  $('#agentSend').onclick = sendPrompt;
+  $('#agentText').addEventListener('keydown', (e) => {   // Entrée sends, Maj+Entrée goes to the line
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sendPrompt(); }
+    e.stopPropagation();
+  });
+
   // ---------- batches sent ----------
   const lotState = (L) => {
     if (L.run?.state === 'undone') return ['undone', T('st.lot.undone')];
@@ -1956,7 +2050,7 @@
   $('#agent').onclick = openConnect;
 
   // ---------- note cards (Modifs = waiting to be sent ; Notes = the others) ----------
-  function renderAll() { renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (tab === 'scene') renderScene(); }
+  function renderAll() { renderAgent(); renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (tab === 'scene') renderScene(); }
   function gestureHtml(n) {
     if (n.stage) return `<div class="gest">${ic('move')}<span class="obj">${esc(n.stage.name)}</span><span class="k">${esc(deltaWords(n.stage.delta))}</span></div>`;
     if (!n.mark && !n.target) return '';
@@ -2053,7 +2147,7 @@
     return el;
   }
   function renderList() {
-    const all = sorted(), num = new Map(all.map((n, i) => [n.id, i]));
+    const all = sorted().filter((n) => n.kind !== 'prompt'), num = new Map(all.map((n, i) => [n.id, i]));   // the requests of the Agent tab live there
     const others = all.filter((n) => !n.draft), d = all.filter((n) => n.draft), hide = $('#hideDone').checked;
     const ndone = others.filter((n) => statusOf(n) === 'done').length;
     $('#count').textContent = T('st.list.count', { n: others.length }) + (ndone ? T('st.list.fixed', { n: ndone }) : '');
@@ -2714,6 +2808,7 @@
     window.MenuBar.mount($('#menubar'), [
       { id: 'file', label: T('menu.file'), items: [
         { id: 'home', label: T('menu.home'), disabled: noHub, run: () => toHub() },
+        { id: 'newProject', label: T('menu.newProject'), disabled: noHub, run: () => toHub('?menu=new') },
         { id: 'open', label: T('menu.open'), key: 'Ctrl+O', disabled: noHub, run: () => toHub('?menu=open') },
         { id: 'importFolder', label: T('menu.importFolder'), disabled: noHub, run: () => toHub('?menu=folder') },
         { id: 'importVideo', label: T('menu.importVideo'), disabled: noHub, run: () => toHub('?menu=video') },
@@ -2777,10 +2872,12 @@
     for (const n of ['s1', 's2', 's9', 's11', 's12', 'acc', 'mark', 'work', 'done', 'range', 'head', 'lime']) C[n] = css('--' + n);
     try {
       META = await (await fetch('/api/meta')).json();
+      const data0Notes = META.newProject ? ((await (await fetch('/api/notes')).json()).notes ?? []).length : 0;
       SNAP = META.snapshot; FPS = META.fps || 30; MAXQ = META.maxEdits || 10;
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
       if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }
+      if (META.newProject && !(data0Notes ?? 0)) tab = 'agent';
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
       markTools();

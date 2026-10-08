@@ -147,6 +147,7 @@ function meta() {
     lang: lang(), langSource: langSource(), coulissesFile: coulissesOf(P),
     // the 3D shots this run shows as media (« Ouvrir la scène 3D » on their clip), and where this run's render is used
     shots3d: G && P.coulisses ? shotsUsedIn(P.coulisses) : [], usedIn: G ? (P.uses ?? []) : [],
+    newProject: G && P.coulisses ? readJson(P.coulisses, null)?.origine === 'coulisses' : false,   // « Nouveau projet »: opens on the Agent tab
   };
 }
 // ---- hold: a new render is replacing the video (studio-cli.mjs render, around finish-render.sh) ----

@@ -135,6 +135,16 @@ L'écrire là où le projet place cet élément (sa position, sa taille, son ani
 
 **Un plan 3D monté ailleurs en vidéo** : son lot commence par « Ce plan 3D est utilisé dans … ». Après la correction, refaire le rendu de la composition du plan et remplacer le fichier indiqué dans l'autre run, avec le même nom, le même format et la même durée. Le studio de cet autre run recharge la vidéo tout seul.
 
+## Une demande de l'onglet Agent (un projet construit en direct)
+
+Dans l'onglet **Agent** du studio, l'utilisateur écrit ce qu'il veut voir, sans viser une image précise. Chaque message part tout de suite en lot, avec un bloc **« Demande N … le projet se construit en direct »**, l'image affichée à ce moment-là et le guide du projet (`CLAUDE.md` / `AGENTS.md`) quand il en a un.
+
+1. L'écrire dans le code du projet (ses compositions, sa scène). Coulisses recharge l'aperçu à chaque enregistrement : l'utilisateur voit la scène se monter.
+2. Tenir la timeline à jour (`src/coulisses-timeline.ts`).
+3. Regarder le résultat avec `frame … --source code`, puis répondre en une ou deux phrases (`reply` sur la note de la demande) : la réponse s'affiche dans l'onglet Agent. Puis `done`.
+
+Un projet créé par **Fichier › Nouveau projet** part d'une scène 3D vide : React Three Fiber, fond noir, grille au sol sur le plan y = 0, axes et point blanc à l'origine. Ces aides de l'éditeur (`<EditorAids />`) ne s'affichent que dans Coulisses, jamais dans un rendu. Ses modules sont partagés par tous les nouveaux projets (`node_modules` est une jonction) : ne rien y installer sans l'accord de l'utilisateur.
+
 ## Une image de la bibliothèque à placer
 
 Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) : ses personnages, décors, accessoires et effets, rangés par catégorie dans `Documents\Coulisses\Médias\<chaîne>\`. L'utilisateur y crée des images avec l'atelier d'images (Codex et son outil image_gen), ou y dépose les siennes. Quand il glisse une image sur la vidéo, la modif contient un bloc **« Média de la bibliothèque à placer »** :

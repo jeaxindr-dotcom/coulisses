@@ -66,7 +66,7 @@ try {
   const tabs = await p.eval(`const bar = document.querySelector('#tabs'), r = bar.getBoundingClientRect();
     return { names: [...bar.querySelectorAll('button')].map((b) => b.childNodes[0].textContent), cut: [...bar.querySelectorAll('button')].filter((b) => b.scrollWidth > b.clientWidth + 1).length,
       fits: bar.scrollWidth <= bar.clientWidth + 1, last: [...bar.querySelectorAll('button')].at(-1).getBoundingClientRect().right <= r.right + 1 }`);
-  check(tabs.names.join('|') === 'Modifs|Notes|Envois|Inspecteur|Médias|Scène' && !tabs.cut && tabs.fits && tabs.last, `six tabs, none cut, « Scène » whole (${tabs.names.join(' · ')})`);
+  check(tabs.names.join('|') === 'Agent|Modifs|Notes|Envois|Inspecteur|Médias|Scène' && !tabs.cut && tabs.fits && tabs.last, `seven tabs, none cut, « Scène » whole (${tabs.names.join(' · ')})`);
   const m1 = await menuIds(p);
   check(TOOLS.every((id) => m1.ids.includes(id)) && !m1.ids.includes('render') && !m1.off.staging && /Pas encore de vidéo/.test(m1.off.source), `Outils: ${m1.ids.filter(Boolean).join(' · ')}`);
 

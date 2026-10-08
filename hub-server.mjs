@@ -23,6 +23,7 @@ import { ffmpeg } from './lib/frames.mjs';
 import { renderState } from './lib/render.mjs';
 import { registry, importProject, removeProject, project, revueOf, folderOf, setFolder, renameFolder } from './lib/projects.mjs';
 import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
+import { workspace, startInstall, installState, createProject, projectsRoot, FORMATS } from './lib/new-project.mjs';
 import { DATA } from './lib/place.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { docText, about, openOnline, logRing } from './lib/menu.mjs';
@@ -215,6 +216,20 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pn === '/api/reveal') { const b = await readBody(req); if (b.what !== 'online') return json(res, { ok: false, why: String(b.what) }, 400); openOnline(); return json(res, { ok: true }); }
     if (pn === '/favicon.png') return send(res, 200, 'image/png', fs.readFileSync(path.join(STUDIO, 'favicon.png')));
     if (pn === '/api/ping') return json(res, { hub: true, installed: INSTALLED, episodesDir: O.episodesDir, studios: Object.fromEntries([...studios].map(([k, s]) => [k, { url: s.url, paused: s.paused }])) });
+    // ---- « Nouveau projet »: an empty 3D scene, built live with the agent (lib/new-project.mjs) ----
+    if (req.method !== 'POST' && pn === '/api/new') return json(res, { workspace: workspace(), formats: Object.keys(FORMATS), channels: [...new Set([...projects().map((x) => x.channel), theatreInfo().name].filter(Boolean))].sort() });
+    if (req.method === 'POST' && pn === '/api/new/install') return json(res, { ok: true, ...startInstall(projectsRoot(), { log }) });
+    if (pn === '/api/new/install') return json(res, installState() ?? { state: 'idle' });
+    if (req.method === 'POST' && pn === '/api/new') {
+      const b = await readBody(req), ws = workspace();
+      if (!ws.ready) return json(res, { ok: false, needInstall: true, root: ws.root, missing: ws.missing });
+      try {
+        const { file } = createProject({ nom: b.nom, chaine: b.chaine || null, format: b.format, duree: b.duree, fps: b.fps });
+        const p = importProject(file);
+        log(t('hubsrv.newProject', { title: p.title, file }));
+        return json(res, { ok: true, id: p.id, file });
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
     // ---- the folders of the home screen ----
     if (req.method === 'POST' && pn === '/api/folder') {   // { ids, folder }: a name, '' = none, null = its channel's
       const b = await readBody(req);

@@ -148,6 +148,16 @@ Write it where the project places this element (its position, its size, its anim
 
 **A 3D shot edited elsewhere as a video**: its batch starts with "This 3D shot is used in …". After the fix, render the shot's composition again and replace the file named in the other run, with the same name, format and length. The studio of that other run reloads the video by itself.
 
+## A request of the Agent tab (a project built live)
+
+In the studio's **Agent** tab, the user writes what they want to see, without aiming at one frame. Each message goes at once as a batch, with a **"Request N … the project is being built live"** block, the frame shown at that moment, and the project's guide (`CLAUDE.md` / `AGENTS.md`) when it has one.
+
+1. Write it in the project's code (its compositions, its scene). Coulisses reloads the preview on every save: the user watches the scene being built.
+2. Keep the timeline up to date (`src/coulisses-timeline.ts`).
+3. Look at the result with `frame … --source code`, then answer in one or two sentences (`reply` on the request's note): the answer shows in the Agent tab. Then `done`.
+
+A project created with **File › New project** starts from an empty 3D scene: React Three Fiber, a black background, a floor grid on the y = 0 plane, axes and a white dot at the origin. These editor aids (`<EditorAids />`) only show in Coulisses, never in a render. Its modules are shared by every new project (`node_modules` is a junction): install nothing there without the user's agreement.
+
 ## A library image to place
 
 Each channel has a media library (the studio's "Media" tab): its characters, sets, props and effects, sorted by category in `Documents\Coulisses\Media\<channel>\` (`Médias` when Coulisses was first used in French). The user creates images there with the image workshop (Codex and its image_gen tool), or drops their own. When they drag an image onto the video, the edit holds a **"Library image to place"** block:

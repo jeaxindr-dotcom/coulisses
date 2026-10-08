@@ -129,6 +129,17 @@
   .scan .bb { font: 600 10.5px var(--font-d); color: var(--sky); margin-left: 6px; }
   .scan .bb.bad { color: var(--coral); }
   .scan .res { color: var(--mint); font-size: 12.5px; }
+  /* « Nouveau projet » */
+  .np label { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 10px; margin: 8px 0; color: var(--s11); font-size: 12.5px; }
+  .np input, .np select { height: 36px; border-radius: 12px; border: 1px solid var(--stroke-2); background: rgba(0,0,0,.3); color: var(--s12); padding: 0 12px; font: 13px var(--font); }
+  .np select option { background: #151826; }
+  .np .seg { display: inline-flex; gap: 4px; }
+  .np .seg button { height: 32px; padding: 0 14px; background: rgba(255,255,255,.06); color: var(--s11); box-shadow: none; border: 1px solid var(--stroke); font: 600 12px var(--font-d); }
+  .np .seg button.on { background: #f4f5fa; color: #11131c; }
+  .np .log { margin-top: 8px; max-height: 160px; overflow: auto; font: 11px/1.5 "Cascadia Mono", Consolas, monospace; color: var(--s9); white-space: pre-wrap; background: rgba(0,0,0,.25); border-radius: 10px; padding: 8px 10px; }
+  .np .row2 { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .np .row2 .grow { flex: 1; }
+  .np .why { color: var(--coral); font-size: 12.5px; }
 </style>
 <!--I18N-->
 </head>
@@ -143,7 +154,7 @@
 </header>
 <main>
   <div class="topbar"><h2>{{hub.projects}} <span class="n" id="nproj"></span></h2><span class="grow"></span>
-    <button class="soft" id="scanBtn" title="{{hub.scan.buttonTitle}}">{{hub.scan.button}}</button></div>
+    <button class="soft" id="scanBtn" title="{{hub.scan.buttonTitle}}">{{hub.scan.button}}</button><button id="newBtn" title="{{hub.new.buttonTitle}}">{{hub.new.button}}</button></div>
   <div id="folders"><div class="empty">{{hub.loading}}</div></div>
   <section id="addSec"><h2>{{hub.add}}</h2>
   <div class="grid" id="pgrid"></div></section>
@@ -360,6 +371,56 @@
     if (running) scanTimer = setTimeout(renderScan, 500);
   }
   $('#scanBtn').onclick = openScan;
+
+  // ---------- « Nouveau projet »: a name, a channel, a format, a length; the shared modules installed once, if needed ----------
+  let npD = null, npTimer = null;
+  async function openNew() {
+    const info = await (await fetch('/api/new', { cache: 'no-store' })).json().catch(() => null) ?? {};
+    npD = dlg({ title: T('hub.new.title'), html: '<div class="np"></div>', buttons: [{ label: T('hub.new.cancel') }], onClose: () => { npD = null; clearTimeout(npTimer); } });
+    const box = npD.querySelector('.np');
+    box.innerHTML = `<p>${T('hub.new.intro')}</p>
+      <label>${T('hub.new.name')}<input id="npName" placeholder="${esc(T('hub.new.namePh'))}" spellcheck="false"></label>
+      <label>${T('hub.new.channel')}<input id="npChan" list="npChans" placeholder="${esc(T('hub.new.channelPh'))}"><datalist id="npChans">${(info.channels ?? []).map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>
+      <label>${T('hub.new.format')}<span class="seg" id="npFmt">${(info.formats ?? ['16:9', '9:16', '1:1']).map((f, i) => `<button data-f="${f}" class="${i ? '' : 'on'}">${f}</button>`).join('')}</span></label>
+      <label>${T('hub.new.length')}<input id="npDur" type="number" min="1" max="3600" value="10"></label>
+      <div id="npInstall"></div>
+      <div class="row2"><span class="why" id="npWhy"></span><span class="grow"></span><button id="npGo">${T('hub.new.create')}</button></div>`;
+    let fmt = (info.formats ?? ['16:9'])[0];
+    box.querySelectorAll('#npFmt button').forEach((b) => b.onclick = () => { fmt = b.dataset.f; box.querySelectorAll('#npFmt button').forEach((x) => x.classList.toggle('on', x === b)); });
+    box.querySelector('#npName').focus();
+    const why = (m) => { box.querySelector('#npWhy').textContent = m ?? ''; };
+    const go = async () => {
+      why('');
+      const nom = box.querySelector('#npName').value.trim(); if (!nom) { why(T('hub.new.needName')); box.querySelector('#npName').focus(); return; }
+      const b = box.querySelector('#npGo'); b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.new.creating')}`;
+      const r = await postJSON('/api/new', { nom, chaine: box.querySelector('#npChan').value.trim(), format: fmt, duree: +box.querySelector('#npDur').value || 10 });
+      b.disabled = false; b.textContent = T('hub.new.create');
+      if (r?.ok) { location.href = '/go/' + r.id; return; }
+      if (r?.needInstall) { askInstall(box, r, go); return; }
+      why(r?.why ?? T('hub.error'));
+    };
+    box.querySelector('#npGo').onclick = go;
+    box.querySelectorAll('input').forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); }));
+    const st = await (await fetch('/api/new/install', { cache: 'no-store' })).json().catch(() => null);
+    if (st?.state === 'running') showInstall(box, go);
+  }
+  // the modules (Remotion, three, React Three Fiber): installed once, on the user's order
+  function askInstall(box, r, then) {
+    const el = box.querySelector('#npInstall');
+    el.innerHTML = `<p>${T('hub.new.installAsk', { root: esc(r.root) })}</p><div class="row2"><span class="grow"></span><button id="npInst">${T('hub.new.install')}</button></div>`;
+    el.querySelector('#npInst').onclick = async () => { await postJSON('/api/new/install'); showInstall(box, then); };
+  }
+  async function showInstall(box, then) {
+    clearTimeout(npTimer);
+    if (!npD) return;
+    const st = await (await fetch('/api/new/install', { cache: 'no-store' })).json().catch(() => ({ state: 'idle' }));
+    const el = box.querySelector('#npInstall'); if (!el) return;
+    const running = st.state === 'running';
+    el.innerHTML = `<div class="prog" style="display:flex;gap:8px;align-items:center;color:var(--s11)">${running ? '<span class="spin" style="border-color:rgba(255,255,255,.2);border-top-color:var(--lime)"></span>' : ''}${T(running ? 'hub.new.installing' : st.state === 'done' ? 'hub.new.installed' : 'hub.new.installFailed', { why: esc(st.error ?? '') })}</div><div class="log">${esc((st.log ?? []).join('\n'))}</div>`;
+    if (running) { npTimer = setTimeout(() => showInstall(box, then), 1200); return; }
+    if (st.state === 'done') then();
+  }
+  $('#newBtn').onclick = openNew;
   let timer = null, impCard = null;
   async function load(once) {
     try {
@@ -434,6 +495,7 @@
   window.MenuBar?.mount($('#menubar'), [
     { id: 'file', label: T('menu.file'), items: [
       { id: 'home', label: T('menu.home'), disabled: () => T('menu.why.here') },
+      { id: 'newProject', label: T('menu.newProject'), run: openNew },
       { id: 'open', label: T('menu.open'), key: 'Ctrl+O', run: () => menuPick('project', true) },
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
       { id: 'importVideo', label: T('menu.importVideo'), run: () => menuPick('video', false) },
@@ -485,11 +547,12 @@
   ]);
   window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); menuPick('project', true); }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n' && !document.querySelector('.mb-dlg')) { e.preventDefault(); openNew(); }
     if (e.key === 'F1') e.preventDefault();
   });
   // File › Open a project… / Import… chosen in a studio: it comes back here (?menu=open|folder|video) to use the dialog
   const asked = new URLSearchParams(location.search).get('menu');
-  if (asked) { history.replaceState(null, '', '/'); setTimeout(() => (asked === 'scan' ? openScan() : menuPick(asked === 'open' ? 'project' : asked === 'video' ? 'video' : 'folder', asked === 'open')), 400); }
+  if (asked) { history.replaceState(null, '', '/'); setTimeout(() => (asked === 'scan' ? openScan() : asked === 'new' ? openNew() : menuPick(asked === 'open' ? 'project' : asked === 'video' ? 'video' : 'folder', asked === 'open')), 400); }
   load();
 })();
 </script>
