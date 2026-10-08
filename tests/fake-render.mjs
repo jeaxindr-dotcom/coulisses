@@ -2,7 +2,8 @@
 //   STUDIO_RENDER_RECIPE=tests/fake-render.mjs node studio-cli.mjs render E03 <lot> --episodes <sandbox>
 // Same kind of output as the five checks, Remotion and finish-render.sh, in a few seconds. The « new render » is the
 // sandbox's own video remuxed into a NEW file renamed over it: the hard link to the real episode's video is replaced,
-// never written through. Knobs: FAKE_FAIL=<check key> (that check fails), FAKE_FRAMES (120), FAKE_MS (per frame, 40).
+// never written through. Knobs: FAKE_FAIL=<check key> (that check fails), FAKE_RENDER_FAIL=1 (the render fails as Remotion
+// does, an error inside the composition), FAKE_FRAMES (120), FAKE_MS (per frame, 40).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t } from '../lib/i18n.mjs';

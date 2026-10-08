@@ -22,7 +22,21 @@ if (what === 'render') {
   for (const s of ['17 MB', '1.2 GB', '3 GB']) { console.log(`Copying public dir ${s}`); await sleep(60); }
   console.log('Getting composition');
   console.log('\x1b[90mComposition          E03-SecretGarden\x1b[39m');
-  for (let i = 0; i <= N; i++) { process.stdout.write(`Rendered ${i}/${N}${i ? `, time remaining: ${Math.round(((N - i) * ms) / 1000)}s` : ''}\n`); await sleep(ms); }
+  for (let i = 0; i <= N; i++) {
+    process.stdout.write(`Rendered ${i}/${N}${i ? `, time remaining: ${Math.round(((N - i) * ms) / 1000)}s` : ''}\n`); await sleep(ms);
+    if (process.env.FAKE_RENDER_FAIL && i === 0) {   // as a real one: the error, a code frame, a stack ending in React's scheduler
+      console.error('An error occurred while rendering frame 3:');
+      console.error("TypeError: Cannot read properties of undefined (reading 'position')");
+      console.error('  218 |   const u = useMemo(() => makeDeformUniforms(1, THICK), []);');
+      console.error('> 220 |   const p = piece.anchor.position;');
+      console.error('      |                          ^');
+      console.error('    at Piece (src/engine/Stage.tsx:220:31)');
+      console.error('    at renderWithHooks (node_modules/react-dom/cjs/react-dom-client.production.js:5529:22)');
+      console.error('    at workLoopSync (node_modules/react-dom/cjs/react-dom-client.production.js:10957:41)');
+      console.error('    at performWorkUntilDeadline (node_modules/react-dom/node_modules/scheduler/cjs/scheduler.production.js:150)');
+      process.exit(1);
+    }
+  }
   for (const e of [Math.round(N / 3), N]) { console.log(`Encoded ${e}/${N}`); await sleep(80); }
   console.log(`\x1b[34m+                    C:/fake/out/e03-raw.mp4\x1b[39m \x1b[90m5.2 MB\x1b[39m`);
 }

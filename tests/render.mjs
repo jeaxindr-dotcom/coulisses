@@ -180,6 +180,17 @@ try {
   check(await ev(`return document.querySelector('#renderPill').textContent.includes('bloqué') && document.querySelector('#renderCard .chip.fail') !== null`), 'card and header: « Rendu bloqué », the failing check in red');
   await p.shot(path.join(shots, 'render-5-blocked.png'));
 
+  // 7b) a render that fails inside the composition: the card says the error and where in the project's code (user report,
+  // 08/10/2026: « at performWorkUntilDeadline (…scheduler…) » was all it said), and its log is kept for after a relaunch
+  const run4 = render(4, { FAKE_RENDER_FAIL: '1' });   // the agent fixed the check and runs the same request again
+  await run4.done;
+  await until(`/Cannot read properties/.test(document.querySelector('#renderCard').innerText)`, 15000).catch(() => {});
+  const failCard = await ev(`return document.querySelector('#renderCard').innerText`);
+  check(run4.code === 1 && /Cannot read properties of undefined \(reading 'position'\)/.test(failCard) && /src\/engine\/Stage\.tsx:220/.test(failCard) && /rendering frame 3/.test(failCard) && !/performWorkUntilDeadline/.test(failCard),
+    `a render that fails: the card says the error and where in the project (« ${(failCard.split('\n').find((l) => /Cannot read/.test(l)) ?? '').slice(0, 120)} »)`);
+  check(/Cannot read properties/.test(fs.existsSync(path.join(REVUE, 'render-failed.log')) ? fs.readFileSync(path.join(REVUE, 'render-failed.log'), 'utf8') : ''), 'its log is kept as revue\\render-failed.log (a new render starts its own render.log)');
+  await p.shot(path.join(shots, 'render-6-failed.png'));
+
   // 8) the sandbox guard: the real steps never replace a video outside the real project
   let guard = '';
   try { execFileSync(process.execPath, [CLI, 'render', 'E03', '--episodes', SANDBOX], { encoding: 'utf8', stdio: 'pipe' }); } catch (e) { guard = String(e.stderr || e.stdout || e.message); }
