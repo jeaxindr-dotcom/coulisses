@@ -309,6 +309,10 @@ const server = http.createServer(async (req, res) => {
       try {
         if (b.what === 'folder') reveal(P.EP);
         else if (b.what === 'coulisses') reveal(coulissesOf(P), { select: true });
+        // the video file (user request, 09/10/2026: « un bouton pour ouvrir le fichier dans l'Explorateur »): the one under
+        // review — an episode's render, a run's export —, or the file the last export made
+        else if (b.what === 'video') reveal(pickVideo(P), { select: true });
+        else if (b.what === 'export') reveal(exportState(P)?.file, { select: true });
         else if (b.what === 'online') openOnline();
         else return json(res, { ok: false, why: String(b.what) }, 400);
         return json(res, { ok: true });

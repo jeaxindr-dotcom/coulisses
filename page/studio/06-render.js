@@ -51,8 +51,9 @@
     box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>${T('st.ex.reviewed')}</b><span class="muted">${esc(kindLabel())}</span></div>
       <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>
       <div class="sub2 muted">${where} ${META.kind === 'run' ? T('st.ex.fixRun') : T('st.ex.fixYou')}</div>
-      ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button></div>` : ''}${exportBlock()}</div>`;
+      ${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
+    $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
     wireExport();
   }
   // « Exporter » a run of a Remotion pipeline (lib/export.mjs): the project's own export script, on the user's order only
@@ -71,12 +72,14 @@
       : X.state === 'failed' ? `<div class="err">${T('st.ex.failed', { err: X.error ? T('st.ex.failedWhy', { why: esc(X.error) }) : '' })}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">${T('st.ex.stopped', { date: dayTime(X.ended) })}</div>` : '';
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
-    return `${last}<div class="acts">${btns}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>`;
+    const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
+    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>`;
   }
   function wireExport() {
     for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
+    $('#exReveal')?.addEventListener('click', () => revealMenu('export'));
   }
   async function startExportUI(qualite, label) {
     if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }))) return;
@@ -109,6 +112,7 @@
       again: `<button class="primary" id="rcGo">${ic('play')}${T('st.rc.again')}</button>`,
       cmp: STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : '',
       log: R ? `<button class="soft" id="rcLog">${T('st.rc.log')}</button>` : '',
+      reveal: cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : '',
       copy: req ? `<button class="soft" id="rcCopy">${ic('copy')}${T('st.lot.copy')}</button>` : '',
       stop: R?.state === 'running' && R.phase !== 'finish' ? `<button class="soft danger" id="rcStop">${ic('x')}${T('st.rc.stop')}</button>` : '',
     };
@@ -117,7 +121,7 @@
       h = head(cur ? T('st.rc.videoOf', { date: dayTime(cur.mtime) }) : T('st.ex.noVideo')) + `<div class="sub2">${sinceTxt}</div>`;
       if (R?.state === 'reviewed' && R.video?.size === cur?.size) h += `<div class="ok2">${T('st.rc.lastChecked', { msg: R.message ? T('st.rc.lastMsg', { msg: esc(R.message) }) : '' })}</div>`;
       else if (R && BAD.includes(R.state)) h += `<div class="sub2 muted">${T('st.rc.lastTry', { state: T(R.state === 'cancelled' ? 'st.rc.stoppedWord' : 'st.rc.interruptedWord'), date: dayTime(R.endedAt ?? R.updatedAt) })}</div>`;
-      h += `<div class="acts">${B.go}${B.cmp}${B.log}</div>`;
+      h += `<div class="acts">${B.go}${B.cmp}${B.reveal}${B.log}</div>`;
     } else if (st === 'requested') {
       h = head(T('st.rc.requested', { date: dayTime(req.sentAt) })) + `<div class="sub2">${STATUS.agent?.watching ? T('st.rc.watching', { name: agentName() }) : T('st.rc.paste', { name: agentName() })}</div>`
         + `<div class="acts">${B.copy.replace('soft', 'primary')}<button class="soft danger" id="rcWithdraw">${T('st.rc.withdraw')}</button></div>`;
@@ -134,12 +138,13 @@
         h += `<div class="ok2">${T('st.rc.ready', { dur: dur ? ` · ${dur}` : '', lufs: F.loudness?.I != null ? ` · ${dB(F.loudness.I)} LUFS` : '', peak: F.loudness?.peak != null ? T('st.rc.peak', { v: dB(F.loudness.peak) }) : '', remapped: F.remapped != null ? T('st.rc.remapped', { n: F.remapped }) : '' })}</div>`;
       }
       const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.again : '';
-      h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
+      h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp + B.reveal : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
     }
     box.innerHTML = `<div class="rc">${h}</div>`;
     $('#rcGo')?.addEventListener('click', launchRender);
     $('#rcCmp')?.addEventListener('click', () => openCompare());
     $('#rcLog')?.addEventListener('click', showRenderLog);
+    $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
     $('#rcCopy')?.addEventListener('click', () => copy(req.line));
     $('#rcStop')?.addEventListener('click', stopRender);
     $('#rcWithdraw')?.addEventListener('click', async () => {

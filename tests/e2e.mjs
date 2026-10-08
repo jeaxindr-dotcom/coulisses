@@ -100,6 +100,7 @@ try {
   await p.eval(`document.querySelector('#tabs button[data-tab=lots]').click(); return 1`); await sleep(300);
   const lotsTxt = await p.eval(`return document.querySelector('#lots').innerText`);
   check(/corrigé par l'agent/i.test(lotsTxt) && /Annuler cette correction/.test(lotsTxt), '« Envois »: lot done, undo offered');
+  check(await p.eval(`return /Afficher dans l'Explorateur/.test(document.querySelector('#renderCard')?.innerText ?? '') && !!document.querySelector('#rcReveal')`), '« Envois » › Rendu: « Afficher dans l\'Explorateur » (the video, selected in its folder)');
   await p.shot(path.join(shots, 'e2e-5-lots.png'));
   // undo from the page (confirm() auto-accepted)
   await p.eval(`window.confirm = () => true; [...document.querySelectorAll('#lots .un')][0].click(); return 1`); await sleep(1200);

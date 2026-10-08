@@ -155,6 +155,7 @@
         { id: 'scan', label: T('menu.scan'), disabled: noHub, run: () => toHub('?menu=scan') },
         '-',
         { id: 'revealFolder', label: T('menu.revealFolder'), run: () => revealMenu('folder') },
+        { id: 'revealVideo', label: T('menu.revealVideo'), disabled: () => (META?.videoPath ? false : T('menu.why.noVideo')), run: () => revealMenu('video') },
         { id: 'revealCoulisses', label: T('menu.revealCoulisses'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: () => revealMenu('coulisses') },
         '-',
         { id: 'close', label: T('menu.closeStudio'), disabled: noHub, run: () => toHub() },

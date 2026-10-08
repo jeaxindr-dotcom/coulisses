@@ -78,14 +78,19 @@ try {
   const v2 = cli('projet', 'verifier', FILE);
   check(v2.code === 0 && /timeline : 2 piste\(s\)/.test(v2.out) && /export déjà là : After-the-Last-Star-2160p\.mp4/.test(v2.out), 'projet verifier now sees the timeline and the export');
 
-  // 6) the studio opens on it
-  studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', REVUE, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  // 6) the studio opens on it (the Explorer replaced by a log: no window opens)
+  const EXPLORER = path.join(path.dirname(REVUE), 'explorer.log'); fs.rmSync(EXPLORER, { force: true });
+  studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', REVUE, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: { ...process.env, COULISSES_EXPLORER_LOG: EXPLORER }, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; studio.stdout.on('data', (d) => { out += d; }); studio.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 120 && !/Ouvre : http/.test(out); i++) await sleep(250);
   const url = /Ouvre : (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(out)?.[1];
   const meta = url ? await (await fetch(url + 'api/meta')).json() : {};
   check(meta.kind === 'run' && meta.features?.code === false && meta.features?.plan === true && meta.features?.video === true && meta.channel === 'Vidéo du monde' && /07-publish$/.test(meta.exportDir ?? ''),
     `the studio: kind run, no code preview, the plan, the video, the channel (${url ?? out.split('\n').slice(-2).join(' ')})`);
+  // « Afficher dans l'Explorateur » (09/10/2026: « un bouton pour ouvrir le fichier dans l'explorateur »): the video, selected in its folder
+  const rv = url ? await (await fetch(url + 'api/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ what: 'video' }) })).json() : {};
+  const shown = fs.existsSync(EXPLORER) ? fs.readFileSync(EXPLORER, 'utf8').trim() : '';
+  check(rv.ok && shown === `/select,"${path.resolve(meta.videoPath ?? '')}"` && /After-the-Last-Star-2160p\.mp4"$/.test(shown), `« Afficher dans l'Explorateur »: the Explorer opens on the video, selected (${shown.slice(-60)})`);
 
   // 7) the same file becomes a Remotion run (the pipeline moved to Remotion): the same notes
   if (fs.existsSync(path.join(SAMPLE, 'node_modules', 'remotion'))) {

@@ -505,6 +505,7 @@
       { id: 'pastePath', label: T('menu.pastePath'), run: () => { const c = document.querySelector('.imp'); if (!c) return; c.classList.add('pasting'); c.scrollIntoView({ block: 'center' }); c.querySelector('#impPath').focus(); } },
       '-',
       { id: 'revealFolder', label: T('menu.revealFolder'), disabled: inStudio },
+      { id: 'revealVideo', label: T('menu.revealVideo'), disabled: inStudio },
       { id: 'revealCoulisses', label: T('menu.revealCoulisses'), disabled: inStudio },
       '-',
       { id: 'close', label: T('menu.closeStudio'), disabled: inStudio },
