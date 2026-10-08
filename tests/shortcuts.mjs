@@ -61,6 +61,16 @@ try {
   check(s.drafts === 0 && !asked, 'Suppr deletes the note without a question');
   await key('z', { ctrl: true }); await sleep(500); s = await S();
   check(s.drafts === 1 && await p.eval(`return document.querySelector('#draftList .card textarea.main').value`) === 'Le titre plus haut', 'Ctrl+Z: the note is back, with its words');
+  // Ctrl+X: the same as Suppr; in the empty text of a note just made, it takes the note away too
+  await key('x', { ctrl: true }); await sleep(500); s = await S();
+  check(s.drafts === 0, 'Ctrl+X deletes the selected note');
+  await key('z', { ctrl: true }); await sleep(500);
+  check((await S()).drafts === 1, '… and Ctrl+Z brings it back');
+  await key('n'); await sleep(600);
+  const before = (await S()).drafts;
+  await p.eval(`const ta = document.activeElement; ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', ctrlKey: true, bubbles: true, cancelable: true })); return ta.classList.contains('main') ? 1 : 0`); await sleep(500);
+  check(before === 2 && (await S()).drafts === 1, 'a note just made with N (its text still empty): Ctrl+X takes it away');
+  await p.eval(`document.querySelector('#draftList .card').click(); return 1`); await sleep(200);
   // in a text field, Ctrl+Z is the field's own
   const fwd0 = (await S()).undo.fwd;
   await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.focus(); ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })); ta.blur(); return 1`); await sleep(300);

@@ -2695,6 +2695,15 @@
     // the usual shortcuts: Ctrl+S saves now (never the browser's « save the page »), Ctrl+Entrée sends the queue
     if (ctl && k1 === 's') { e.preventDefault(); flushNow().then((ok) => setSave(ok ? T('st.key.saved', { t: hm5(new Date()) }) : T('st.save.failed'), ok ? 'ok' : 'err')); return; }
     if (ctl && e.key === 'Enter' && (!typing || e.target.id === 'qwords')) { e.preventDefault(); if (drafts().length) sendQueue(); else setSave(T('menu.why.noDraft'), ''); return; }
+    // Ctrl+X on a note made by mistake (user request, 08/10/2026): it goes, as with Suppr (Ctrl+Z brings it back). In its
+    // own text, still empty (a note just made with N), Ctrl+X takes the note away too; with words in it, Ctrl+X cuts them.
+    // In the « what should change here? » box, still empty: the box closes, no note is made.
+    if (ctl && k1 === 'x' && !e.shiftKey) {
+      const ta = typing ? e.target : null, card = ta?.closest?.('.card');
+      if (ta?.id === 'popTx' && !ta.value.trim()) { e.preventDefault(); closePop(); return; }
+      if (card && ta.classList.contains('main') && !ta.value.trim() && byId(card.dataset.id)) { e.preventDefault(); ta.blur(); delNote(card.dataset.id); setSave(T('st.key.deleted'), 'ok'); return; }
+      if (!typing && sel) { e.preventDefault(); delNote(sel); setSave(T('st.key.deleted'), 'ok'); return; }
+    }
     if (typing) { if (e.key === 'Escape') e.target.blur(); return; }   // in a field: the browser's own Ctrl+Z, Ctrl+C, Ctrl+V…
     if (ctl && k1 === 'z' && !e.shiftKey) { e.preventDefault(); undoStep('undo'); return; }
     if (ctl && (k1 === 'y' || (k1 === 'z' && e.shiftKey))) { e.preventDefault(); undoStep('redo'); return; }
