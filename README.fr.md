@@ -102,6 +102,9 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 
 ## Mise en scène : déplacer les objets toi-même
 
+- **Dans tous les projets** : les mêmes outils et les mêmes menus partout. Un outil qui ne sert pas pour ce projet est grisé, et son info-bulle dit pourquoi (une vidéo sans code, un run pas encore exporté…).
+- **Dans un run Remotion** (L'AItelier, Vidéo du monde, 宇宙ちゃん), la mise en scène est en 2D : un clic choisit l'élément sous la souris (une image, un dessin, un texte, le personnage), on le glisse pour le déplacer, la molette change sa taille et Maj + molette le tourne. « Bloc parent » prend le groupe qui le contient, et **« Caméra »** recadre l'image entière (glisser = déplacer, molette = zoom). « Ajouter à la file » envoie le décalage en pixels de l'image, avec une image « après » prise par Coulisses dans l'aperçu.
+- **Dans un épisode du Théâtre**, la mise en scène est en 3D, comme décrit ci-dessous.
 - **M**, ou le bouton « Mise en scène » du rail, passe dans l'aperçu du code et ouvre l'onglet **Scène**.
 - **Choisir un objet** : un clic sur un personnage, un accessoire ou un élément de décor l'encadre et affiche ses poignées. La visée est la même qu'au survol : elle traverse la transparence et ignore les particules.
 - **Le bouger** :

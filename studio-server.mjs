@@ -41,6 +41,7 @@ import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { spawnSync } from 'node:child_process';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
+import { stageShot, b64url } from './lib/stage-shot.mjs';
 import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -133,7 +134,7 @@ function meta() {
   const snapshot = B ? readJson(SNAP, null) : null;
   const render = video ? stamp(video) : null, pr = probe(video);
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: B, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null, exportOptions: G && exportAvailable(P).ok ? exportOptions(P) : [],
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null, exportOptions: G && exportAvailable(P).ok ? exportOptions(P) : [],
     composition: G ? P.remotion.composition : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
@@ -286,6 +287,18 @@ const server = http.createServer(async (req, res) => {
       return json(res, { ok: r.code === 0, code: r.code, out: r.out.trim(), file });
     }
     if (pn === '/favicon.png') return sendFile(req, res, path.join(HERE, 'favicon.png'), 'image/png');
+    // ---- the « after » image of a 2D staging (a run): its own preview with the offsets, photographed (lib/stage-shot.mjs) ----
+    if (pn === '/api/stage-shot' && req.method === 'POST') {
+      if (!G) return json(res, { ok: false, why: t('srv.noCode') }, 400);
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      const w = Math.round(+b.w || 0), h = Math.round(+b.h || 0), f = Math.max(0, Math.round(+b.frame || 0));
+      if (!(w > 0 && h > 0 && w <= 8192 && h <= 8192) || !Array.isArray(b.edits)) return json(res, { ok: false, why: 'w, h, edits' }, 400);
+      try {
+        const jpg = await stageShot(`http://127.0.0.1:${port}/player.html?f=${f}&stage=${b64url(b.edits)}`, w, h);
+        log(t('srv.stageShot', { frame: f, n: b.edits.length }));
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache' }); return res.end(jpg);
+      } catch (e) { log(t('srv.stageShotFail', { msg: e.message })); return json(res, { ok: false, why: e.message }, 500); }
+    }
     // ---- « Médias »: the channel's library and its image chat (lib/medias.mjs, lib/image-chat.mjs) ----
     if (pn === '/medias.js') return sendFile(req, res, path.join(HERE, 'medias.js'), 'text/javascript; charset=utf-8');
     if (pn === '/api/medias') {

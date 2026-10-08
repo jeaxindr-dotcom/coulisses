@@ -135,6 +135,15 @@ To apply it:
 3. Change no timing.
 4. Check with `CLI frame E03 <frame> --source code`: the image must look like the attached "after" image. As for any edit, take a `snapshot` before touching the files, then `reply` and `done`.
 
+**In a Remotion run** (L'AItelier, Vidéo du monde, 宇宙ちゃん), the staging is 2D: the preview is HTML. The block gives:
+
+- **the element**, by its `data-coulisses` block then its path inside the block, for example `[data-coulisses="beat S12.16"] > div:nth-child(2) > img:nth-child(1)`, with a readable name ("beat S12.16 › chibi2.png");
+- **the offset in pixels of the picture**, as seen on screen: Δx to the right, Δy downwards, a turn in degrees, a size factor;
+- **the element's box** at the note's frame, before the offset;
+- **the scope** and **the "after" image**, taken by Coulisses in the preview with the offset.
+
+Write it where the project places this element (its position, its size, its animation), only within the scope. **"Camera"** means the whole picture: what is seen slides or zooms around the centre. Write it as a camera move or a framing of the shot (the run's camera file if it has one, for example `cams.ts` for 宇宙ちゃん).
+
 ## A library image to place
 
 Each channel has a media library (the studio's "Media" tab): its characters, sets, props and effects, sorted by category in `Documents\Coulisses\Media\<channel>\` (`Médias` when Coulisses was first used in French). The user creates images there with the image workshop (Codex and its image_gen tool), or drops their own. When they drag an image onto the video, the edit holds a **"Library image to place"** block:

@@ -103,6 +103,13 @@
   #rail .tipr { position: absolute; left: 50px; top: 50%; transform: translateY(-50%); white-space: nowrap; background: rgba(20, 22, 33, 0.92); backdrop-filter: blur(16px); border: 1px solid var(--stroke-2);
     color: var(--s12); font: 500 12px var(--font); padding: 6px 10px; border-radius: 10px; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 20; box-shadow: 0 10px 28px rgba(0, 0, 0, .45); display: flex; gap: 8px; align-items: center; }
   #rail button:hover .tipr { opacity: 1; }
+  /* the same tools for every project (user request, 08/10/2026): a tool that does not apply is greyed, and says why */
+  #rail button.off { opacity: .38; cursor: default; }
+  #rail button.off:hover { opacity: .55; background: transparent; color: var(--s11); }
+  #rail .tipr .why { display: none; color: var(--amber); font-size: 11.5px; }
+  #rail button.off .tipr { flex-direction: column; align-items: flex-start; gap: 2px; }
+  #rail button.off .tipr .why { display: block; }
+  #viewbar .seg button.off { opacity: .38; cursor: default; }
   #viewer { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
   #viewbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; min-height: 46px; }
   #viewbar .grow { flex: 1; }
@@ -162,10 +169,8 @@
   #stageBadge .k { color: var(--s11); font-weight: 500; }
   #stage.staging #stageBadge { display: inline-flex; }
   #rail #bStage.on { background: var(--grad-lime); color: #10140a; }
-  /* an imported project (AItelier run, any video): no live preview of code, no staging, no render */
-  body.proj .b-only { display: none !important; }
-  body.nocode .need-code { display: none !important; }
-  body.novideo .need-video { display: none !important; }
+  /* a project without the live code (a video, an AItelier run from Resolve), or a run with no export yet: the tools stay
+     in place, greyed (#rail button.off) — nothing disappears from one project to another */
   #kindTag { display: none; height: 26px; padding: 0 11px; border-radius: 999px; align-items: center; font: 600 11.5px var(--font-d); color: var(--sky); background: rgba(143, 205, 255, 0.12); border: 1px solid rgba(143, 205, 255, 0.25); white-space: nowrap; }
   body.proj #kindTag { display: inline-flex; }
   #scene .box { background: var(--glass-2); border: 1px solid var(--stroke); border-radius: 20px; padding: 14px; }
@@ -190,8 +195,11 @@
   #scene kbd { margin: 0 1px; }
   /* ---------- side panel ---------- */
   #side { grid-column: 4; grid-row: 1 / -1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  #tabs { display: flex; gap: 2px; margin: 12px 12px 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--stroke); }
-  #tabs button { flex: 1; justify-content: center; height: 34px; padding: 0 8px; border: 0; background: transparent; color: var(--s11); font-size: 12.5px; }
+  #tabs { display: flex; gap: 2px; margin: 12px 12px 4px; padding: 4px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--stroke); overflow-x: auto; scrollbar-width: none; }
+  #tabs::-webkit-scrollbar { display: none; }
+  /* six tabs in a narrow panel: each keeps its whole name (never cut), the bar scrolls if the panel is narrower still */
+  #tabs button { flex: 1 0 auto; justify-content: center; height: 34px; padding: 0 7px; gap: 5px; border: 0; background: transparent; color: var(--s11); font-size: 12.5px; white-space: nowrap; }
+  #tabs .n.zero { display: none; }
   #tabs button:hover { background: var(--glass-3); color: var(--s12); }
   #tabs button.on { background: #f4f5fa; color: #11131c; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
   #tabs .n { min-width: 19px; height: 18px; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font: 600 10.5px/18px var(--font-d); color: var(--s11); text-align: center; }
@@ -428,14 +436,14 @@
     <div class="sep"></div>
     <button id="bNote"><i data-ic="plus"></i><span class="tipr">{{st.rail.note}}</span></button>
     <button id="bRange"><i data-ic="range"></i><span class="tipr">{{st.rail.range}}</span></button>
-    <div class="sep b-only"></div>
-    <button id="bStage" class="b-only"><i data-ic="move"></i><span class="tipr">{{st.rail.stage}}</span></button>
-    <div class="sep need-code need-video"></div>
-    <button id="bSrc" class="need-code need-video"><i data-ic="code"></i><span class="tipr">{{st.rail.src}}</span></button>
+    <div class="sep"></div>
+    <button id="bStage"><i data-ic="move"></i><span class="tipr"><span>{{st.rail.stage}}</span><span class="why"></span></span></button>
+    <div class="sep"></div>
+    <button id="bSrc"><i data-ic="code"></i><span class="tipr"><span>{{st.rail.src}}</span><span class="why"></span></span></button>
   </nav>
   <section id="viewer" class="glass">
     <div id="viewbar">
-      <span class="seg need-code need-video" title="{{st.src.title}}">
+      <span class="seg" title="{{st.src.title}}">
         <button id="srcVideo" class="on"><i data-ic="film"></i>{{st.src.video}}</button><button id="srcCode"><i data-ic="code"></i>{{st.src.code}}</button>
       </span>
       <span id="codeStatus"></span>
@@ -468,12 +476,12 @@
   <div class="split v" id="splitV" title="{{st.splitV}}"></div>
   <aside id="side" class="glass">
     <div id="tabs">
-      <button data-tab="queue">{{st.tab.queue}}<span class="n" id="nQueue">0</span></button>
-      <button data-tab="notes">{{st.tab.notes}}<span class="n" id="nNotes">0</span></button>
-      <button data-tab="lots">{{st.tab.lots}}<span class="n" id="nLots">0</span></button>
+      <button data-tab="queue">{{st.tab.queue}}<span class="n zero" id="nQueue">0</span></button>
+      <button data-tab="notes">{{st.tab.notes}}<span class="n zero" id="nNotes">0</span></button>
+      <button data-tab="lots">{{st.tab.lots}}<span class="n zero" id="nLots">0</span></button>
       <button data-tab="insp">{{st.tab.insp}}</button>
       <button data-tab="medias">{{st.tab.medias}}<span class="n" id="nMedias"></span></button>
-      <button data-tab="scene" class="b-only">{{st.tab.scene}}</button>
+      <button data-tab="scene">{{st.tab.scene}}</button>
     </div>
     <div class="tab" id="tab-queue">
       <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
@@ -649,6 +657,7 @@
   function setTab(t) {
     tab = t; store.set('tab', t);
     document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    document.querySelector(`#tabs button[data-tab="${t}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x.id === 'tab-' + t));
     if (t === 'insp') renderInspector(true);
     if (t === 'lots') renderLots();
@@ -761,9 +770,20 @@
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');
     seekFrame(f); if (was) M.play();
   }
-  $('#srcVideo').onclick = () => { if (staging) setStaging(false); setMode('video'); };
-  $('#srcCode').onclick = () => setMode('code');
-  $('#bSrc').onclick = () => setMode(mode === 'video' ? 'code' : 'video');
+  // the same tools in every project: one that does not apply here is greyed, with the reason in its tooltip
+  const stageWhy = () => (META?.features?.code ? null : T('st.why.stageNoCode'));
+  const srcWhy = () => (!META?.features?.code ? T('st.why.srcNoCode') : !META?.render ? T('menu.why.noVideo') : null);
+  function markTools() {
+    for (const [b, why] of [[$('#bStage'), stageWhy()], [$('#bSrc'), srcWhy()]]) {
+      b.classList.toggle('off', !!why); b.setAttribute('aria-disabled', why ? 'true' : 'false');
+      const w = b.querySelector('.tipr .why'); if (w) w.textContent = why ?? '';
+    }
+    $('#srcVideo').classList.toggle('off', !META?.render); $('#srcVideo').title = META?.render ? '' : T('menu.why.noVideo');
+    $('#srcCode').classList.toggle('off', !META?.features?.code); $('#srcCode').title = META?.features?.code ? '' : T('st.why.srcNoCode');
+  }
+  $('#srcVideo').onclick = () => { if (!META?.render) return setSave(T('menu.why.noVideo'), 'err'); if (staging) setStaging(false); setMode('video'); };
+  $('#srcCode').onclick = () => { if (!META?.features?.code) return setSave(T('st.why.srcNoCode'), 'err'); setMode('code'); };
+  $('#bSrc').onclick = () => { const why = srcWhy(); if (why) return setSave(why, 'err'); setMode(mode === 'video' ? 'code' : 'video'); };
 
   // ---------- time helpers ----------
   const fmt = (t) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(3).padStart(6, '0')}`; };
@@ -1240,7 +1260,11 @@
   let staging = false, stSel = null, stMode = 'translate', freeCamOn = false, stageSynced = new Set(), stScope = 'scene', stFrom = 0, stTo = 0;
   const deg = (r) => r * 180 / Math.PI, rad = (d) => d * Math.PI / 180;
   const sgn = (v, n = 2) => (v >= 0 ? '+' : '−') + dec(Math.abs(v).toFixed(n));
-  const sceneAt = (f) => {   // the set on stage at frame f (from the plan of the MP4, else the code's)
+  const sceneAt = (f) => {   // the set on stage at frame f (from the plan of the MP4, else the code's); a run: its band (chapter, beat)
+    if (PROJ) {
+      const t = (f + 0.5) / FPS, band = clipsAt(t).find((x) => x.tr.type === 'band');
+      return band ? { name: band.c.label, from: Math.floor(band.c.t0 * FPS), to: Math.min(FRAMES - 1, Math.ceil(band.c.t1 * FPS) - 1) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
+    }
     const sets = SNAP?.sets ?? LIVE?.sets ?? [], t = (f + 0.5) / FPS;
     const w = sets.filter((x) => x.inT <= t && t < (x.outT ?? 1e9) + (x.outDur ?? 0)).sort((a, b) => b.inT - a.inT)[0];
     return w ? { name: w.name, from: Math.floor(w.inT * FPS), to: Math.min(FRAMES - 1, Math.ceil(((w.outT ?? DUR) + (w.outT !== null ? w.outDur : 0)) * FPS)) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
@@ -1252,12 +1276,23 @@
     if (kind === 'range') return { kind, from: Math.min(stFrom, stTo), to: Math.max(stFrom, stTo), label: T('st.scope.range') };
     return { kind: 'scene', from: sc.from, to: sc.to, label: T('st.scope.scene', { name: sc.name }) };
   }
+  const D2 = () => SP?.stage?.kind === '2d';   // a run's 2D staging (player/stage2d.ts), else the Theatre's 3D one
+  const K2 = { image: 'image', dessin: 'drawing', 'vidéo': 'video', canvas: 'canvas', texte: 'text', 'élément': 'element', cadre: 'frame' };
+  function stageName(id, ev = null) {   // { name, kind } of a staged object, for the panel, the badge and the note
+    if (D2() || ev?.dim === '2d') {
+      if (id === '@camera') return { name: T('st.s2.camera'), kind: T('st.k2.frame') };
+      const i = ev ?? SP.stage.info(id);
+      return { name: i.name ?? id, kind: T('st.k2.' + (K2[i.kind] ?? 'element')) };
+    }
+    return humanTarget({ names: [id] });
+  }
   async function setStaging(on) {
     if (on === staging) return;
     if (on) {
       if (mode !== 'code') await setMode('code');
       if (!SP) { setSave(T('st.code.unavailable'), 'err'); return; }
       M.pause();
+      if (!SP.stage) { setSave(T('st.stage.notReady'), 'err'); return; }
       // the 3D scene mounts once the episode's textures are loaded (a few seconds after the preview itself)
       let ready = SP.stage.enable(true);
       for (let i = 0; !ready && i < 160; i++) { if (i === 0) setSave(T('st.stage.loading'), ''); await new Promise((r) => setTimeout(r, 250)); ready = SP.stage.enable(true); }
@@ -1275,7 +1310,7 @@
   let stUnsub = null;
   function onStageEvent(ev) {
     if (ev.type === 'change' && ev.id !== stSel?.id) return;   // an offset of the queue being re-applied
-    if (ev.type === 'select' || ev.type === 'change') { stSel = ev; $('#stageBadgeK').textContent = targetText({ names: [ev.id] }); }
+    if (ev.type === 'select' || ev.type === 'change') { stSel = ev; const t = stageName(ev.id, ev); $('#stageBadgeK').textContent = `${t.name} · ${t.kind}`; }
     if (ev.type === 'deselect') { stSel = null; $('#stageBadgeK').textContent = T('st.stage.clickObj'); }
     if (ev.type === 'mode') stMode = ev.mode;
     renderScene();
@@ -1302,14 +1337,24 @@
     if (Math.abs(d.s - 1) > 1e-4) parts.push(T('st.delta.scale', { s: dec(d.s.toFixed(2)) }));
     return parts.join(FR ? ' ; ' : '; ') || T('st.delta.none');
   };
+  const deltaWords2d = (d, cam = false) => {
+    const parts = [];
+    const p = [d.p[0], d.p[1]].map((x, i) => (Math.abs(x) >= 0.5 ? `${'xy'[i]} ${sgn(x, 0)} px` : '')).filter(Boolean); if (p.length) parts.push(T(cam ? 'st.s2.wPan' : 'st.delta.move', { list: p.join(', ') }));
+    if (Math.abs(d.r[2]) > 1e-4) parts.push(T('st.delta.turn', { list: `${sgn(deg(d.r[2]), 1)}°` }));
+    if (Math.abs(d.s - 1) > 1e-4) parts.push(T(cam ? 'st.s2.wZoom' : 'st.delta.scale', { s: dec(d.s.toFixed(2)) }));
+    return parts.join(FR ? ' ; ' : '; ') || T('st.delta.none');
+  };
   function renderScene() {
     const box = $('#scene'); if (!box) return;
     const a = document.activeElement; if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName) && !renderScene.force) return;   // never under the user's typing
+    if (stageWhy()) { box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${esc(stageWhy())}</p></div>`; return; }
+    const two = PROJ;   // a run: 2D (its preview is HTML); an episode: the Theatre's 3D
     if (!staging) {
-      box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${T('st.scene.intro')}</p>
+      box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${T(two ? 'st.s2.intro' : 'st.scene.intro')}</p>
         <div class="row"><button class="primary" id="sc-on">${ic('move')}${T('st.scene.enable')}</button></div></div>` + listHtml();
       $('#sc-on').onclick = () => setStaging(true); bindList(); return;
     }
+    if (D2()) return renderScene2d(box);
     const sel = stSel, t = sel ? humanTarget({ names: [sel.id] }) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, sc = scopeOf();
     const num = (k, val, step) => `<input type="number" id="sc-${k}" step="${step}" value="${val}">`;
     box.innerHTML = `<div class="box">
@@ -1344,13 +1389,47 @@
     $('#sc-off').onclick = () => setStaging(false);
     bindList();
   }
+  // the 2D panel (a run): x / y in pixels of the frame, one turn, the size; « Caméra » = the whole frame
+  function renderScene2d(box) {
+    const sel = stSel, t = sel ? stageName(sel.id, sel) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, cam = sel?.id === '@camera';
+    const num = (k, val, step) => `<input type="number" id="sc-${k}" step="${step}" value="${val}">`;
+    box.innerHTML = `<div class="box">
+      ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>
+        <div class="modes"><button data-m="translate" class="${stMode === 'translate' ? 'on' : ''}">${T(cam ? 'st.s2.pan' : 'st.scene.move')}</button><button data-m="rotate" class="${stMode === 'rotate' ? 'on' : ''}">${T('st.scene.rotate')}</button><button data-m="scale" class="${stMode === 'scale' ? 'on' : ''}">${T(cam ? 'st.s2.zoom' : 'st.scene.size')}</button></div>
+        <div class="grid3"><span></span><span class="axis">${T('st.s2.axisX')}</span><span class="axis">${T('st.s2.axisY')}</span><span class="axis">${T('st.s2.turn')}</span>
+          <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(0), 1)}${num('y', d.p[1].toFixed(0), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
+          <span class="lbl">${T(cam ? 'st.s2.zoomPct' : 'st.scene.sizePct')}</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
+        <p class="muted" style="margin:10px 0 0">${T(cam ? 'st.s2.camUnits' : 'st.s2.units', { w: CW, h: CH })}</p>
+        <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">${T('st.scene.scope')}</span><select id="sc-scope">
+          <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>${T('st.scene.thisScene', { name: esc(sceneAt(curFrame()).name) })}</option>
+          <option value="here" ${stScope === 'here' ? 'selected' : ''}>${T('st.scene.fromHere')}</option>
+          <option value="all" ${stScope === 'all' ? 'selected' : ''}>${T('st.scene.all')}</option>
+          <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
+        <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
+        <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button>${cam ? '' : `<button class="soft" id="sc-parent" title="${esc(T('st.s2.parentTitle'))}">${T('st.s2.parent')}</button>`}<span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
+      : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.s2.pick')}</p>`}
+      <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
+    </div>` + listHtml();
+    const fields = () => { const v = (k) => +($('#sc-' + k)?.value || 0); return { p: [v('x'), v('y'), 0], r: [0, 0, rad(v('rz'))], s: (v('s') || 100) / 100 }; };
+    box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
+    for (const k of ['x', 'y', 'rz', 's']) $('#sc-' + k)?.addEventListener('change', () => { const sc2 = scopeOf(); SP.stage.setDelta(stSel.id, fields(), sc2.from, sc2.to); });
+    $('#sc-scope')?.addEventListener('change', (e) => { stScope = e.target.value; if (stScope === 'range' && !stTo) { stFrom = curFrame(); stTo = Math.min(FRAMES - 1, curFrame() + 3 * FPS); } const sc2 = scopeOf(); if (stSel) SP.stage.setDelta(stSel.id, stSel.delta, sc2.from, sc2.to); renderScene(); });
+    for (const k of ['from', 'to']) $('#sc-' + k)?.addEventListener('change', (e) => { if (k === 'from') stFrom = +e.target.value; else stTo = +e.target.value; const sc2 = scopeOf(); if (stSel) SP.stage.setDelta(stSel.id, stSel.delta, sc2.from, sc2.to); });
+    $('#sc-here')?.addEventListener('click', () => { stTo = curFrame(); if (!stFrom) stFrom = curFrame(); renderScene(); });
+    $('#sc-reset')?.addEventListener('click', () => { const id = stSel.id; SP.stage.reset(id); stSel = null; renderScene(); syncStage(); });
+    $('#sc-add')?.addEventListener('click', addStageNote);
+    $('#sc-cam').onclick = () => { SP.stage.freeCamera(!cam); renderScene(); };
+    $('#sc-parent')?.addEventListener('click', () => { if (!SP.stage.selectParent()) setSave(T('st.s2.noParent'), 'err'); });
+    $('#sc-off').onclick = () => setStaging(false);
+    bindList();
+  }
   // the objects moved and not yet in the queue, and the offsets waiting in the queue
   function listHtml() {
     const live = SP?.stage ? SP.stage.list() : [], queued = drafts().filter((n) => n.stage);
     if (!live.length && !queued.length) return '';
     const rows = [
-      ...queued.map((n) => `<div class="item" data-note="${n.id}">${ic('send')}<span>${esc(humanTarget({ names: [n.stage.id] }).name)}</span><span class="d">${T('st.scene.queued')}</span></div>`),
-      ...live.filter((x) => !queued.some((n) => n.stage.id === x.id)).map((x) => `<div class="item" data-id="${esc(x.id)}">${ic('move')}<span>${esc(humanTarget({ names: [x.id] }).name)}</span><span class="d">${esc(deltaWords(x.delta))}</span></div>`),
+      ...queued.map((n) => `<div class="item" data-note="${n.id}">${ic('send')}<span>${esc(n.stage.name ?? humanTarget({ names: [n.stage.id] }).name)}</span><span class="d">${T('st.scene.queued')}</span></div>`),
+      ...live.filter((x) => !queued.some((n) => n.stage.id === x.id)).map((x) => `<div class="item" data-id="${esc(x.id)}">${ic('move')}<span>${esc(stageName(x.id, x).name)}</span><span class="d">${esc(x.dim === '2d' ? deltaWords2d(x.delta, x.id === '@camera') : deltaWords(x.delta))}</span></div>`),
     ];
     return `<h3 style="margin:14px 6px 4px;font:600 11px var(--font-d);text-transform:uppercase;letter-spacing:.1em;color:var(--s9)">${T('st.scene.offsets')}</h3>${rows.join('')}`;
   }
@@ -1360,14 +1439,21 @@
   }
   async function addStageNote() {
     if (!stSel) return;
-    const id = stSel.id, d = readFields(), sc = scopeOf(), t = humanTarget({ names: [id] }), f = curFrame();
+    const two = D2(), id = stSel.id, d = two ? stSel.delta : readFields(), sc = scopeOf(), t = stageName(id, two ? stSel : null), f = curFrame();
     SP.stage.setDelta(id, d, sc.from, sc.to);
     const freeWas = freeCamOn;
-    const shot = await SP.stage.snapshot();   // the shot's camera, with the offset, no gizmo
+    let shot = '';
+    if (two) {   // the « after » image of a run: the server photographs the preview with the offset (lib/stage-shot.mjs)
+      setSave(T('st.s2.shooting'));
+      try {
+        const r = await fetch('/api/stage-shot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frame: f, w: CW, h: CH, edits: SP.stage.edits().filter((e) => e.id === id || drafts().some((n) => n.stage?.id === e.id)) }) });
+        if (r.ok) shot = URL.createObjectURL(await r.blob());
+      } catch { /* the edit stays without its image */ }
+    } else shot = await SP.stage.snapshot();   // the shot's camera, with the offset, no gizmo
     const pin = SP.stage.screenPos(id), info = SP.stage.info(id);
     const extra = {
-      text: T('st.stage.note', { name: t.name, kind: t.kind, delta: deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
-      stage: { id, name: t.name, kind: t.kind, delta: d, base: info.base, scope: sc, frame: f },
+      text: T(two ? 'st.s2.note' : 'st.stage.note', { name: t.name, kind: t.kind, delta: two ? deltaWords2d(d, id === '@camera') : deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
+      stage: { id, name: t.name, kind: t.kind, delta: d, base: info.base, scope: sc, frame: f, ...(two ? { dim: '2d', size: [CW, CH] } : {}) },
       target: { frame: f, hits: [{ names: [id], textures: [], type: info.kind }] },
       ...(pin && pin[0] >= 0 && pin[0] < CW && pin[1] >= 0 && pin[1] < CH ? { mark: { kind: 'pin', points: [pin] } } : {}),
     };
@@ -1378,17 +1464,17 @@
       catch { /* the edit stays without its image */ }
     }
     stageSynced.add(id); SP.stage.select(null); stSel = null;
-    if (freeWas) { freeCamOn = SP.stage.freeCamera(true); }
+    if (freeWas && !two) { freeCamOn = SP.stage.freeCamera(true); }
     setSave(T('st.stage.added'), 'ok'); setTab('scene'); renderAll(); renderScene();
   }
-  $('#bStage').onclick = () => setStaging(!staging);
+  $('#bStage').onclick = () => { const why = stageWhy(); if (why) { setSave(why, 'err'); setTab('scene'); return; } setStaging(!staging); };
 
   // ---------- pending edits -> Claude ----------
   let sending = false;
   function renderQueue() {
     const d = drafts();
     $('#qcnt').textContent = `${d.length} / ${MAXQ}`; $('#qcnt').classList.toggle('full', d.length >= MAXQ);
-    const nq = $('#nQueue'); nq.textContent = d.length; nq.classList.toggle('hot', d.length > 0);
+    const nq = $('#nQueue'); nq.textContent = d.length; nq.classList.toggle('hot', d.length > 0); nq.classList.toggle('zero', !d.length);
     const empty = d.filter((n) => !n.text.trim() && !n.mark && !n.images?.length).length;
     $('#qsend').disabled = !d.length || !!empty || sending;
     $('#qsend').innerHTML = sending ? T('st.send.preparing') : `${ic('send')}${d.length > 1 ? T('st.send.many', { n: d.length }) : d.length ? T('st.send.one') : T('st.send.zero')}`;
@@ -1440,7 +1526,7 @@
   }
   function renderLots() {
     const box = $('#lots'), lots = [...(STATUS.lots ?? [])].reverse();
-    $('#nLots').textContent = lots.length;
+    $('#nLots').textContent = lots.length; $('#nLots').classList.toggle('zero', !lots.length);
     $('#nLots').classList.toggle('hot', lots.some((L) => L.claude?.status === 'taken'));
     if (tab !== 'lots') { rcKey = ''; return; }
     renderRender();
@@ -1886,7 +1972,7 @@
     const others = all.filter((n) => !n.draft), d = all.filter((n) => n.draft), hide = $('#hideDone').checked;
     const ndone = others.filter((n) => statusOf(n) === 'done').length;
     $('#count').textContent = T('st.list.count', { n: others.length }) + (ndone ? T('st.list.fixed', { n: ndone }) : '');
-    $('#nNotes').textContent = others.length;
+    $('#nNotes').textContent = others.length; $('#nNotes').classList.toggle('zero', !others.length);
     const a = document.activeElement, focused = a && a.closest ? a.closest('.card') : null;
     const keep = focused && a.tagName === 'TEXTAREA' ? { id: focused.dataset.id, cls: a.classList.contains('rep') ? 'rep' : 'main', s: a.selectionStart, e: a.selectionEnd } : null;
     const fill = (box, list, emptyHtml) => {
@@ -2460,7 +2546,7 @@
     else if (k === 'c') setTool('comment');
     else if (k === 'a') { e.preventDefault(); if (pickPt) promptAtPick(); else setSave(T('st.key.pointFirst'), ''); }
     else if (k === 'p') { if (!META.features?.code || !META.render) return; if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); }
-    else if (k === 'm') { if (!PROJ) setStaging(!staging); }
+    else if (k === 'm') { const why = stageWhy(); if (why) setSave(why, 'err'); else setStaging(!staging); }
     else if (k === 'n') { e.preventDefault(); M.pause(); addNote(curFrame()); }
     else if (k === 'r') { e.preventDefault(); markRange(); }
     else if (e.key === 'Escape') { closePop(); rangeStart = null; $('#bRange').classList.remove('on'); loopId = null; renderAll(); }
@@ -2553,21 +2639,21 @@
         { id: 'connect', label: T('menu.connect'), run: openConnect },
         { id: 'send', label: T('menu.send'), disabled: sendWhy, run: sendQueue },
         '-',
-        { id: 'staging', label: T('menu.staging'), key: 'M', hidden: () => PROJ, run: () => setStaging(!staging) },
-        { id: 'source', label: T('menu.source'), key: 'P', hidden: () => !META?.features?.code, disabled: () => (META?.render ? false : T('menu.why.noVideo')), run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
-        { id: 'export', label: T('menu.export'), hidden: () => META?.kind !== 'remotion', disabled: () => (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false),
-          items: () => exportOpts().map((o, i) => ({ id: `export-${o.id ?? i}`, label: o.label, run: () => startExportUI(o.id, o.label) })) },
-        { id: 'stopExport', label: T('menu.stopExport'), hidden: () => META?.kind !== 'remotion', disabled: () => (STATUS.export?.state === 'running' ? false : T('menu.why.noExportRunning')), run: stopExportUI },
-        { id: 'render', label: T('menu.render'), hidden: () => PROJ, disabled: () => (renderBusy() ? T('menu.why.renderBusy') : false), run: launchRender },
-        { id: 'stopRender', label: T('menu.stopRender'), hidden: () => PROJ, disabled: () => (STATUS.render?.state === 'running' && STATUS.render.phase !== 'finish' ? false : T('menu.why.noRenderRunning')), run: stopRender },
+        { id: 'staging', label: T('menu.staging'), key: 'M', disabled: () => stageWhy() ?? false, run: () => setStaging(!staging) },
+        { id: 'source', label: T('menu.source'), key: 'P', disabled: () => srcWhy() ?? false, run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
+        // « Exporter ▸ »: a run's export script (its variants), an episode's full render (asked to the agent), else nothing
+        { id: 'export', label: T('menu.export'), disabled: () => (META?.kind === 'remotion' ? (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false)
+          : !PROJ ? (renderBusy() ? T('menu.why.renderBusy') : false) : T('menu.why.noExport')),
+          items: () => (PROJ ? exportOpts().map((o, i) => ({ id: `export-${o.id ?? i}`, label: o.label, run: () => startExportUI(o.id, o.label) })) : [{ id: 'render', label: T('menu.render'), run: launchRender }]) },
+        { id: 'stopExport', label: T('menu.stopExport'), disabled: () => (PROJ ? (STATUS.export?.state === 'running' ? false : T('menu.why.noExportRunning'))
+          : (STATUS.render?.state === 'running' && STATUS.render.phase !== 'finish' ? false : T('menu.why.noRenderRunning'))), run: () => (PROJ ? stopExportUI() : stopRender()) },
         { id: 'compare', label: T('menu.compare'), disabled: () => (STATUS.compare?.length ? false : T('menu.why.noCompare')), run: () => openCompare() },
         '-',
         { id: 'updates', label: T('menu.updates'), run: checkUpdatesMenu },
         { id: 'verify', label: T('menu.verify'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: verifyMenu },
         { id: 'log', label: T('menu.log'), items: () => [
           { id: 'logStudio', label: T('menu.logStudio'), run: showServerLog },
-          ...(PROJ ? [] : [{ id: 'logRender', label: T('menu.logRender'), run: showRenderLog }]),
-          ...(META?.kind === 'remotion' ? [{ id: 'logExport', label: T('menu.logExport'), run: showExportLog }] : []),
+          { id: 'logExport', label: T('menu.logExport'), disabled: () => (PROJ && META?.kind !== 'remotion' ? T('menu.why.noExport') : false), run: () => (PROJ ? showExportLog() : showRenderLog()) },
         ] },
       ] },
       { id: 'help', label: T('menu.help'), items: [
@@ -2593,9 +2679,10 @@
       SNAP = META.snapshot; FPS = META.fps || 30; MAXQ = META.maxEdits || 10;
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
-      if (PROJ) { document.body.classList.add('proj'); if (tab === 'scene') tab = 'queue'; $('#kindTag').textContent = kindLabel(); }
+      if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
+      markTools();
       document.title = PROJ ? `Coulisses — ${META.title}` : `Coulisses · ${META.episode} — ${META.title}`;
       if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; }
       $('#title').textContent = PROJ ? META.title : `${META.episode} · ${META.title}`;

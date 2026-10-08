@@ -294,8 +294,11 @@
       { id: 'connect', label: T('menu.connect'), disabled: inStudio },
       { id: 'send', label: T('menu.send'), disabled: inStudio },
       '-',
+      // the same entries as the studio's Tools menu (they act on the project open in a studio)
+      { id: 'staging', label: T('menu.staging'), key: 'M', disabled: inStudio },
+      { id: 'source', label: T('menu.source'), key: 'P', disabled: inStudio },
       { id: 'export', label: T('menu.export'), disabled: inStudio },
-      { id: 'render', label: T('menu.render'), disabled: inStudio },
+      { id: 'stopExport', label: T('menu.stopExport'), disabled: inStudio },
       { id: 'compare', label: T('menu.compare'), disabled: inStudio },
       '-',
       { id: 'updates', label: T('menu.updates'), disabled: inStudio },

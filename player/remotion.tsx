@@ -5,9 +5,12 @@
 // window.StudioPlayer is the same API as the Brambleshire preview (player/entry.tsx), so the review page works as is.
 // Picking: the element under a point that carries data-coulisses="<name>" (the contract asks the project to name the
 // visible parts of its motion graphics that way), else nothing.
+// « Mise en scène » (player/stage2d.ts): the composition is wrapped in #coulisses-camera (preview only), the frame the 2D
+// staging reframes; ?stage=<base64url JSON> applies offsets at load (the server's « after » capture, /api/stage-shot).
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
+import { createStage2d } from './stage2d';
 // @ts-ignore resolved through esbuild's alias
 import * as M from '@coulisses-module';
 
@@ -40,9 +43,12 @@ function pick(x: number, y: number) {
   return hits;
 }
 const settle = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80))));
+const stage = createStage2d({ W, H, frame: () => ref?.getCurrentFrame() ?? 0, root: () => document.getElementById('coulisses-camera') });
+// the composition inside the camera's frame (an AbsoluteFill-like box: the project's own AbsoluteFills fill it as before)
+const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses-camera', style: { position: 'absolute', inset: 0, width: '100%', height: '100%' } }, React.createElement(comp.component, p));
 
 (window as any).StudioPlayer = {
-  stage: null, generic: true,
+  stage, generic: true,
   composition: __COMPOSITION__, fps: FPS, width: W, height: H, durationInFrames, ok: !!comp,
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
@@ -68,15 +74,23 @@ const App: React.FC = () => {
     ref = r.current; if (!ref) return;
     const evs = ['play', 'pause', 'seeked', 'frameupdate', 'ended'] as const;
     const offs = evs.map((e) => { const h = () => emit(e); ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
-    const start = +(new URLSearchParams(location.search).get('f') ?? 0);
+    const q = new URLSearchParams(location.search), start = +(q.get('f') ?? 0);
     if (start) ref.seekTo(start);
+    const staged = q.get('stage');
+    if (staged) {   // the « after » capture: these offsets, at this frame, then the page says it is ready
+      try {
+        const list = JSON.parse(decodeURIComponent(escape(atob(staged.replace(/-/g, '+').replace(/_/g, '/')))));
+        for (const e of list) stage.setDelta(e.id, e.delta, e.from, e.to);
+      } catch (e) { console.error('stage', e); }
+      settle().then(() => { stage.applyNow(); return settle(); }).then(() => { (window as any).__stageShotReady = true; });
+    }
     emit('ready');
     return () => offs.forEach((o) => o());
   }, []);
   if (!comp) return <div style={{ color: '#fff', padding: 20, font: '14px sans-serif' }}>Composition « {__COMPOSITION__} » absente de compositions (src/coulisses.ts). Disponibles : {comps.map((c) => c.id).join(', ') || 'aucune'}</div>;
   return (
     <div id="stage" style={{ width: '100vw', height: '100vh' }}>
-      <Player ref={r} component={comp.component} inputProps={props}
+      <Player ref={r} component={Framed} inputProps={props}
         durationInFrames={durationInFrames} fps={FPS} compositionWidth={W} compositionHeight={H}
         style={{ width: '100%', height: '100%' }} playbackRate={rate} clickToPlay={false} doubleClickToFullscreen={false}
         spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense numberOfSharedAudioTags={48} />

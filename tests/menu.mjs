@@ -59,7 +59,7 @@ try {
   check((await state()).open === 1 && has(e, 'prefs', (r) => !r.off && r.label === 'Préférences…') && has(e, 'undo', (r) => r.off), 'hover: « Édition » opens in place of « Fichier » (Préférences…, Annuler greyed)');
   await p.mouse('mouseMoved', ...(await btnAt('tools'))); await sleep(150);
   const t = await rows();
-  check(has(t, 'log', (r) => r.sub && !r.off) && has(t, 'export', (r) => r.off) && has(t, 'render', (r) => r.off), 'Outils: Journal ▸, the studio tools greyed');
+  check(has(t, 'log', (r) => r.sub && !r.off) && ['staging', 'source', 'export', 'stopExport'].every((id) => has(t, id, (r) => r.off)) && !has(t, 'render'), 'Outils: Journal ▸, the studio tools greyed (the same entries as in the studio)');
   await p.mouse('mouseMoved', ...(await btnAt('help'))); await sleep(150);
   const h = await rows();
   check(has(h, 'shortcuts', (r) => r.key === 'F1') && has(h, 'agentDoc', (r) => r.label === 'Protocole de l\'agent') && has(h, 'contract', (r) => r.label === 'Contrat des pipelines') && has(h, 'online') && has(h, 'about', (r) => r.label === 'À propos de Coulisses'), 'Aide: Raccourcis clavier (F1), Protocole de l\'agent, Contrat des pipelines, Documentation en ligne, À propos');
@@ -114,8 +114,8 @@ try {
   check(has(se, 'undo', (r) => r.off && /Aucune correction à annuler/.test(r.why)) && has(se, 'copyLine', (r) => r.off && /Aucun lot/.test(r.why)) && has(se, 'copyConnect', (r) => !r.off), 'Édition: Annuler greyed (« Aucune correction à annuler… »), Copier la ligne greyed (no batch yet), Copier la ligne de connexion');
   await p.mouse('mouseMoved', ...(await btnAt('tools'))); await sleep(150);
   const st = await rows();
-  check(has(st, 'connect') && has(st, 'send', (r) => r.off && /Aucune modif en attente/.test(r.why)) && !has(st, 'staging') && !has(st, 'render') && has(st, 'source', (r) => r.off) && has(st, 'export', (r) => r.sub && !r.off) && has(st, 'stopExport', (r) => r.off && /Aucun export en cours/.test(r.why)),
-    'Outils (a Remotion run): Envoyer greyed, no staging nor render, Exporter ▸, Arrêter l\'export greyed');
+  check(has(st, 'connect') && has(st, 'send', (r) => r.off && /Aucune modif en attente/.test(r.why)) && has(st, 'staging', (r) => !r.off) && !has(st, 'render') && has(st, 'source', (r) => r.off) && has(st, 'export', (r) => r.sub && !r.off) && has(st, 'stopExport', (r) => r.off && /Aucun export en cours/.test(r.why)),
+    'Outils (a Remotion run): Envoyer greyed, Mise en scène, Exporter ▸, Arrêter l\'export greyed');
   const ex = await ev(`const r = document.querySelector('.mb-item[data-id=export]').getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]`);
   await p.mouse('mouseMoved', ex[0], ex[1]); await sleep(250);
   const variants = (await rows(1))?.map((r) => r.label);

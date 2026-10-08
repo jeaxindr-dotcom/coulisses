@@ -122,6 +122,15 @@ Pour l'appliquer :
 3. Ne rien changer au minutage.
 4. Vérifier avec `CLI frame E03 <image> --source code` : l'image doit ressembler à l'image « après » jointe. Comme pour toute modif, faire un `snapshot` avant de toucher aux fichiers, puis `reply` et `done`.
 
+**Dans un run Remotion** (L'AItelier, Vidéo du monde, 宇宙ちゃん), la mise en scène est en 2D : l'aperçu est du HTML. Le bloc donne :
+
+- **l'élément**, par son bloc `data-coulisses` puis son chemin dans le bloc, par exemple `[data-coulisses="beat S12.16"] > div:nth-child(2) > img:nth-child(1)`, avec un nom lisible (« beat S12.16 › chibi2.png ») ;
+- **le décalage en pixels de l'image**, tel qu'on le voit à l'écran : Δx vers la droite, Δy vers le bas, une rotation en degrés, un facteur de taille ;
+- **la boîte de l'élément** à l'image de la note, avant le décalage ;
+- **la portée** et **l'image « après »**, prise par Coulisses dans l'aperçu avec le décalage.
+
+L'écrire là où le projet place cet élément (sa position, sa taille, son animation), seulement dans la portée. **« Caméra »** désigne l'image entière : ce qu'on voit glisse ou zoome autour du centre. L'écrire comme un mouvement de caméra ou un cadrage du plan (le fichier de caméras du run s'il en a un, par exemple `cams.ts` pour 宇宙ちゃん).
+
 ## Une image de la bibliothèque à placer
 
 Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) : ses personnages, décors, accessoires et effets, rangés par catégorie dans `Documents\Coulisses\Médias\<chaîne>\`. L'utilisateur y crée des images avec l'atelier d'images (Codex et son outil image_gen), ou y dépose les siennes. Quand il glisse une image sur la vidéo, la modif contient un bloc **« Média de la bibliothèque à placer »** :
