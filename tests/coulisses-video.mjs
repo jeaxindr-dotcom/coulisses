@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIX = path.join(STUDIO, '.cache', 'coulisses-video-test'), REG = path.join(FIX, 'projets.json');
 process.env.STUDIO_PROJECTS = REG;   // before lib/place.mjs is loaded: the test's own list of projects
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const { importProject, project, tracksOf } = await import('../lib/projects.mjs');
 const RUN = path.join(FIX, 'projects', 'test-slug'), AIT = path.join(FIX, 'AItelier', 'long', '2026-10-07_test-ait');
 const CLI = path.join(STUDIO, 'studio-cli.mjs'), PORT = 4188;

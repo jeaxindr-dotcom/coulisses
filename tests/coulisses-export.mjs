@@ -13,6 +13,7 @@ const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'coulisses-export-test');
 fs.rmSync(SCR, { recursive: true, force: true }); fs.mkdirSync(SCR, { recursive: true });
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json');
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const { makeFixture, RUN } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const { exportAvailable } = await import('../lib/export.mjs');

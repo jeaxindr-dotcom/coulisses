@@ -90,7 +90,7 @@
   #agent.on { color: var(--mint); border-color: rgba(111, 231, 200, 0.3); } #agent.on .dot { background: var(--mint); box-shadow: 0 0 0 4px rgba(111, 231, 200, 0.18), 0 0 12px var(--mint); }
 
   /* ---------- layout: floating glass panels ---------- */
-  #app { display: grid; height: calc(100% - 62px); padding: 0 12px 12px; grid-template-columns: 64px minmax(0, 1fr) 12px var(--side); grid-template-rows: minmax(0, 1fr) 12px var(--tlh); }
+  #app { display: grid; height: calc(100% - 62px - 28px); padding: 0 12px 12px; grid-template-columns: 64px minmax(0, 1fr) 12px var(--side); grid-template-rows: minmax(0, 1fr) 12px var(--tlh); }
   #rail { grid-column: 1; grid-row: 1; position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; margin-right: 12px; border-radius: 999px; align-self: start; }
   #rail button { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 999px; background: transparent; border-color: transparent; color: var(--s11); position: relative; }
   #rail button svg.ic { width: 18px; height: 18px; }
@@ -377,7 +377,7 @@
   #tip { position: absolute; pointer-events: none; background: rgba(16, 18, 28, 0.9); backdrop-filter: blur(14px); border: 1px solid var(--stroke-2); color: var(--s12); font-size: 12px; padding: 6px 11px; border-radius: 12px;
     white-space: nowrap; display: none; z-index: 5; max-width: 70%; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 10px 28px rgba(0,0,0,.45); }
   /* ---------- overlays ---------- */
-  #help { position: fixed; top: 66px; right: 14px; width: 480px; max-height: 80vh; overflow-y: auto; background: rgba(18, 20, 31, 0.86); backdrop-filter: blur(26px) saturate(160%); border: 1px solid var(--stroke-2);
+  #help { position: fixed; top: 94px; right: 14px; width: 480px; max-height: 80vh; overflow-y: auto; background: rgba(18, 20, 31, 0.86); backdrop-filter: blur(26px) saturate(160%); border: 1px solid var(--stroke-2);
     border-radius: 24px; padding: 18px 20px; z-index: 30; display: none; font-size: 12.5px; line-height: 1.85; color: var(--s11); box-shadow: 0 30px 70px rgba(0, 0, 0, .55); }
   #help.open { display: block; }
   #help h3 { margin: 14px 0 2px; font: 600 11px var(--font-d); text-transform: uppercase; letter-spacing: .1em; color: var(--lime); }
@@ -399,35 +399,40 @@
   #modal .agentpick.on { display: flex; }
   #modal .agentpick button { height: 30px; font-size: 12px; }
   #modal .agentpick .muted { font-size: 11.5px; margin-left: 4px; }
+  /* « Langue · Language » (top of the help panel): the app's language, for the user (settings.json) */
+  #help .langs { display: flex; gap: 6px; margin: 2px 0 4px; }
+  #help .langs button { height: 30px; font-size: 12px; }
 </style>
+<!--I18N-->
 </head>
 <body>
+<nav id="menubar"></nav>
 <header>
   <a class="logo" id="logo" title="Coulisses">C</a>
   <h1 id="title">Studio</h1><span id="kindTag"></span><span class="sub" id="render"></span>
   <span class="grow"></span>
-  <button id="helpBtn" title="Aide : raccourcis et mode d'emploi" aria-label="Aide"><i data-ic="question"></i></button>
-  <button id="renderPill" title="Avancement du rendu (onglet Envois)"><span class="t">Rendu</span><span class="mini"><i></i></span></button>
-  <button id="agent" title="Connecter l'outil à ton agent (Claude Code, Codex…)"><span class="dot"></span><span class="t">Connecter à l'agent</span></button>
+  <button id="helpBtn" title="{{st.help.title}}" aria-label="{{st.help.aria}}"><i data-ic="question"></i></button>
+  <button id="renderPill" title="{{st.pill.title}}"><span class="t">{{st.rc.render}}</span><span class="mini"><i></i></span></button>
+  <button id="agent" title="{{st.agent.title}}"><span class="dot"></span><span class="t">{{st.agent.connect}}</span></button>
   <span id="save">—</span>
 </header>
 <div id="app">
   <nav id="rail" class="glass">
-    <button data-tool="select" class="on"><i data-ic="pointer"></i><span class="tipr">Sélection — pointer un endroit, puis <kbd>A</kbd><kbd>V</kbd></span></button>
-    <button data-tool="draw"><i data-ic="pen"></i><span class="tipr">Dessin — plusieurs traits = un seul dessin<kbd>D</kbd></span></button>
-    <button data-tool="comment"><i data-ic="comment"></i><span class="tipr">Commentaire épinglé<kbd>C</kbd></span></button>
+    <button data-tool="select" class="on"><i data-ic="pointer"></i><span class="tipr">{{st.rail.select}}</span></button>
+    <button data-tool="draw"><i data-ic="pen"></i><span class="tipr">{{st.rail.draw}}</span></button>
+    <button data-tool="comment"><i data-ic="comment"></i><span class="tipr">{{st.rail.comment}}</span></button>
     <div class="sep"></div>
-    <button id="bNote"><i data-ic="plus"></i><span class="tipr">Note sur l'image actuelle<kbd>N</kbd></span></button>
-    <button id="bRange"><i data-ic="range"></i><span class="tipr">Plage : au début, puis à la fin<kbd>R</kbd></span></button>
+    <button id="bNote"><i data-ic="plus"></i><span class="tipr">{{st.rail.note}}</span></button>
+    <button id="bRange"><i data-ic="range"></i><span class="tipr">{{st.rail.range}}</span></button>
     <div class="sep b-only"></div>
-    <button id="bStage" class="b-only"><i data-ic="move"></i><span class="tipr">Mise en scène : déplacer les objets, caméra libre<kbd>M</kbd></span></button>
+    <button id="bStage" class="b-only"><i data-ic="move"></i><span class="tipr">{{st.rail.stage}}</span></button>
     <div class="sep need-code need-video"></div>
-    <button id="bSrc" class="need-code need-video"><i data-ic="code"></i><span class="tipr">MP4 rendu ⇄ code actuel<kbd>P</kbd></span></button>
+    <button id="bSrc" class="need-code need-video"><i data-ic="code"></i><span class="tipr">{{st.rail.src}}</span></button>
   </nav>
   <section id="viewer" class="glass">
     <div id="viewbar">
-      <span class="seg need-code need-video" title="Ce que montre l'image (touche P)">
-        <button id="srcVideo" class="on"><i data-ic="film"></i>MP4 rendu</button><button id="srcCode"><i data-ic="code"></i>Code actuel</button>
+      <span class="seg need-code need-video" title="{{st.src.title}}">
+        <button id="srcVideo" class="on"><i data-ic="film"></i>{{st.src.video}}</button><button id="srcCode"><i data-ic="code"></i>{{st.src.code}}</button>
       </span>
       <span id="codeStatus"></span>
       <span class="grow"></span>
@@ -439,70 +444,70 @@
       <div id="stage">
         <div id="media">
           <video id="v" preload="auto" playsinline></video>
-          <iframe id="code" title="Aperçu vivant du code"></iframe>
+          <iframe id="code" title="{{st.codeFrame}}"></iframe>
           <canvas id="ov" class="select"></canvas>
           <div id="hoverTag"></div>
-          <button id="pickBtn" class="primary" title="Demander une modification à cet endroit (A)">Demander une modif <kbd>A</kbd></button>
+          <button id="pickBtn" class="primary" title="{{st.pick.title}}">{{st.pick.text}}</button>
           <div id="pop">
             <div class="t" id="popT"></div>
-            <textarea id="popTx" placeholder="Que faut-il changer ici ?"></textarea>
+            <textarea id="popTx" placeholder="{{st.pop.placeholder}}"></textarea>
             <div class="tg" id="popTg"></div>
-            <div class="b"><button id="popClear" class="danger">Effacer le dessin</button><button id="popCancel">Annuler</button><button id="popOk" class="primary">Ajouter <kbd>↵</kbd></button></div>
+            <div class="b"><button id="popClear" class="danger">{{st.pop.clear}}</button><button id="popCancel">{{st.pop.cancel}}</button><button id="popOk" class="primary">{{st.pop.ok}}</button></div>
           </div>
         </div>
         <div id="shuttle"></div>
-        <div id="stageBadge">Mise en scène<span class="k" id="stageBadgeK">clique un objet</span></div>
-        <div id="heldOv">Le nouveau rendu remplace la vidéo<small>Le studio la recharge tout seul dans un instant, avec les notes recalées.</small></div>
+        <div id="stageBadge">{{st.stage.badge}}<span class="k" id="stageBadgeK">{{st.stage.clickObj}}</span></div>
+        <div id="heldOv">{{st.held}}</div>
       </div>
     </div>
   </section>
-  <div class="split v" id="splitV" title="Glisser pour élargir / rétrécir le panneau"></div>
+  <div class="split v" id="splitV" title="{{st.splitV}}"></div>
   <aside id="side" class="glass">
     <div id="tabs">
-      <button data-tab="queue">Modifs<span class="n" id="nQueue">0</span></button>
-      <button data-tab="notes">Notes<span class="n" id="nNotes">0</span></button>
-      <button data-tab="lots">Envois<span class="n" id="nLots">0</span></button>
-      <button data-tab="insp">Inspecteur</button>
-      <button data-tab="scene" class="b-only">Scène</button>
+      <button data-tab="queue">{{st.tab.queue}}<span class="n" id="nQueue">0</span></button>
+      <button data-tab="notes">{{st.tab.notes}}<span class="n" id="nNotes">0</span></button>
+      <button data-tab="lots">{{st.tab.lots}}<span class="n" id="nLots">0</span></button>
+      <button data-tab="insp">{{st.tab.insp}}</button>
+      <button data-tab="scene" class="b-only">{{st.tab.scene}}</button>
     </div>
     <div class="tab" id="tab-queue">
-      <div class="bar"><b>Modifs en attente</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
+      <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
       <div class="scroll" id="draftList"></div>
       <div class="foot">
-        <textarea id="qwords" placeholder="Un mot pour l'agent avec cet envoi (facultatif)"></textarea>
-        <button id="qsend" class="primary" disabled>Envoyer à l'agent</button>
+        <textarea id="qwords" placeholder="{{st.queue.words}}"></textarea>
+        <button id="qsend" class="primary" disabled>{{st.queue.send}}</button>
         <span id="qhint"></span>
       </div>
     </div>
     <div class="tab" id="tab-notes">
-      <div class="bar"><b id="count">0 note</b><span class="grow"></span><label class="chk"><input type="checkbox" id="hideDone"> masquer les corrigées</label></div>
+      <div class="bar"><b id="count">{{st.notes.zero}}</b><span class="grow"></span><label class="chk"><input type="checkbox" id="hideDone"> {{st.notes.hideDone}}</label></div>
       <div class="scroll" id="list"></div>
     </div>
     <div class="tab" id="tab-lots">
-      <div class="bar"><b>Envois à l'agent</b></div>
+      <div class="bar"><b>{{st.lots.title}}</b></div>
       <div id="renderCard"></div>
       <div class="scroll" id="lots"></div>
     </div>
     <div class="tab" id="tab-scene">
-      <div class="bar"><b>Mise en scène</b><span class="grow"></span><span class="muted" id="sceneState">désactivée</span></div>
+      <div class="bar"><b>{{st.stage.badge}}</b><span class="grow"></span><span class="muted" id="sceneState">{{st.scene.off}}</span></div>
       <div class="scroll" id="scene"></div>
     </div>
     <div class="tab" id="tab-insp">
-      <div class="bar"><b>Inspecteur</b><span class="grow"></span><span class="muted">l'image affichée et la note choisie</span></div>
+      <div class="bar"><b>{{st.tab.insp}}</b><span class="grow"></span><span class="muted">{{st.insp.sub}}</span></div>
       <div class="scroll" id="insp"></div>
     </div>
   </aside>
-  <div class="split h" id="splitH" title="Glisser pour agrandir / réduire la timeline"></div>
+  <div class="split h" id="splitH" title="{{st.splitH}}"></div>
   <section id="tlpanel" class="glass">
     <div id="transport">
-      <button id="bPrev" class="icon" title="Image précédente (←)"><i data-ic="left"></i></button>
-      <button id="bPlay" title="Lecture / pause (Espace)"><i data-ic="play"></i></button>
-      <button id="bNext" class="icon" title="Image suivante (→)"><i data-ic="right"></i></button>
-      <span id="tc">0:00.000</span><span id="fr">image 0</span>
+      <button id="bPrev" class="icon" title="{{st.tr.prev}}"><i data-ic="left"></i></button>
+      <button id="bPlay" title="{{st.tr.play}}"><i data-ic="play"></i></button>
+      <button id="bNext" class="icon" title="{{st.tr.next}}"><i data-ic="right"></i></button>
+      <span id="tc">0:00.000</span><span id="fr">{{st.tr.frame0}}</span>
       <span class="sep"></span>
       <button class="spd" data-s="0.25">¼</button><button class="spd" data-s="0.5">½</button><button class="spd on" data-s="1">1×</button><button class="spd" data-s="2">2×</button>
       <span class="sep"></span>
-      <button id="bFit" class="icon" title="Toute la vidéo dans la timeline"><i data-ic="fit"></i></button>
+      <button id="bFit" class="icon" title="{{st.tr.fit}}"><i data-ic="fit"></i></button>
       <span class="muted" style="display:inline-flex;margin-left:6px"><i data-ic="volume"></i></span><input id="vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
       <div id="context">—</div>
     </div>
@@ -511,33 +516,29 @@
 </div>
 <div class="menu" id="menu"></div>
 <div id="help">
-  <h3>Sur l'image</h3>
-  <kbd>V</kbd> <b>Sélection</b> : survole pour voir l'objet visé, clique, puis <kbd>A</kbd> pour demander une modif · <kbd>D</kbd> <b>Dessin</b> : plusieurs traits forment un seul dessin, <kbd>↵</kbd> pour l'ajouter ·
-  <kbd>C</kbd> <b>Commentaire</b> épinglé · <kbd>P</kbd> MP4 rendu ⇄ code actuel.
-  <h3>Mise en scène</h3>
-  <kbd>M</kbd> entrer ou sortir · clic sur un objet pour le choisir, puis tirer les poignées · <kbd>W</kbd> déplacer, <kbd>E</kbd> tourner, <kbd>R</kbd> échelle ·
-  <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> <kbd>Pg↑</kbd><kbd>Pg↓</kbd> pousser l'objet (<kbd>Maj</kbd> ×5, <kbd>Alt</kbd> fin) · <kbd>Échap</kbd> désélectionner ·
-  <b>Caméra libre</b> pour regarder autour : glisser = tourner, clic droit = se déplacer, molette = avancer. Rien n'est écrit dans le projet : <b>Ajouter à la file</b> envoie le décalage à l'agent.
-  <h3>Lecture</h3>
-  <kbd>Espace</kbd> lecture · <kbd>←</kbd><kbd>→</kbd> image par image, <b>maintenir</b> = défilement ×2 · <kbd>Maj</kbd>+<kbd>←</kbd><kbd>→</kbd> 1 seconde · <kbd>Début</kbd> <kbd>Fin</kbd>
-  <h3>Timeline (comme DaVinci Resolve)</h3>
-  <b>molette</b> = pistes vers le haut / le bas · <kbd>Ctrl</kbd>+molette = défiler dans le temps · <kbd>Alt</kbd>+molette = zoom horizontal · <kbd>Maj</kbd>+molette = hauteur des pistes ·
-  <kbd>+</kbd> <kbd>-</kbd> zoom · double-clic sur une réplique = note sur toute la réplique · glisser dans la bande Notes = nouvelle plage.
-  <h3>Notes</h3>
-  <kbd>N</kbd> note sur l'image · <kbd>R</kbd> début puis fin de plage · <kbd>I</kbd> <kbd>O</kbd> début / fin de la note choisie = image actuelle · <kbd>L</kbd> boucler la plage · <kbd>Suppr</kbd> effacer ·
-  <kbd>Ctrl</kbd>+<kbd>V</kbd> coller une image. Chaque nouvelle note entre dans <b>Modifs</b>, puis <b>Envoyer à l'agent</b>.
-  <h3>Rendu</h3>
-  Onglet <b>Envois</b> › <b>Lancer le rendu</b> : la demande part à ton agent, qui lance les cinq contrôles, le rendu et la finition. L'avancement s'affiche en haut de l'écran, et la nouvelle vidéo se charge toute seule.
-  <b>Comparer avant / après</b> : glisser la barre sur l'image, <kbd>B</kbd> ou <kbd>Espace</kbd> tout avant / tout après, <kbd>←</kbd><kbd>→</kbd> note précédente / suivante.
-  <h3>Panneaux</h3>
-  Les bords entre l'image, le panneau de droite et la timeline se tirent à la souris.
+  <h3>Langue · Language</h3>
+  <div class="langs" id="langs"><button data-l="fr">Français</button><button data-l="en">English</button></div>
+  <h3>{{st.help.h.image}}</h3>
+  {{st.help.image}}
+  <h3>{{st.stage.badge}}</h3>
+  {{st.help.staging}}
+  <h3>{{st.help.h.play}}</h3>
+  {{st.help.play}}
+  <h3>{{st.help.h.timeline}}</h3>
+  {{st.help.timeline}}
+  <h3>{{st.tab.notes}}</h3>
+  {{st.help.notes}}
+  <h3>{{st.rc.render}}</h3>
+  {{st.help.render}}
+  <h3>{{st.help.h.panels}}</h3>
+  {{st.help.panels}}
 </div>
 <div id="lb"><img alt=""></div>
 <div id="cmp"><div class="box">
-  <div class="top"><b id="cmpT">Avant / après</b><span class="muted" id="cmpN"></span><span class="grow"></span>
-    <button class="soft icon" id="cmpPrev" title="Note précédente (←)"><i data-ic="left"></i></button><button class="soft icon" id="cmpNext" title="Note suivante (→)"><i data-ic="right"></i></button>
-    <button class="soft" id="cmpFlip" title="Tout avant / tout après (B)">Avant ⇄ après <kbd>B</kbd></button><button class="soft" id="cmpGo"><i data-ic="goto"></i>Aller à la note</button><button class="soft icon" id="cmpX" title="Fermer (Échap)"><i data-ic="x"></i></button></div>
-  <div class="wipe" id="cmpW"><img id="cmpA" alt=""><div class="after"><img id="cmpB" alt=""></div><div class="handle"></div><span class="lab l" id="cmpLA">Avant</span><span class="lab r" id="cmpLB">Après</span><span class="wait" id="cmpWait"></span></div>
+  <div class="top"><b id="cmpT">{{st.cmp.title}}</b><span class="muted" id="cmpN"></span><span class="grow"></span>
+    <button class="soft icon" id="cmpPrev" title="{{st.cmp.prev}}"><i data-ic="left"></i></button><button class="soft icon" id="cmpNext" title="{{st.cmp.next}}"><i data-ic="right"></i></button>
+    <button class="soft" id="cmpFlip" title="{{st.cmp.flipTitle}}">{{st.cmp.flip}}</button><button class="soft" id="cmpGo"><i data-ic="goto"></i>{{st.cmp.go}}</button><button class="soft icon" id="cmpX" title="{{st.cmp.close}}"><i data-ic="x"></i></button></div>
+  <div class="wipe" id="cmpW"><img id="cmpA" alt=""><div class="after"><img id="cmpB" alt=""></div><div class="handle"></div><span class="lab l" id="cmpLA">{{st.cmp.before}}</span><span class="lab r" id="cmpLB">{{st.cmp.after}}</span><span class="wait" id="cmpWait"></span></div>
   <div class="txt" id="cmpTx"></div>
 </div></div>
 <div id="modal"><div class="box">
@@ -546,13 +547,19 @@
   <div class="line" id="mLine"></div>
   <p class="small" id="mP2"></p>
   <p class="upd" id="mUpd"></p>
-  <div class="agentpick" id="mAgent"><span>Ton agent :</span><button data-a="claude">Claude Code</button><button data-a="codex">Codex (GPT)</button><span class="muted">sert à vérifier ses skills ; un agent connecté se nomme lui-même</span></div>
-  <div class="b"><button id="mClose" class="soft">Fermer</button><button id="mCopy" class="primary"><i data-ic="copy"></i>Copier</button></div>
+  <div class="agentpick" id="mAgent"><span>{{st.modal.yourAgent}}</span><button data-a="claude">Claude Code</button><button data-a="codex">Codex (GPT)</button><span class="muted">{{st.modal.agentWhy}}</span></div>
+  <div class="b"><button id="mClose" class="soft">{{st.modal.close}}</button><button id="mCopy" class="primary"><i data-ic="copy"></i>{{st.modal.copy}}</button></div>
 </div></div>
 <input type="file" id="filePick" accept="image/*" multiple hidden>
+<script src="/menubar.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
+  // the texts of the page, in the user's language: window.T(key, values), given by studio-server.mjs (lib/i18n.mjs, « st.* »)
+  const I18N = window.__I18N ?? { lang: 'fr', dict: {} }, LANG = I18N.lang, FR = LANG === 'fr', T = window.T ?? ((k) => k);
+  // numbers and dates: French keeps the formats it always had (decimal comma, the browser's own date formats)
+  const dec = (x) => (FR ? String(x).replace('.', ',') : String(x));
+  const hm5 = (d) => (FR ? d.toLocaleTimeString() : d.toLocaleTimeString('en-GB')).slice(0, 5);
   const v = $('#v'), cv = $('#tl'), tip = $('#tip'), ov = $('#ov'), media = $('#media'), codeEl = $('#code');
   let META = null, SNAP = null, LIVE = null, FPS = 30, FRAMES = 0, DUR = 0, MAXQ = 10;
   let CW = 1920, CH = 1080;                    // the frame's pixels (1920×1080 for an episode; a project: its video's): every mark is stored in these
@@ -642,6 +649,21 @@
   }
   document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   $('#helpBtn').onclick = () => $('#help').classList.toggle('open');
+  // « Langue · Language » (help panel, and Edit › Preferences): the user's choice for the whole app (settings.json, via
+  // the server); the notes are saved first, and the page comes back in the new language on the same frame
+  async function setLanguage(l) {
+    if (l === LANG) return true;
+    await flushNow();
+    const r = await fetch('/api/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: l }) }).then((x) => x.json()).catch(() => null);
+    if (!r?.ok) return false;
+    location.hash = `f=${curFrame()}`; location.reload();
+    return true;
+  }
+  for (const b of document.querySelectorAll('#langs button')) {
+    b.classList.toggle('on', b.dataset.l === LANG);
+    if (I18N.source === 'env') { b.disabled = true; b.title = 'COULISSES_LANG'; }
+    b.onclick = () => setLanguage(b.dataset.l);
+  }
   // the « … » menu of a card
   const menu = $('#menu');
   function openMenu(anchor, items) {
@@ -680,7 +702,7 @@
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
     if (SP && codeVer === ver) return Promise.resolve(SP);
     if (codeLoading) return codeLoading;
-    $('#codeStatus').textContent = 'Chargement du code…';
+    $('#codeStatus').textContent = T('st.code.loading');
     codeLoading = new Promise((resolve) => {
       SP = null;
       const f = curFrame();
@@ -698,12 +720,12 @@
               if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
               if (ev.type === 'ended') fire('pause');
             });
-            if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(`le code dure ${sp.durationInFrames} images, le MP4 ${FRAMES}`);
+            if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
             else showCodeNote('');
             stageSynced = new Set(); setTimeout(() => { syncStage(); if (staging) { staging = false; setStaging(true); } }, 0);
             showCodeStatus(); return done(sp);
           }
-          if (performance.now() - t0 > 30000) { $('#codeStatus').textContent = 'Aperçu du code indisponible'; return done(null); }
+          if (performance.now() - t0 > 30000) { $('#codeStatus').textContent = T('st.code.unavailable'); return done(null); }
           setTimeout(wait, 100);
         })();
       };
@@ -715,11 +737,11 @@
   const showCodeNote = (t) => { codeNote = t; showCodeStatus(); };
   function showCodeStatus() {
     const c = STATUS.code ?? {}, el = $('#codeStatus');
-    if (c.status === 'error') el.textContent = 'Le code ne compile pas';
-    else if (c.status === 'building') el.textContent = 'Compilation…';
-    else if (SP) el.textContent = `Code v${c.version} · ${c.builtAt ? new Date(c.builtAt).toLocaleTimeString().slice(0, 5) : ''}${codeNote ? ' · ' + codeNote : ''}`;
+    if (c.status === 'error') el.textContent = T('st.code.error');
+    else if (c.status === 'building') el.textContent = T('st.code.building');
+    else if (SP) el.textContent = `Code v${c.version} · ${c.builtAt ? hm5(new Date(c.builtAt)) : ''}${codeNote ? ' · ' + codeNote : ''}`;
     else el.textContent = '';
-    const e = $('#codeErr'); e.style.display = c.status === 'error' ? 'block' : 'none'; e.textContent = c.status === 'error' ? `Le code Remotion ne compile pas (l'aperçu garde la dernière version) :\n${c.error}` : '';
+    const e = $('#codeErr'); e.style.display = c.status === 'error' ? 'block' : 'none'; e.textContent = c.status === 'error' ? T('st.code.errorLong', { err: c.error }) : '';
   }
   async function setMode(m) {
     if (m === mode) return;
@@ -738,20 +760,20 @@
   // ---------- time helpers ----------
   const fmt = (t) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(3).padStart(6, '0')}`; };
   const fmtS = (t) => { const m = Math.floor(t / 60), s = Math.floor(t - m * 60); return `${m}:${String(s).padStart(2, '0')}`; };
-  const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+  const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : FR ? d.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }); };
   const curFrame = () => Math.max(0, Math.min(FRAMES - 1, Math.floor(M.currentTime * FPS + 1e-4)));
   const seekFrame = (f) => { f = Math.max(0, Math.min(FRAMES - 1, Math.round(f))); M.currentTime = (f + 0.5) / FPS; draw(); updateHud(); };
   const tOf = (f) => f / FPS;
-  const who = (a) => a === 'narrator' ? 'Narrateur' : a.charAt(0).toUpperCase() + a.slice(1);
+  const who = (a) => a === 'narrator' ? T('st.narrator') : a.charAt(0).toUpperCase() + a.slice(1);
 
   // a project's timeline: the tracks of its montage plan (AItelier: chapters, V1 plans, V2 presenter, V3 overlays, A1-A3)
   const clipsAt = (t) => (LIVE?.tracks ?? []).flatMap((tr) => tr.clips.filter((c) => c.t0 <= t && t < c.t1).map((c) => ({ tr, c })));
-  const inClip = (tr, c, t) => (tr.type === 'video' ? `image ${Math.floor(c.from + (t - c.t0) * FPS + 1e-6)} du clip` : `à ${fmt(c.from / FPS + t - c.t0)} du fichier`);
+  const inClip = (tr, c, t) => (tr.type === 'video' ? T('st.ctx.clipFrame', { n: Math.floor(c.from + (t - c.t0) * FPS + 1e-6) }) : T('st.ctx.fileTime', { t: fmt(c.from / FPS + t - c.t0) }));
   function contextAt(f0, f1 = f0) {
     if (PROJ) {
       const t = (f0 + 0.5) / FPS, at = clipsAt(t);
       return { scene: at.find((x) => x.tr.type === 'band')?.c.label ?? '', lines: [],
-        clips: at.filter((x) => x.tr.type !== 'band').map(({ tr, c }) => `${tr.name} : ${c.label}${c.file ? ` · ${c.file}, ${inClip(tr, c, t)}` : ''}${c.off ? ' (désactivé)' : ''}`) };
+        clips: at.filter((x) => x.tr.type !== 'band').map(({ tr, c }) => T('st.ctx.clip', { track: tr.name, label: c.label, file: c.file ? ` · ${c.file}, ${inClip(tr, c, t)}` : '', off: c.off ? T('st.ctx.off') : '' })) };
     }
     if (!SNAP) return { scene: '', lines: [] };
     const t0 = (f0 + 0.5) / FPS, t1 = (f1 + 0.5) / FPS, t = t0;
@@ -760,11 +782,11 @@
     if (cut) scene = cut.name;
     else {
       const on = SNAP.sets.filter((w) => w.inT <= t && t < (w.outT ?? 1e9) + w.outDur).sort((a, b) => b.inT - a.inT)[0];
-      if (on) scene = t < on.inT + on.inDur ? `${on.name} (arrive)` : (on.outT !== null && t >= on.outT ? `${on.name} (s'en va)` : on.name);
+      if (on) scene = t < on.inT + on.inDur ? T('st.ctx.arrives', { name: on.name }) : (on.outT !== null && t >= on.outT ? T('st.ctx.leaves', { name: on.name }) : on.name);
       let open = false; for (const c of SNAP.curtain) { if (c.t > t) break; open = c.open; }
-      if (!open) scene = scene ? `${scene} · rideau fermé` : 'rideau fermé';
+      if (!open) scene = scene ? `${scene} · ${T('st.ctx.curtain')}` : T('st.ctx.curtain');
     }
-    const lines = SNAP.says.filter((s) => s.t <= t1 && s.t + s.dur + 0.4 >= t0).slice(0, 14).map((s) => `${s.id} ${who(s.actor)} : ${s.text}`);
+    const lines = SNAP.says.filter((s) => s.t <= t1 && s.t + s.dur + 0.4 >= t0).slice(0, 14).map((s) => T('st.ctx.line', { id: s.id, who: who(s.actor), text: s.text }));
     return { scene, lines };
   }
 
@@ -780,7 +802,7 @@
   }
   function humanTarget(h) {
     if (!h) return null;
-    if (h.label) return { name: h.label, kind: h.kind || 'élément' };   // an element named data-coulisses="…" (a Remotion run)
+    if (h.label) return { name: h.label, kind: h.kind && h.kind !== 'élément' ? h.kind : T('st.kind.element') };   // an element named data-coulisses="…" (a Remotion run)
     const segs = (h.names?.[0] ?? '').split(' › ').filter(Boolean);
     const seg = [...segs].reverse().find((s) => s.includes('[')) ?? segs.at(-1) ?? '';
     const m = /^(\w+)(?:\[(.*)\])?$/.exec(seg) ?? [];
@@ -788,19 +810,18 @@
     const key = at.actor || at.key || at.id || at.name || '';
     const pretty = (k) => k.replace(/^[a-z0-9]+-\d+-/i, '').replace(/^f-/, '').replace(/^(set|prop|ground|bg|fg|far|near|back|front|flat)_/i, '')
       .replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\s+\d+$/, '').trim();
-    if (comp === 'Actor') return { name: who(key), kind: 'personnage' };
+    if (comp === 'Actor') return { name: who(key), kind: T('st.kind.character') };
     if (comp === 'Piece') {
-      if (/^f-/.test(key)) return { name: pretty(key), kind: 'accessoire' };
-      if (/^g-/.test(key)) return { name: pretty(key.slice(2)), kind: 'sol' };
+      if (/^f-/.test(key)) return { name: pretty(key), kind: T('st.kind.prop') };
+      if (/^g-/.test(key)) return { name: pretty(key.slice(2)), kind: T('st.kind.ground') };
       // a set's painted layers: <set>-<n>-backdrop | far | middle | near | front
-      const LAYERS = { backdrop: 'toile de fond', far: 'plan lointain', middle: 'plan du milieu', near: 'premier plan', front: 'avant-plan' };
       const lay = /^([a-z0-9]+)-\d+-(backdrop|far|middle|near|front)$/i.exec(key);
-      if (lay) return { name: lay[1], kind: LAYERS[lay[2].toLowerCase()] };
-      if (/backdrop/.test(key)) return { name: key.split('-')[0], kind: 'toile de fond' };
-      if (/ground|-g_/.test(key)) return { name: pretty(key.replace(/-g_/, '-')), kind: 'sol' };
-      return { name: pretty(key) || 'élément', kind: 'décor' };
+      if (lay) return { name: lay[1], kind: T(`st.kind.${lay[2].toLowerCase()}`) };
+      if (/backdrop/.test(key)) return { name: key.split('-')[0], kind: T('st.kind.backdrop') };
+      if (/ground|-g_/.test(key)) return { name: pretty(key.replace(/-g_/, '-')), kind: T('st.kind.ground') };
+      return { name: pretty(key) || T('st.kind.element'), kind: T('st.kind.set') };
     }
-    if (comp === 'Stage') return { name: 'plancher', kind: 'plateau' };
+    if (comp === 'Stage') return { name: T('st.kind.floor'), kind: T('st.kind.stage') };
     if (comp) return { name: pretty(key) || comp, kind: comp.toLowerCase() };
     const tx = h.textures?.[0]; return tx ? { name: tx.split('/').pop().replace(/\.\w+$/, ''), kind: 'texture' } : { name: h.type ?? '?', kind: '3D' };
   }
@@ -824,7 +845,7 @@
   function stamp(n) { n.updated = now(); n.context = contextAt(n.frame, n.end ?? n.frame); }
   function queueFull() {
     if (drafts().length < MAXQ) return false;
-    setSave(`File pleine (${MAXQ}) : envoie d'abord ce lot`, 'err');
+    setSave(T('st.queue.full', { max: MAXQ }), 'err');
     setTab('queue'); $('#qcnt').animate([{ transform: 'scale(1.3)' }, { transform: 'scale(1)' }], 400);
     return true;
   }
@@ -866,7 +887,7 @@
     if (!files.length) return;
     let n = target.kind === 'new' ? null : byId(target.id);
     if (!n) { M.pause(); n = addNote(curFrame(), null, false); if (!n) return; target = { kind: 'note', id: n.id }; }
-    setSave(`Envoi de ${files.length > 1 ? files.length + ' images' : 'l\'image'}…`);
+    setSave(files.length > 1 ? T('st.img.uploadMany', { n: files.length }) : T('st.img.uploadOne'));
     try {
       for (const f of files) {
         const file = await upload(f, n.id);
@@ -874,11 +895,11 @@
         else (n.images ??= []).push({ file, at: now() });
       }
       sel = n.id;
-      if (target.kind !== 'reply') { n.updated = now(); save(); } else setSave('Image prête : clique « Envoyer »', 'ok');
+      if (target.kind !== 'reply') { n.updated = now(); save(); } else setSave(T('st.img.ready'), 'ok');
       renderAll();
-    } catch (e) { setSave('Image non enregistrée — l\'outil est-il ouvert ?', 'err'); }
+    } catch (e) { setSave(T('st.img.failed'), 'err'); }
   }
-  const thumbHtml = (img, removable) => `<span class="thumb"><img src="/${esc(img.file)}" data-full="/${esc(img.file)}" alt="">${removable ? `<button class="x" title="Retirer l'image">${ic('x')}</button>` : ''}</span>`;
+  const thumbHtml = (img, removable) => `<span class="thumb"><img src="/${esc(img.file)}" data-full="/${esc(img.file)}" alt="">${removable ? `<button class="x" title="${esc(T('st.img.remove'))}">${ic('x')}</button>` : ''}</span>`;
   function openLightbox(src) { const lb = $('#lb'); lb.querySelector('img').src = src; lb.style.display = 'flex'; }
   $('#lb').addEventListener('click', () => { $('#lb').style.display = 'none'; });
   let pickTarget = null;
@@ -905,22 +926,22 @@
   let saveT = null, saving = false, dirty = false;
   const setSave = (txt, cls) => { const s = $('#save'); s.textContent = txt; s.className = cls || ''; };
   const payload = () => JSON.stringify({ episode: META.episode, title: META.title, fps: FPS, render: META.render, updated: now(), notes: sorted() });
-  function save() { dirty = true; setSave('Enregistrement…'); clearTimeout(saveT); saveT = setTimeout(flush, 400); }
+  function save() { dirty = true; setSave(T('st.save.saving')); clearTimeout(saveT); saveT = setTimeout(flush, 400); }
   async function flush() {
     if (saving) { saveT = setTimeout(flush, 300); return; }
     saving = true; dirty = false;
     try {
       const r = await fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload() });
       if (!r.ok) throw new Error(await r.text());
-      setSave(`Enregistré ${new Date().toLocaleTimeString().slice(0, 5)}`, 'ok');
-    } catch (e) { dirty = true; setSave('Non enregistré — l\'outil est-il ouvert ?', 'err'); }
+      setSave(T('st.save.saved', { t: hm5(new Date()) }), 'ok');
+    } catch (e) { dirty = true; setSave(T('st.save.failed'), 'err'); }
     saving = false;
   }
   async function flushNow() { clearTimeout(saveT); while (saving) await new Promise((r) => setTimeout(r, 50)); if (dirty) await flush(); return !dirty; }
   window.addEventListener('beforeunload', () => { if (dirty) fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload(), keepalive: true }); });
   let AGENT_PICK = store.get('agent', 'claude');   // chosen in « Connecter à l'agent »; the agent watching the tool wins
   const AGENT_LABELS = { claude: 'Claude Code', codex: 'Codex' };
-  const agentName = () => (STATUS.agent?.watching && STATUS.agent?.agent?.name) || AGENT_LABELS[AGENT_PICK] || 'ton agent';
+  const agentName = () => (STATUS.agent?.watching && STATUS.agent?.agent?.name) || AGENT_LABELS[AGENT_PICK] || T('st.agent.yours');
   let repliesTxt = '', statusTxt = '', offline = false;
   async function pollReplies() {
     try {
@@ -931,15 +952,15 @@
       if (s !== statusTxt) { statusTxt = s; STATUS = JSON.parse(s); onStatus(); changed = true; }
       if (changed) renderAll();
     } catch (e) {
-      if (!offline) { offline = true; setSave('Studio en pause (rendu en cours ?) — il reprend tout seul', 'err'); }
+      if (!offline) { offline = true; setSave(T('st.save.paused'), 'err'); }
       setTimeout(pollReplies, 3000); return;
     }
     if (offline) {
       offline = false;
       try {
         const m = await (await fetch('/api/meta', { cache: 'no-store' })).json();
-        if (m.render && META.render && (m.render.size !== META.render.size || m.render.mtime !== META.render.mtime)) { setSave('Nouvelle vidéo : rechargement…', 'ok'); const f = curFrame(); await flushNow(); location.hash = `f=${f}`; location.reload(); return; }
-        setSave('Studio de retour', 'ok');
+        if (m.render && META.render && (m.render.size !== META.render.size || m.render.mtime !== META.render.mtime)) { setSave(T('st.save.newVideo'), 'ok'); const f = curFrame(); await flushNow(); location.hash = `f=${f}`; location.reload(); return; }
+        setSave(T('st.save.back'), 'ok');
       } catch { /* next round */ }
     }
     setTimeout(pollReplies, 3000);
@@ -953,16 +974,16 @@
       (n.before ??= []).push({ frame: n.frame, end: n.end, render: n.render });
       n.frame = m.frame; n.end = m.end ?? null; n.render = META.render; stamp(n); changed = true;
     }
-    if (changed) { save(); setSave('Notes recalées sur la nouvelle vidéo', 'ok'); }
+    if (changed) { save(); setSave(T('st.save.remapped'), 'ok'); }
   }
   function onStatus() {
     const a = STATUS.agent ?? {}, b = $('#agent');
     b.classList.toggle('on', !!a.watching);
-    b.querySelector('.t').textContent = a.watching ? `Agent connecté${a.agent?.name ? ' · ' + a.agent.name : ''}` : 'Connecter à l\'agent';
-    b.title = a.watching ? `${a.agent?.name ?? 'Ton agent'} surveille l'outil et attend tes envois (depuis ${hhmm(a.since)}).` : 'Clique pour obtenir la ligne qui connecte ton agent (Claude Code, Codex…) à l\'outil.';
+    b.querySelector('.t').textContent = a.watching ? T('st.agent.on', { name: a.agent?.name ? ' · ' + a.agent.name : '' }) : T('st.agent.connect');
+    b.title = a.watching ? T('st.agent.watchTitle', { name: a.agent?.name ?? T('st.agent.Yours'), since: hhmm(a.since) }) : T('st.agent.clickTitle');
     const ver = STATUS.code?.version ?? 0;
     if (SP && ver !== codeVer && STATUS.code?.status === 'ready') {
-      if (mode === 'code') { const was = !M.paused; loadCode().then(() => { seekFrame(curFrame()); if (was) M.play(); setSave('Aperçu du code mis à jour', 'ok'); }); }
+      if (mode === 'code') { const was = !M.paused; loadCode().then(() => { seekFrame(curFrame()); if (was) M.play(); setSave(T('st.code.updated'), 'ok'); }); }
       else SP = null;
     } else if (!SP && mode === 'code' && STATUS.code?.status === 'ready' && !codeLoading) loadCode();   // the preview was not built yet at the start
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
@@ -1088,7 +1109,7 @@
     }
   });
   ov.addEventListener('pointermove', (e) => {
-    if (!stroke) { ov.title = markHit(toComp(e)) ? 'Cliquer pour choisir cette note' : ''; hoverAt(e); return; }
+    if (!stroke) { ov.title = markHit(toComp(e)) ? T('st.ov.pickNote') : ''; hoverAt(e); return; }
     const pt = toComp(e), last = stroke[stroke.length - 1];
     if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) >= 4) { stroke.push(pt); drawOv(); }
   });
@@ -1121,7 +1142,7 @@
     else { left = Math.max(6, Math.min(r.width - pw - 6, x0)); top = y1 + 10 + ph <= r.height ? y1 + 10 : Math.max(6, y0 - 10 - ph); }
     pop.style.left = left + 'px'; pop.style.top = top + 'px';
     const c = contextAt(frame);
-    $('#popT').innerHTML = `<b>${mark.kind === 'pin' ? 'Endroit pointé' : `Dessin · ${mark.strokes.length} trait${mark.strokes.length > 1 ? 's' : ''}`}</b> · image ${frame}${c.scene ? ' · ' + esc(c.scene) : ''}${mode === 'code' ? ' · vue code' : ''}`;
+    $('#popT').innerHTML = T('st.pop.head', { what: mark.kind === 'pin' ? T('st.pop.pin') : T('st.pop.draw', { n: mark.strokes.length }), f: frame, scene: c.scene ? ' · ' + esc(c.scene) : '', code: mode === 'code' ? T('st.pop.code') : '' });
     $('#popClear').style.display = mark.kind === 'pin' ? 'none' : '';
     $('#popTx').value = keep;
     $('#popTx').focus();
@@ -1132,7 +1153,7 @@
   function setTg(state, html) { const tg = $('#popTg'); tg.dataset.state = state; tg.innerHTML = html; }
   async function identify(mark, frame) {
     const job = ++pickJob;
-    setTg('busy', '<span class="dot"></span><span class="k">Recherche de l\'objet visé…</span>');
+    setTg('busy', `<span class="dot"></span><span class="k">${T('st.pop.searching')}</span>`);
     let pts;
     if (mark.kind === 'pin') pts = mark.points;
     else {   // a grid inside the drawing's box, kept when inside the drawn outline (as HyperFrames' 8×8 sampling)
@@ -1150,8 +1171,8 @@
       if (job !== pickJob || !popFor) return;
       popFor.target = hits.length ? { frame, hits } : null;
       setTg('done', hits.length
-        ? `<span class="dot"></span>${hits.slice(0, 2).map((h) => { const t = humanTarget(h); return `${esc(t.name)} <span class="k">${esc(t.kind)}</span>`; }).join('<span class="k"> · puis </span>')}`
-        : '<span class="k">Aucun objet 3D à cet endroit (décor peint, texte ou bulle ?)</span>');
+        ? `<span class="dot"></span>${hits.slice(0, 2).map((h) => { const t = humanTarget(h); return `${esc(t.name)} <span class="k">${esc(t.kind)}</span>`; }).join(`<span class="k">${T('st.pop.then')}</span>`)}`
+        : `<span class="k">${T('st.pop.none')}</span>`);
       if (mode === 'code') seekFrame(frame);
     } catch (e) { if (job === pickJob) setTg('done', ''); }
   }
@@ -1162,7 +1183,7 @@
       : { kind: 'circle', points: thin(mark.strokes.flat(), 64), strokes: mark.strokes };
     const n = addNote(frame, null, false, { text, mark: stored, target });
     closePop();
-    if (n) { setSave('Ajouté aux modifs en attente', 'ok'); showCard(n.id); }
+    if (n) { setSave(T('st.pop.added'), 'ok'); showCard(n.id); }
   }
   $('#popOk').onclick = commitPop;
   $('#popCancel').onclick = closePop;
@@ -1178,36 +1199,36 @@
   // (object, Δ position / rotation / scale, scope), who writes it in the code. Draft notes keep their offset visible.
   let staging = false, stSel = null, stMode = 'translate', freeCamOn = false, stageSynced = new Set(), stScope = 'scene', stFrom = 0, stTo = 0;
   const deg = (r) => r * 180 / Math.PI, rad = (d) => d * Math.PI / 180;
-  const sgn = (v, n = 2) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(n).replace('.', ',');
+  const sgn = (v, n = 2) => (v >= 0 ? '+' : '−') + dec(Math.abs(v).toFixed(n));
   const sceneAt = (f) => {   // the set on stage at frame f (from the plan of the MP4, else the code's)
     const sets = SNAP?.sets ?? LIVE?.sets ?? [], t = (f + 0.5) / FPS;
     const w = sets.filter((x) => x.inT <= t && t < (x.outT ?? 1e9) + (x.outDur ?? 0)).sort((a, b) => b.inT - a.inT)[0];
-    return w ? { name: w.name, from: Math.floor(w.inT * FPS), to: Math.min(FRAMES - 1, Math.ceil(((w.outT ?? DUR) + (w.outT !== null ? w.outDur : 0)) * FPS)) } : { name: 'toute la vidéo', from: 0, to: FRAMES - 1 };
+    return w ? { name: w.name, from: Math.floor(w.inT * FPS), to: Math.min(FRAMES - 1, Math.ceil(((w.outT ?? DUR) + (w.outT !== null ? w.outDur : 0)) * FPS)) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
   };
   function scopeOf(kind = stScope) {
     const f = curFrame(), sc = sceneAt(f);
-    if (kind === 'all') return { kind, from: 0, to: FRAMES - 1, label: 'toute la vidéo' };
-    if (kind === 'here') return { kind, from: f, to: sc.to, label: `à partir d'ici jusqu'à la fin de la scène « ${sc.name} »` };
-    if (kind === 'range') return { kind, from: Math.min(stFrom, stTo), to: Math.max(stFrom, stTo), label: 'plage choisie' };
-    return { kind: 'scene', from: sc.from, to: sc.to, label: `la scène « ${sc.name} »` };
+    if (kind === 'all') return { kind, from: 0, to: FRAMES - 1, label: T('st.scope.all') };
+    if (kind === 'here') return { kind, from: f, to: sc.to, label: T('st.scope.here', { name: sc.name }) };
+    if (kind === 'range') return { kind, from: Math.min(stFrom, stTo), to: Math.max(stFrom, stTo), label: T('st.scope.range') };
+    return { kind: 'scene', from: sc.from, to: sc.to, label: T('st.scope.scene', { name: sc.name }) };
   }
   async function setStaging(on) {
     if (on === staging) return;
     if (on) {
       if (mode !== 'code') await setMode('code');
-      if (!SP) { setSave('Aperçu du code indisponible', 'err'); return; }
+      if (!SP) { setSave(T('st.code.unavailable'), 'err'); return; }
       M.pause();
       // the 3D scene mounts once the episode's textures are loaded (a few seconds after the preview itself)
       let ready = SP.stage.enable(true);
-      for (let i = 0; !ready && i < 160; i++) { if (i === 0) setSave('Chargement de la scène 3D…', ''); await new Promise((r) => setTimeout(r, 250)); ready = SP.stage.enable(true); }
-      if (!ready) { setSave('La scène 3D n\'est pas prête (pendant un plan 3D, la mise en scène ne s\'applique pas)', 'err'); return; }
-      setSave('Mise en scène : clique un objet', 'ok');
+      for (let i = 0; !ready && i < 160; i++) { if (i === 0) setSave(T('st.stage.loading'), ''); await new Promise((r) => setTimeout(r, 250)); ready = SP.stage.enable(true); }
+      if (!ready) { setSave(T('st.stage.notReady'), 'err'); return; }
+      setSave(T('st.stage.ready'), 'ok');
       stUnsub?.(); stUnsub = SP.stage.on(onStageEvent); SP.stage.setMode(stMode);
       try { codeEl.contentWindow.focus(); } catch { /* */ }
     } else { SP?.stage.enable(false); freeCamOn = false; stSel = null; }
     staging = on;
     media.classList.toggle('staging', on); $('#stage').classList.toggle('staging', on); $('#bStage').classList.toggle('on', on);
-    $('#sceneState').textContent = on ? 'activée' : 'désactivée';
+    $('#sceneState').textContent = on ? T('st.scene.on') : T('st.scene.off');
     if (on) setTab('scene');
     renderScene();
   }
@@ -1215,7 +1236,7 @@
   function onStageEvent(ev) {
     if (ev.type === 'change' && ev.id !== stSel?.id) return;   // an offset of the queue being re-applied
     if (ev.type === 'select' || ev.type === 'change') { stSel = ev; $('#stageBadgeK').textContent = targetText({ names: [ev.id] }); }
-    if (ev.type === 'deselect') { stSel = null; $('#stageBadgeK').textContent = 'clique un objet'; }
+    if (ev.type === 'deselect') { stSel = null; $('#stageBadgeK').textContent = T('st.stage.clickObj'); }
     if (ev.type === 'mode') stMode = ev.mode;
     renderScene();
   }
@@ -1236,40 +1257,40 @@
   }
   const deltaWords = (d) => {
     const parts = [];
-    const p = d.p.map((x, i) => (Math.abs(x) > 1e-4 ? `${'xyz'[i]} ${sgn(x)}` : '')).filter(Boolean); if (p.length) parts.push('déplacer de ' + p.join(', '));
-    const r = d.r.map((x, i) => (Math.abs(x) > 1e-5 ? `${'xyz'[i]} ${sgn(deg(x), 1)}°` : '')).filter(Boolean); if (r.length) parts.push('tourner de ' + r.join(', '));
-    if (Math.abs(d.s - 1) > 1e-4) parts.push(`échelle ×${d.s.toFixed(2).replace('.', ',')}`);
-    return parts.join(' ; ') || 'aucun changement';
+    const p = d.p.map((x, i) => (Math.abs(x) > 1e-4 ? `${'xyz'[i]} ${sgn(x)}` : '')).filter(Boolean); if (p.length) parts.push(T('st.delta.move', { list: p.join(', ') }));
+    const r = d.r.map((x, i) => (Math.abs(x) > 1e-5 ? `${'xyz'[i]} ${sgn(deg(x), 1)}°` : '')).filter(Boolean); if (r.length) parts.push(T('st.delta.turn', { list: r.join(', ') }));
+    if (Math.abs(d.s - 1) > 1e-4) parts.push(T('st.delta.scale', { s: dec(d.s.toFixed(2)) }));
+    return parts.join(FR ? ' ; ' : '; ') || T('st.delta.none');
   };
   function renderScene() {
     const box = $('#scene'); if (!box) return;
     const a = document.activeElement; if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName) && !renderScene.force) return;   // never under the user's typing
     if (!staging) {
-      box.innerHTML = `<div class="box"><div class="ttl">Déplacer les objets toi-même</div><p class="muted">Dans l'aperçu du code : clique un personnage, un accessoire ou un élément de décor, puis déplace-le, tourne-le ou change sa taille. La caméra libre te laisse tourner autour de la scène. Rien ne change dans le moteur ni dans les images clés : le décalage part à l'agent dans la file, et il l'écrit dans le code.</p>
-        <div class="row"><button class="primary" id="sc-on">${ic('move')}Activer la mise en scène <kbd>M</kbd></button></div></div>` + listHtml();
+      box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${T('st.scene.intro')}</p>
+        <div class="row"><button class="primary" id="sc-on">${ic('move')}${T('st.scene.enable')}</button></div></div>` + listHtml();
       $('#sc-on').onclick = () => setStaging(true); bindList(); return;
     }
     const sel = stSel, t = sel ? humanTarget({ names: [sel.id] }) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, sc = scopeOf();
     const num = (k, val, step) => `<input type="number" id="sc-${k}" step="${step}" value="${val}">`;
     box.innerHTML = `<div class="box">
       ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>
-        <div class="modes"><button data-m="translate" class="${stMode === 'translate' ? 'on' : ''}">Déplacer <kbd>W</kbd></button><button data-m="rotate" class="${stMode === 'rotate' ? 'on' : ''}">Tourner <kbd>E</kbd></button><button data-m="scale" class="${stMode === 'scale' ? 'on' : ''}">Taille <kbd>R</kbd></button></div>
-        <div class="grid3"><span></span><span class="axis">x · côté</span><span class="axis">y · hauteur</span><span class="axis">z · profondeur</span>
-          <span class="lbl">Décalage</span>${num('x', d.p[0].toFixed(3), 0.05)}${num('y', d.p[1].toFixed(3), 0.05)}${num('z', d.p[2].toFixed(3), 0.05)}
-          <span class="lbl">Rotation °</span>${num('rx', deg(d.r[0]).toFixed(1), 1)}${num('ry', deg(d.r[1]).toFixed(1), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
-          <span class="lbl">Taille %</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
-        <p class="muted" style="margin:10px 0 0">Unités du monde 3D (Oliver mesure 2,0). Glisse les poignées sur l'image, ou les flèches du clavier : <kbd>←</kbd><kbd>→</kbd> côté, <kbd>↑</kbd><kbd>↓</kbd> hauteur, <kbd>PgUp</kbd><kbd>PgDn</kbd> profondeur, <kbd>Maj</kbd> = grands pas, <kbd>Alt</kbd> = petits.</p>
-        <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">Portée</span><select id="sc-scope">
-          <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>Cette scène (${esc(sceneAt(curFrame()).name)})</option>
-          <option value="here" ${stScope === 'here' ? 'selected' : ''}>À partir d'ici, jusqu'à la fin de la scène</option>
-          <option value="all" ${stScope === 'all' ? 'selected' : ''}>Toute la vidéo</option>
-          <option value="range" ${stScope === 'range' ? 'selected' : ''}>Plage d'images…</option></select></div>
-        <div class="range ${stScope === 'range' ? 'on' : ''}">images <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">= image actuelle</button></div>
-        <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}Réinitialiser</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}Ajouter à la file</button></div>`
-      : `<div class="ttl">Clique un objet dans l'image</div><p class="muted">Personnage, accessoire ou élément de décor : il s'entoure en vert et ses poignées apparaissent. <kbd>Échap</kbd> pour le lâcher.</p>`}
-      <div class="row"><button class="soft ${freeCamOn ? 'on' : ''}" id="sc-cam">${ic('camera')}${freeCamOn ? 'Caméra libre active' : 'Caméra libre'}</button>
-        ${freeCamOn ? '<button class="soft" id="sc-cam0">Revenir à la caméra du plan</button>' : ''}<span class="grow"></span><button class="soft" id="sc-off">Quitter <kbd>M</kbd></button></div>
-      ${freeCamOn ? '<p class="muted" style="margin:8px 0 0">Caméra libre : glisser = tourner autour, clic droit = se déplacer, molette = avancer. Elle ne change pas le rendu : l\'image « après » envoyée à l\'agent est prise par la caméra du plan.</p>' : ''}
+        <div class="modes"><button data-m="translate" class="${stMode === 'translate' ? 'on' : ''}">${T('st.scene.move')}</button><button data-m="rotate" class="${stMode === 'rotate' ? 'on' : ''}">${T('st.scene.rotate')}</button><button data-m="scale" class="${stMode === 'scale' ? 'on' : ''}">${T('st.scene.size')}</button></div>
+        <div class="grid3"><span></span><span class="axis">${T('st.scene.axisX')}</span><span class="axis">${T('st.scene.axisY')}</span><span class="axis">${T('st.scene.axisZ')}</span>
+          <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(3), 0.05)}${num('y', d.p[1].toFixed(3), 0.05)}${num('z', d.p[2].toFixed(3), 0.05)}
+          <span class="lbl">${T('st.scene.rotation')}</span>${num('rx', deg(d.r[0]).toFixed(1), 1)}${num('ry', deg(d.r[1]).toFixed(1), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
+          <span class="lbl">${T('st.scene.sizePct')}</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
+        <p class="muted" style="margin:10px 0 0">${T('st.scene.units')}</p>
+        <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">${T('st.scene.scope')}</span><select id="sc-scope">
+          <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>${T('st.scene.thisScene', { name: esc(sceneAt(curFrame()).name) })}</option>
+          <option value="here" ${stScope === 'here' ? 'selected' : ''}>${T('st.scene.fromHere')}</option>
+          <option value="all" ${stScope === 'all' ? 'selected' : ''}>${T('st.scene.all')}</option>
+          <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
+        <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
+        <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
+      : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.scene.pick')}</p>`}
+      <div class="row"><button class="soft ${freeCamOn ? 'on' : ''}" id="sc-cam">${ic('camera')}${freeCamOn ? T('st.scene.camOn') : T('st.scene.cam')}</button>
+        ${freeCamOn ? `<button class="soft" id="sc-cam0">${T('st.scene.camBack')}</button>` : ''}<span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
+      ${freeCamOn ? `<p class="muted" style="margin:8px 0 0">${T('st.scene.camHelp')}</p>` : ''}
     </div>` + listHtml();
     box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
     for (const k of ['x', 'y', 'z', 'rx', 'ry', 'rz', 's']) $('#sc-' + k)?.addEventListener('change', () => { const sc2 = scopeOf(); SP.stage.setDelta(stSel.id, readFields(), sc2.from, sc2.to); });
@@ -1288,10 +1309,10 @@
     const live = SP?.stage ? SP.stage.list() : [], queued = drafts().filter((n) => n.stage);
     if (!live.length && !queued.length) return '';
     const rows = [
-      ...queued.map((n) => `<div class="item" data-note="${n.id}">${ic('send')}<span>${esc(humanTarget({ names: [n.stage.id] }).name)}</span><span class="d">dans la file</span></div>`),
+      ...queued.map((n) => `<div class="item" data-note="${n.id}">${ic('send')}<span>${esc(humanTarget({ names: [n.stage.id] }).name)}</span><span class="d">${T('st.scene.queued')}</span></div>`),
       ...live.filter((x) => !queued.some((n) => n.stage.id === x.id)).map((x) => `<div class="item" data-id="${esc(x.id)}">${ic('move')}<span>${esc(humanTarget({ names: [x.id] }).name)}</span><span class="d">${esc(deltaWords(x.delta))}</span></div>`),
     ];
-    return `<h3 style="margin:14px 6px 4px;font:600 11px var(--font-d);text-transform:uppercase;letter-spacing:.1em;color:var(--s9)">Décalages en cours</h3>${rows.join('')}`;
+    return `<h3 style="margin:14px 6px 4px;font:600 11px var(--font-d);text-transform:uppercase;letter-spacing:.1em;color:var(--s9)">${T('st.scene.offsets')}</h3>${rows.join('')}`;
   }
   function bindList() {
     document.querySelectorAll('#scene .item[data-id]').forEach((el) => el.onclick = () => { if (staging) SP.stage.select(el.dataset.id); });
@@ -1305,7 +1326,7 @@
     const shot = await SP.stage.snapshot();   // the shot's camera, with the offset, no gizmo
     const pin = SP.stage.screenPos(id), info = SP.stage.info(id);
     const extra = {
-      text: `Mise en scène : ${t.name} (${t.kind}) — ${deltaWords(d)} ; portée : ${sc.label} (images ${sc.from} → ${sc.to}).`,
+      text: T('st.stage.note', { name: t.name, kind: t.kind, delta: deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
       stage: { id, name: t.name, kind: t.kind, delta: d, base: info.base, scope: sc, frame: f },
       target: { frame: f, hits: [{ names: [id], textures: [], type: info.kind }] },
       ...(pin && pin[0] >= 0 && pin[0] < CW && pin[1] >= 0 && pin[1] < CH ? { mark: { kind: 'pin', points: [pin] } } : {}),
@@ -1313,12 +1334,12 @@
     const n = addNote(f, null, false, extra);
     if (!n) return;
     if (shot) {
-      try { const blob = await (await fetch(shot)).blob(); const file = await upload(new File([blob], 'apres.jpg', { type: 'image/jpeg' }), n.id); (n.images ??= []).push({ file, at: now(), label: 'après le déplacement (aperçu 3D, sans bulles)' }); save(); }
+      try { const blob = await (await fetch(shot)).blob(); const file = await upload(new File([blob], 'apres.jpg', { type: 'image/jpeg' }), n.id); (n.images ??= []).push({ file, at: now(), label: T('st.stage.afterLabel') }); save(); }
       catch { /* the edit stays without its image */ }
     }
     stageSynced.add(id); SP.stage.select(null); stSel = null;
     if (freeWas) { freeCamOn = SP.stage.freeCamera(true); }
-    setSave('Déplacement ajouté aux modifs en attente', 'ok'); setTab('scene'); renderAll(); renderScene();
+    setSave(T('st.stage.added'), 'ok'); setTab('scene'); renderAll(); renderScene();
   }
   $('#bStage').onclick = () => setStaging(!staging);
 
@@ -1330,94 +1351,99 @@
     const nq = $('#nQueue'); nq.textContent = d.length; nq.classList.toggle('hot', d.length > 0);
     const empty = d.filter((n) => !n.text.trim() && !n.mark && !n.images?.length).length;
     $('#qsend').disabled = !d.length || !!empty || sending;
-    $('#qsend').innerHTML = sending ? 'Préparation des images…' : `${ic('send')}Envoyer ${d.length > 1 ? d.length + ' modifs' : d.length ? 'la modif' : ''} à l'agent`;
-    $('#qhint').textContent = empty ? `${empty} note${empty > 1 ? 's' : ''} sans texte ni geste` : (STATUS.agent?.watching && d.length ? `${agentName()} surveille l'outil : il le recevra directement` : '');
+    $('#qsend').innerHTML = sending ? T('st.send.preparing') : `${ic('send')}${d.length > 1 ? T('st.send.many', { n: d.length }) : d.length ? T('st.send.one') : T('st.send.zero')}`;
+    $('#qhint').textContent = empty ? T('st.send.empty', { n: empty }) : (STATUS.agent?.watching && d.length ? T('st.send.watching', { name: agentName() }) : '');
   }
   async function sendQueue() {
     const d = drafts(); if (!d.length || sending) return;
     sending = true; renderQueue();
     try {
-      if (!(await flushNow())) throw new Error('notes non enregistrées');
+      if (!(await flushNow())) throw new Error(T('st.send.notSaved'));
       const marks = {}, cnv = document.createElement('canvas'); cnv.width = CW; cnv.height = CH;
       const num = new Map(sorted().map((n, i) => [n.id, i + 1]));
       for (const n of d) if (n.mark) { const g = cnv.getContext('2d'); g.clearRect(0, 0, CW, CH); paintMark(g, n.mark, String(num.get(n.id)), 1, '#b49cff'); marks[n.id] = cnv.toDataURL('image/png'); }
       const r = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: d.map((n) => n.id), words: $('#qwords').value, marks, agent: AGENT_PICK, fps: FPS, size: [CW, CH] }) });
       const res = r.ok ? await r.json() : null;
-      if (!res?.ok) throw new Error(r.ok ? 'réponse vide' : await r.text());
+      if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
       for (const n of d) { n.draft = false; n.lot = res.lot; n.sentAt = now(); }
-      if (d.some((n) => n.stage)) setTimeout(() => setSave('Décalages envoyés : l\'aperçu montrera la vraie correction quand l\'agent l\'aura écrite', 'ok'), 1600);
+      if (d.some((n) => n.stage)) setTimeout(() => setSave(T('st.send.offsets'), 'ok'), 1600);
       $('#qwords').value = ''; save();
-      showModal(`Lot ${res.lot} envoyé · ${res.count} modif${res.count > 1 ? 's' : ''}`,
-        res.agent?.watching ? `${agentName()} surveille l'outil : il a déjà reçu ce lot, rien à coller. La ligne reste disponible au besoin.` : `Colle cette ligne dans la session de ton agent (${agentName()}), celle qui a fait la vidéo : il lance les corrections.`,
-        res.line, `Lot enregistré dans ${res.md}. Son avancement est dans l'onglet « Envois », et chaque note affiche la réponse de l'agent.`, { updates: res.updates });
+      showModal(T('st.send.title', { lot: res.lot, n: res.count }),
+        res.agent?.watching ? T('st.send.gotIt', { name: agentName() }) : T('st.send.paste', { name: agentName() }),
+        res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk });
       setTab('lots');
-    } catch (e) { setSave(`Envoi impossible : ${e.message}`, 'err'); }
+    } catch (e) { setSave(T('st.send.failed', { msg: e.message }), 'err'); }
     sending = false; renderAll();
   }
   $('#qsend').onclick = sendQueue;
 
   // ---------- batches sent ----------
   const lotState = (L) => {
-    if (L.run?.state === 'undone') return ['undone', 'Correction annulée'];
+    if (L.run?.state === 'undone') return ['undone', T('st.lot.undone')];
     const c = L.claude?.status;
-    if (c === 'done') return ['done', 'Corrigé par l\'agent'];
-    if (c === 'declined') return ['done', 'Non corrigé, voir la réponse'];
-    if (c === 'taken') return ['taken', 'L\'agent corrige…'];
-    return ['', 'En attente de l\'agent'];
+    if (c === 'done') return ['done', T('st.lot.done')];
+    if (c === 'declined') return ['done', T('st.lot.declined')];
+    if (c === 'taken') return ['taken', T('st.lot.taken')];
+    return ['', T('st.lot.waiting')];
   };
+  // « Annuler cette correction » / « Rétablir » of a batch (the card's buttons, and Edit › Undo / Redo of the menu bar)
+  async function stepLot(L, verb, resEl) {
+    if (verb === 'undo' && !confirm(T('st.lot.undoConfirm', { lot: L.lot }))) return null;
+    const r = await (await fetch('/api/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lot: L.lot, verb }) })).json();
+    const msg = r.ok ? T(verb === 'undo' ? 'st.lot.undoneRes' : 'st.lot.redoneRes', { files: r.files.join(', ') }) : r.why;
+    if (resEl) resEl.textContent = msg; else setSave(msg, r.ok ? 'ok' : 'err');
+    if (r.ok) {
+      for (const id of L.ids) { const n = byId(id); if (!n) continue; (n.thread ??= []).push({ text: T(verb === 'undo' ? 'st.lot.undoneThread' : 'st.lot.redoneThread', { lot: L.lot }), images: [], at: now() }); n.status = verb === 'undo' ? 'open' : 'done'; n.statusAt = now(); }
+      save(); setTimeout(() => { statusTxt = ''; }, 0);
+    }
+    return r;
+  }
   function renderLots() {
     const box = $('#lots'), lots = [...(STATUS.lots ?? [])].reverse();
     $('#nLots').textContent = lots.length;
     $('#nLots').classList.toggle('hot', lots.some((L) => L.claude?.status === 'taken'));
     if (tab !== 'lots') { rcKey = ''; return; }
     renderRender();
-    if (!lots.length) { box.innerHTML = '<div class="empty">Aucun lot envoyé pour l\'instant.<br>Les modifs envoyées à l\'agent apparaissent ici, avec leur état et la possibilité d\'annuler une correction.</div>'; return; }
+    if (!lots.length) { box.innerHTML = `<div class="empty">${T('st.lot.none')}</div>`; return; }
     box.innerHTML = '';
     for (const L of lots) {
       if (L.kind === 'render') {   // a render request: no edits, no undo
         const el = document.createElement('div'); el.className = 'lot req';
         const R = STATUS.render, mine = R?.lot === L.lot;
-        const [cls, txt] = L.claude?.status === 'done' ? ['done', 'Rendu vérifié par l\'agent'] : !L.claude ? ['', 'En attente de l\'agent']
-          : !mine ? (R && Date.parse(R.startedAt) > Date.parse(L.sentAt) ? ['undone', 'Remplacé par un nouvel essai'] : ['taken', 'L\'agent prépare le rendu'])
-          : ({ running: ['taken', 'Rendu en cours'], blocked: ['undone', 'Bloqué par un contrôle'], failed: ['undone', 'Échec du rendu'], interrupted: ['undone', 'Interrompu'],
-            cancelled: ['undone', 'Arrêté'], rendered: ['taken', 'L\'agent regarde la vidéo'], reviewed: ['done', 'Rendu vérifié par l\'agent'] }[R.state] ?? ['taken', 'L\'agent prépare le rendu']);
-        el.innerHTML = `<div class="lh"><b>Rendu</b><span class="muted" style="font-size:12px">lot ${L.lot} · ${esc(hhmm(L.sentAt))}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
-          ${L.claude?.message ? `<div class="msg2">${esc(L.claude.message)}</div>` : ''}<div class="acts"><button class="soft cp">${ic('copy')}Copier la ligne</button></div>`;
+        const [cls, key] = L.claude?.status === 'done' ? ['done', 'reviewed'] : !L.claude ? ['', 'waiting']
+          : !mine ? (R && Date.parse(R.startedAt) > Date.parse(L.sentAt) ? ['undone', 'replaced'] : ['taken', 'preparing'])
+          : ({ running: ['taken', 'running'], blocked: ['undone', 'blocked'], failed: ['undone', 'failed'], interrupted: ['undone', 'interrupted'],
+            cancelled: ['undone', 'cancelled'], rendered: ['taken', 'watching'], reviewed: ['done', 'reviewed'] }[R.state] ?? ['taken', 'preparing']);
+        const txt = key === 'waiting' ? T('st.lot.waiting') : T(`st.req.${key}`);
+        el.innerHTML = `<div class="lh"><b>${T('st.rc.render')}</b><span class="muted" style="font-size:12px">${T('st.lot.reqSub', { lot: L.lot, at: esc(hhmm(L.sentAt)) })}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
+          ${L.claude?.message ? `<div class="msg2">${esc(L.claude.message)}</div>` : ''}<div class="acts"><button class="soft cp">${ic('copy')}${T('st.lot.copy')}</button></div>`;
         el.querySelector('.cp').onclick = () => copy(L.line);
         box.appendChild(el); continue;
       }
       const [cls, txt] = lotState(L), el = document.createElement('div'); el.className = 'lot';
       const canUndo = L.run?.finished && L.run.state !== 'undone', canRedo = L.run?.state === 'undone';
-      el.innerHTML = `<div class="lh"><b>Lot ${L.lot}</b><span class="muted" style="font-size:12px">${L.ids.length} modif${L.ids.length > 1 ? 's' : ''} · ${esc(hhmm(L.sentAt))}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
+      el.innerHTML = `<div class="lh"><b>${T('st.lot.title', { lot: L.lot })}</b><span class="muted" style="font-size:12px">${T('st.lot.sub', { n: L.ids.length, at: esc(hhmm(L.sentAt)) })}</span><span class="st ${cls}"><span class="dot"></span>${txt}</span></div>
         ${L.claude?.message ? `<div class="msg2">${esc(L.claude.message)}</div>` : ''}
-        ${L.run?.files?.length ? `<div class="msg2">Fichiers touchés : ${esc(L.run.files.join(', '))}</div>` : ''}
+        ${L.run?.files?.length ? `<div class="msg2">${T('st.lot.files', { files: esc(L.run.files.join(', ')) })}</div>` : ''}
         <div class="msg2 res"></div>
-        <div class="acts"><button class="soft cp">${ic('copy')}Copier la ligne</button><button class="soft go">Voir les notes</button>
-        ${canUndo ? `<button class="soft danger un">${ic('undo')}Annuler cette correction</button>` : ''}${canRedo ? `<button class="soft re">${ic('redo')}Rétablir</button>` : ''}</div>`;
+        <div class="acts"><button class="soft cp">${ic('copy')}${T('st.lot.copy')}</button><button class="soft go">${T('st.lot.notes')}</button>
+        ${canUndo ? `<button class="soft danger un">${ic('undo')}${T('st.lot.undo')}</button>` : ''}${canRedo ? `<button class="soft re">${ic('redo')}${T('st.lot.redo')}</button>` : ''}</div>`;
       el.querySelector('.cp').onclick = () => copy(L.line);
       el.querySelector('.go').onclick = () => { const n = byId(L.ids[0]); if (n) { sel = n.id; M.pause(); seekFrame(n.frame); renderAll(); showCard(n.id); } };
-      const step = async (verb) => {
-        if (verb === 'undo' && !confirm(`Annuler la correction du lot ${L.lot} ? Les fichiers qu'elle a modifiés reviennent à leur état d'avant (l'aperçu du code se met à jour seul).`)) return;
-        const r = await (await fetch('/api/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lot: L.lot, verb }) })).json();
-        el.querySelector('.res').textContent = r.ok ? `${verb === 'undo' ? 'Annulé' : 'Rétabli'} : ${r.files.join(', ')}` : r.why;
-        if (r.ok) {
-          for (const id of L.ids) { const n = byId(id); if (!n) continue; (n.thread ??= []).push({ text: verb === 'undo' ? `(correction du lot ${L.lot} annulée depuis l'outil)` : `(correction du lot ${L.lot} rétablie)`, images: [], at: now() }); n.status = verb === 'undo' ? 'open' : 'done'; n.statusAt = now(); }
-          save(); setTimeout(() => { statusTxt = ''; }, 0);
-        }
-      };
-      el.querySelector('.un')?.addEventListener('click', () => step('undo'));
-      el.querySelector('.re')?.addEventListener('click', () => step('redo'));
+      el.querySelector('.un')?.addEventListener('click', () => stepLot(L, 'undo', el.querySelector('.res')));
+      el.querySelector('.re')?.addEventListener('click', () => stepLot(L, 'redo', el.querySelector('.res')));
       box.appendChild(el);
     }
   }
 
   // ---------- the full re-render: asked here, run by Claude (studio-cli.mjs render), progress in STATUS.render ----------
-  const dayTime = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(' ', ' à ') : '?');
-  const frDur = (s) => String(s ?? '').replace(/(\d+)h/, '$1 h').replace(/(\d+)m(?!s)/, '$1 min').replace(/(\d+)s/, '$1 s');
+  const dayTime = (iso) => (iso ? (FR ? new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(' ', ' à ')
+    : `${new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`) : '?');
+  const frDur = (s) => (FR ? String(s ?? '').replace(/(\d+)h/, '$1 h').replace(/(\d+)m(?!s)/, '$1 min').replace(/(\d+)s/, '$1 s') : String(s ?? ''));
   const mmss = (sec) => `${Math.floor(sec / 60)} min ${String(Math.round(sec % 60)).padStart(2, '0')} s`;
-  const dB = (x) => (x == null ? '?' : (+x).toFixed(1).replace('.', ',').replace('-', '−'));
-  const finLabel = (l) => (/final mix/.test(l) ? 'Mixage final et volume' : /review tool/.test(l) ? 'Plan du rendu et notes recalées' : /chapters/i.test(l) ? 'Chapitres YouTube'
-    : /paused/.test(l) ? 'Studio en pause pendant le remplacement de la vidéo' : /is back/.test(l) ? 'Studio relancé' : l);
+  const dB = (x) => (x == null ? '?' : dec((+x).toFixed(1)).replace('-', '−'));
+  const finLabel = (l) => (/final mix/.test(l) ? T('st.fin.mix') : /review tool/.test(l) ? T('st.fin.plan') : /chapters/i.test(l) ? T('st.fin.chapters')
+    : /paused/.test(l) ? T('st.fin.paused') : /is back/.test(l) ? T('st.fin.back') : l);
   const BAD = ['blocked', 'failed', 'interrupted', 'cancelled'];
   function renderView() {
     const lots = STATUS.lots ?? [], R = STATUS.render ?? null, cur = STATUS.video ?? META?.render ?? null;
@@ -1434,10 +1460,10 @@
   function renderPill() {
     const { st, R } = renderView(), p = $('#renderPill'), pct = R?.render?.pct ?? 0;
     let t = '', cls = '';
-    if (st === 'running') t = R.phase === 'checks' ? 'Rendu : contrôles' : R.phase === 'finish' ? 'Rendu : finition' : R.render?.stage === 'frames' ? `Rendu ${Math.floor(pct)} %` : R.render?.stage === 'encode' ? 'Rendu : encodage' : 'Rendu : préparation';
-    else if (st === 'requested' || st === 'preparing') t = 'Rendu demandé';
-    else if (st === 'blocked' || st === 'failed' || st === 'interrupted') { t = st === 'blocked' ? 'Rendu bloqué' : 'Rendu en échec'; cls = 'fail'; }
-    else if (st === 'rendered') { t = 'Nouvelle vidéo prête'; cls = 'ready'; }
+    if (st === 'running') t = R.phase === 'checks' ? T('st.pill.checks') : R.phase === 'finish' ? T('st.pill.finish') : R.render?.stage === 'frames' ? T('st.pill.pct', { pct: Math.floor(pct) }) : R.render?.stage === 'encode' ? T('st.pill.encode') : T('st.pill.preparing');
+    else if (st === 'requested' || st === 'preparing') t = T('st.pill.requested');
+    else if (st === 'blocked' || st === 'failed' || st === 'interrupted') { t = st === 'blocked' ? T('st.pill.blocked') : T('st.pill.failed'); cls = 'fail'; }
+    else if (st === 'rendered') { t = T('st.pill.ready'); cls = 'ready'; }
     p.className = t ? `show ${cls}` : '';
     p.querySelector('.t').textContent = t;
     p.querySelector('.mini i').style.width = `${st === 'running' ? (R.phase === 'render' ? pct : R.phase === 'finish' ? 100 : 2) : 0}%`;
@@ -1448,38 +1474,39 @@
     const cur = STATUS.video ?? META.render, X = STATUS.export, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape]);
     if (key === rcKey) return; rcKey = key;
     if (META.kind === 'remotion' && !cur) {
-      box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>Pas encore d'export</b><span class="muted">${esc(kindLabel())}</span></div>
-        <div class="sub2">Tu relis le code en direct : la composition ${esc(META.composition ?? '')}, ${CW}×${CH} à ${String(FPS).replace('.', ',')} i/s. L'agent corrige le code, et l'aperçu se recharge seul à chaque enregistrement.</div>
-        <div class="sub2 muted">${META.exportDir ? `Quand l'export arrivera dans ${esc(META.exportDir)}, Coulisses le chargera tout seul, et tu pourras comparer.` : 'Le fichier .coulisses ne dit pas où arrive l\'export.'}</div>${exportBlock()}</div>`;
+      box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>${T('st.ex.noExport')}</b><span class="muted">${esc(kindLabel())}</span></div>
+        <div class="sub2">${T('st.ex.liveCode', { comp: esc(META.composition ?? ''), w: CW, h: CH, fps: dec(FPS) })}</div>
+        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${exportBlock()}</div>`;
       wireExport();
       return;
     }
-    const where = META.kind === 'run' ? `Quand une nouvelle version arrive${META.exportDir ? ` dans ${esc(META.exportDir)}` : ''}, le studio la charge tout seul, sur la même image.`
-      : META.kind === 'aitelier' ? 'Quand tu exportes une nouvelle version depuis Resolve (dans 07-renders), le studio la charge tout seul, sur la même image.'
-      : META.kind === 'video' ? 'Si cette vidéo est remplacée par une nouvelle version, le studio la recharge tout seul.' : 'Quand une nouvelle vidéo arrive dans le dossier, le studio la charge tout seul.';
-    box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>Vidéo revue</b><span class="muted">${esc(kindLabel())}</span></div>
-      <div class="sub2">${cur ? `${esc(cur.name)} · exportée le ${dayTime(cur.mtime)} · ${CW}×${CH} · ${String(FPS).replace('.', ',')} i/s` : 'aucune vidéo'}</div>
-      <div class="sub2 muted">${where} ${META.kind === 'run' ? 'L\'agent corrige dans le projet, puis la nouvelle version est rendue ou exportée comme d\'habitude pour cette chaîne.' : 'L\'agent corrige dans le projet, et c\'est toi qui exportes.'}</div>
-      ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}Comparer avant / après (${STATUS.compare.length})</button></div>` : ''}${exportBlock()}</div>`;
+    const where = META.kind === 'run' ? T('st.ex.whereRun', { dir: META.exportDir ? T('st.ex.inDir', { dir: esc(META.exportDir) }) : '' })
+      : META.kind === 'aitelier' ? T('st.ex.whereAit')
+      : META.kind === 'video' ? T('st.ex.whereVideo') : T('st.ex.whereFolder');
+    box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>${T('st.ex.reviewed')}</b><span class="muted">${esc(kindLabel())}</span></div>
+      <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>
+      <div class="sub2 muted">${where} ${META.kind === 'run' ? T('st.ex.fixRun') : T('st.ex.fixYou')}</div>
+      ${STATUS.compare?.length ? `<div class="acts"><button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button></div>` : ''}${exportBlock()}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
     wireExport();
   }
   // « Exporter » a run of a Remotion pipeline (lib/export.mjs): the project's own export script, on the user's order only
+  const isDefaultExport = (l) => !l || l === T('common.exportVideo') || l === 'Exporter la vidéo' || l === 'Export the video';
   function exportBlock() {
     if (META.kind !== 'remotion') return '';
     const X = STATUS.export;
-    if (!META.features?.export) return `<div class="sub2 muted">Export depuis Coulisses : ${esc(META.exportWhy ?? 'indisponible')}.</div>`;
+    if (!META.features?.export) return `<div class="sub2 muted">${T('st.ex.unavailable', { why: esc(META.exportWhy ?? T('st.ex.unavailableWhy')) })}</div>`;
     if (X?.state === 'running') {
-      return `<div class="sub2"><b>${esc(X.label && X.label !== 'Exporter la vidéo' ? X.label : 'Export')} en cours</b>, lancé le ${dayTime(X.started)}. Tu peux fermer Coulisses : il continue.</div>
+      return `<div class="sub2">${T('st.ex.running', { label: esc(!isDefaultExport(X.label) ? X.label : T('st.ex.export')), date: dayTime(X.started) })}</div>
         <div class="rbar"><i style="width:${Math.round(X.pct ?? 0)}%"></i></div>
-        <div class="num2"><span id="exNum">${X.pct != null ? `${Math.round(X.pct)} %` : 'préparation…'}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
-        <div class="acts"><button class="soft danger" id="exStop">${ic('x')}Arrêter l'export</button><button class="soft" id="exLog">Voir le journal</button></div>`;
+        <div class="num2"><span id="exNum">${X.pct != null ? T('st.ex.pct', { pct: Math.round(X.pct) }) : T('st.ex.preparing')}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
+        <div class="acts"><button class="soft danger" id="exStop">${ic('x')}${T('st.ex.stop')}</button><button class="soft" id="exLog">${T('st.rc.log')}</button></div>`;
     }
-    const last = !X ? '' : X.state === 'done' ? `<div class="ok2"><b>Export terminé</b> le ${dayTime(X.ended)} : ${esc(X.file ?? '')}</div>`
-      : X.state === 'failed' ? `<div class="err">Export en échec${X.error ? ` : ${esc(X.error)}` : ''}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">Export arrêté le ${dayTime(X.ended)}.</div>` : '';
-    const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: 'Exporter la vidéo' }];
+    const last = !X ? '' : X.state === 'done' ? `<div class="ok2">${T('st.ex.done', { date: dayTime(X.ended), file: esc(X.file ?? '') })}</div>`
+      : X.state === 'failed' ? `<div class="err">${T('st.ex.failed', { err: X.error ? T('st.ex.failedWhy', { why: esc(X.error) }) : '' })}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">${T('st.ex.stopped', { date: dayTime(X.ended) })}</div>` : '';
+    const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
-    return `${last}<div class="acts">${btns}${X ? '<button class="soft" id="exLog">Voir le journal</button>' : ''}</div>`;
+    return `${last}<div class="acts">${btns}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>`;
   }
   function wireExport() {
     for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
@@ -1487,20 +1514,20 @@
     $('#exLog')?.addEventListener('click', showExportLog);
   }
   async function startExportUI(qualite, label) {
-    if (!confirm(`${label || 'Exporter la vidéo'} : « ${META.title} » ?\n\nLe projet fait son rendu${META.exportDir ? ` dans ${META.exportDir}` : ''}. Cela peut être long ; tu peux fermer Coulisses, l'export continue.`)) return;
+    if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }))) return;
     const r = await postJson('/api/export', { qualite });
-    setSave(r?.ok ? 'Export lancé : l\'avancement s\'affiche dans « Envois »' : `Export impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
+    setSave(r?.ok ? T('st.ex.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }
   async function stopExportUI() {
-    if (!confirm('Arrêter l\'export ? Le fichier en cours est abandonné ; la vidéo actuelle ne change pas.')) return;
+    if (!confirm(T('st.ex.stopConfirm'))) return;
     const r = await postJson('/api/export/stop');
-    setSave(r?.ok ? 'Export arrêté' : `Arrêt impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
+    setSave(r?.ok ? T('st.ex.stoppedNow') : T('st.cannotStop', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }
   async function showExportLog() {
     let t = ''; try { t = await (await fetch('/api/export/log', { cache: 'no-store' })).text(); } catch { /* */ }
-    showModal('Journal de l\'export', 'Les dernières lignes du script d\'export du projet (les lignes d\'avancement sont omises).', t || '(vide)', 'Le journal complet est dans revue\\export.log.');
+    showModal(T('st.ex.logTitle'), T('st.ex.logWhat'), t || T('st.empty'), T('st.ex.logFile'));
   }
-  const kindLabel = () => (META.kind === 'run' ? `${META.channel || 'Run'} · vidéo exportée` : META.kind === 'remotion' ? `${META.channel || 'Projet Remotion'}${META.features?.video ? '' : ' · code en direct'}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : 'film long') : ''}` : META.kind === 'video' ? 'vidéo' : 'dossier de vidéos');
+  const kindLabel = () => (META.kind === 'run' ? T('st.kind.run', { c: META.channel || 'Run' }) : META.kind === 'remotion' ? `${META.channel || T('st.kind.remotion')}${META.features?.video ? '' : T('st.kind.liveCode')}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : T('st.kind.long')) : ''}` : META.kind === 'video' ? T('st.kind.video') : T('st.kind.folder'));
   function renderRender() {
     const box = $('#renderCard'); if (!box || !META) return;
     if (PROJ) return exportCard(box);
@@ -1509,38 +1536,39 @@
       STATUS.compare?.length, since.map((L) => [L.lot, L.claude?.status]), R?.message, STATUS.agent?.watching, cur?.size]);
     if (key === rcKey) { renderNums(R); return; }
     rcKey = key;
-    const head = (right) => `<div class="rh">${ic('film')}<b>Rendu</b><span class="muted">${esc(right)}</span></div>`;
+    const head = (right) => `<div class="rh">${ic('film')}<b>${T('st.rc.render')}</b><span class="muted">${esc(right)}</span></div>`;
     const done = since.filter((L) => L.claude?.status === 'done').length, open = since.filter((L) => !L.claude || L.claude.status === 'taken').length;
-    const sinceTxt = since.length ? `Depuis cette vidéo : ${done} lot${done > 1 ? 's' : ''} corrigé${done > 1 ? 's' : ''}${open ? `, ${open} encore chez l'agent` : ''}.` : 'Aucune correction envoyée depuis cette vidéo.';
+    const sinceTxt = since.length ? T('st.rc.since', { n: done, open: open ? T('st.rc.sinceOpen', { k: open }) : '' }) : T('st.rc.sinceNone');
     const B = {
-      go: `<button class="primary" id="rcGo">${ic('play')}Lancer le rendu</button>`,
-      cmp: STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}Comparer avant / après (${STATUS.compare.length})</button>` : '',
-      log: R ? '<button class="soft" id="rcLog">Voir le journal</button>' : '',
-      copy: req ? `<button class="soft" id="rcCopy">${ic('copy')}Copier la ligne</button>` : '',
-      stop: R?.state === 'running' && R.phase !== 'finish' ? `<button class="soft danger" id="rcStop">${ic('x')}Arrêter le rendu</button>` : '',
+      go: `<button class="primary" id="rcGo">${ic('play')}${T('st.rc.go')}</button>`,
+      again: `<button class="primary" id="rcGo">${ic('play')}${T('st.rc.again')}</button>`,
+      cmp: STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : '',
+      log: R ? `<button class="soft" id="rcLog">${T('st.rc.log')}</button>` : '',
+      copy: req ? `<button class="soft" id="rcCopy">${ic('copy')}${T('st.lot.copy')}</button>` : '',
+      stop: R?.state === 'running' && R.phase !== 'finish' ? `<button class="soft danger" id="rcStop">${ic('x')}${T('st.rc.stop')}</button>` : '',
     };
     let h = '';
     if (st === 'idle') {
-      h = head(cur ? `vidéo du ${dayTime(cur.mtime)}` : 'aucune vidéo') + `<div class="sub2">${sinceTxt}</div>`;
-      if (R?.state === 'reviewed' && R.video?.size === cur?.size) h += `<div class="ok2"><b>Dernier rendu vérifié par l'agent</b>${R.message ? ` : ${esc(R.message)}` : ''}</div>`;
-      else if (R && BAD.includes(R.state)) h += `<div class="sub2 muted">Dernier essai : ${R.state === 'cancelled' ? 'arrêté' : 'interrompu'} le ${dayTime(R.endedAt ?? R.updatedAt)}.</div>`;
+      h = head(cur ? T('st.rc.videoOf', { date: dayTime(cur.mtime) }) : T('st.ex.noVideo')) + `<div class="sub2">${sinceTxt}</div>`;
+      if (R?.state === 'reviewed' && R.video?.size === cur?.size) h += `<div class="ok2">${T('st.rc.lastChecked', { msg: R.message ? T('st.rc.lastMsg', { msg: esc(R.message) }) : '' })}</div>`;
+      else if (R && BAD.includes(R.state)) h += `<div class="sub2 muted">${T('st.rc.lastTry', { state: T(R.state === 'cancelled' ? 'st.rc.stoppedWord' : 'st.rc.interruptedWord'), date: dayTime(R.endedAt ?? R.updatedAt) })}</div>`;
       h += `<div class="acts">${B.go}${B.cmp}${B.log}</div>`;
     } else if (st === 'requested') {
-      h = head(`demandé le ${dayTime(req.sentAt)}`) + `<div class="sub2">${STATUS.agent?.watching ? `${agentName()} surveille l'outil : il a reçu la demande et va la prendre.` : `Colle la ligne dans la session de ton agent (${agentName()}), celle de l'épisode : il lance le rendu.`}</div>`
-        + `<div class="acts">${B.copy.replace('soft', 'primary')}<button class="soft danger" id="rcWithdraw">Retirer la demande</button></div>`;
+      h = head(T('st.rc.requested', { date: dayTime(req.sentAt) })) + `<div class="sub2">${STATUS.agent?.watching ? T('st.rc.watching', { name: agentName() }) : T('st.rc.paste', { name: agentName() })}</div>`
+        + `<div class="acts">${B.copy.replace('soft', 'primary')}<button class="soft danger" id="rcWithdraw">${T('st.rc.withdraw')}</button></div>`;
     } else {
-      const right = st === 'preparing' ? `lot ${req?.lot ?? ''}` : R?.startedAt ? `lancé le ${dayTime(R.startedAt)}` : '';
+      const right = st === 'preparing' ? T('st.rc.lot', { lot: req?.lot ?? '' }) : R?.startedAt ? T('st.rc.started', { date: dayTime(R.startedAt) }) : '';
       h = head(right) + steps(st === 'preparing' ? null : R);
-      if (st === 'preparing') h += '<div class="sub2">L\'agent prépare le rendu : il termine les corrections en cours, et lance les tests de non-régression si le moteur a changé.</div>';
-      if (st === 'blocked') h += `<div class="err">${esc(R.error ?? 'Un contrôle n\'est pas passé.')}\nL'agent corrige, puis relance le rendu.</div>`;
-      if (st === 'failed') h += `<div class="err">${esc(R.error ?? 'Le rendu a échoué.')}</div>`;
-      if (st === 'interrupted') h += '<div class="err">Le rendu s\'est arrêté sans finir (la session de l\'agent a-t-elle été fermée ?). Tu peux le relancer.</div>';
-      if (st === 'cancelled') h += `<div class="sub2">Rendu arrêté le ${dayTime(R.endedAt)}. La vidéo actuelle n'a pas changé.</div>`;
+      if (st === 'preparing') h += `<div class="sub2">${T('st.rc.preparing')}</div>`;
+      if (st === 'blocked') h += `<div class="err">${esc(R.error ?? T('st.rc.checkFailed'))}${T('st.rc.agentFixes')}</div>`;
+      if (st === 'failed') h += `<div class="err">${esc(R.error ?? T('st.rc.failed'))}</div>`;
+      if (st === 'interrupted') h += `<div class="err">${T('st.rc.interrupted')}</div>`;
+      if (st === 'cancelled') h += `<div class="sub2">${T('st.rc.cancelled', { date: dayTime(R.endedAt) })}</div>`;
       if (st === 'rendered') {
         const F = R.finish ?? {}, dur = F.duration ? mmss(F.duration).replace(/ 0?(\d+) s$/, ' $1 s') : '';
-        h += `<div class="ok2"><b>Nouvelle vidéo prête</b>${dur ? ` · ${dur}` : ''}${F.loudness?.I != null ? ` · ${dB(F.loudness.I)} LUFS` : ''}${F.loudness?.peak != null ? ` · crête ${dB(F.loudness.peak)} dBTP` : ''}${F.remapped != null ? ` · ${F.remapped} note${F.remapped > 1 ? 's' : ''} recalée${F.remapped > 1 ? 's' : ''}` : ''}.\nL'agent la regarde en entier avant de te la montrer.</div>`;
+        h += `<div class="ok2">${T('st.rc.ready', { dur: dur ? ` · ${dur}` : '', lufs: F.loudness?.I != null ? ` · ${dB(F.loudness.I)} LUFS` : '', peak: F.loudness?.peak != null ? T('st.rc.peak', { v: dB(F.loudness.peak) }) : '', remapped: F.remapped != null ? T('st.rc.remapped', { n: F.remapped }) : '' })}</div>`;
       }
-      const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.go.replace('Lancer le rendu', 'Relancer le rendu') : '';
+      const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.again : '';
       h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
     }
     box.innerHTML = `<div class="rc">${h}</div>`;
@@ -1551,7 +1579,7 @@
     $('#rcStop')?.addEventListener('click', stopRender);
     $('#rcWithdraw')?.addEventListener('click', async () => {
       const r = await postJson('/api/render/withdraw', { lot: req.lot });
-      setSave(r?.ok ? 'Demande de rendu retirée' : `Impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err'); statusTxt = '';
+      setSave(r?.ok ? T('st.rc.withdrawn') : T('st.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err'); statusTxt = '';
     });
     renderNums(R);
   }
@@ -1573,57 +1601,57 @@
     const row = (k, n, title, body) => { const s = stOf(k); return s === 'skip' ? '' : `<div class="stp ${s}"><span class="ix">${ix(s, n)}</span><div><div class="t">${title}</div>${body}</div></div>`; };
     const chk = R?.checks ?? [], judge = chk.find((c) => c.toJudge)?.toJudge;
     const chip = (c) => `<span class="chip ${c.status === 'wait' ? '' : c.status}" title="${esc(c.detail)}">${c.status === 'ok' ? ic('check') : c.status === 'fail' ? ic('x') : c.status === 'run' ? '<span class="spin"></span>' : ''}${esc(c.label)}</span>`;
-    const checksBody = chk.length ? `<div class="chips">${chk.map(chip).join('')}</div>${judge ? `<div class="d">${judge} apparition${judge > 1 ? 's' : ''} en vue, jugée${judge > 1 ? 's' : ''} par l'agent</div>` : ''}`
-      : '<div class="d">profondeur, visages masqués, paysages au sol, musique, sauts</div>';
+    const checksBody = chk.length ? `<div class="chips">${chk.map(chip).join('')}</div>${judge ? `<div class="d">${T('st.steps.judge', { n: judge })}</div>` : ''}`
+      : `<div class="d">${T('st.steps.checksList')}</div>`;
     const fin = R?.finish?.steps ?? [];
-    return `<div class="steps">${row('checks', 1, 'Contrôles automatiques', checksBody)}`
-      + row('render', 2, 'Rendu de la vidéo', '<div class="rbar"><i id="rcBar"></i></div><div class="num2"><span id="rcNum">en attente</span><span class="muted" id="rcEta"></span></div>')
-      + row('finish', 3, 'Finition', `<div class="d" id="rcFin">${fin.length && stOf('finish') === 'run' ? esc(finLabel(fin.at(-1).label)) : 'mixage final, plan du rendu, notes recalées, chapitres'}</div>`)
-      + row('review', 4, 'Vérification par l\'agent', '<div class="d">il regarde la vidéo entière avant de te la montrer</div>') + '</div>';
+    return `<div class="steps">${row('checks', 1, T('st.steps.checks'), checksBody)}`
+      + row('render', 2, T('st.steps.render'), `<div class="rbar"><i id="rcBar"></i></div><div class="num2"><span id="rcNum">${T('st.steps.waiting')}</span><span class="muted" id="rcEta"></span></div>`)
+      + row('finish', 3, T('st.steps.finish'), `<div class="d" id="rcFin">${fin.length && stOf('finish') === 'run' ? esc(finLabel(fin.at(-1).label)) : T('st.steps.finishList')}</div>`)
+      + row('review', 4, T('st.steps.review'), `<div class="d">${T('st.steps.reviewWhat')}</div>`) + '</div>';
   }
   function renderNums(R) {   // the parts that move every few seconds, without rebuilding the card
     const bar = $('#rcBar'), r = R?.render; if (!bar || !r) return;
-    let num = 'en attente', eta = '', w = 0;
-    const n = (x) => (+x || 0).toLocaleString('fr-FR');
-    if (r.stage === 'bundle') num = `Préparation du projet · ${r.pct} %`;
-    else if (r.stage === 'copy') num = `Copie des fichiers du projet · ${r.copied ?? ''}`;
-    else if (r.stage === 'compose') num = 'Ouverture de la composition';
-    else if (r.stage === 'frames') { num = `image ${n(r.frame)} / ${n(r.total)} · ${String(r.pct).replace('.', ',')} %`; eta = r.remaining ? `reste ${frDur(r.remaining)}` : ''; w = r.pct; }
-    else if (r.stage === 'encode') { num = `Encodage · ${r.total ? Math.round((r.encoded / r.total) * 100) : 0} %`; w = 100; }
-    else if (r.stage === 'done') { num = `${n(r.total)} images rendues`; eta = r.startedAt && r.endedAt ? `en ${mmss((Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000)}` : ''; w = 100; }
+    let num = T('st.steps.waiting'), eta = '', w = 0;
+    const n = (x) => (+x || 0).toLocaleString(FR ? 'fr-FR' : 'en-US');
+    if (r.stage === 'bundle') num = T('st.num.bundle', { pct: r.pct });
+    else if (r.stage === 'copy') num = T('st.num.copy', { size: r.copied ?? '' });
+    else if (r.stage === 'compose') num = T('st.num.compose');
+    else if (r.stage === 'frames') { num = T('st.num.frames', { f: n(r.frame), total: n(r.total), pct: dec(r.pct) }); eta = r.remaining ? T('st.num.left', { t: frDur(r.remaining) }) : ''; w = r.pct; }
+    else if (r.stage === 'encode') { num = T('st.num.encode', { pct: r.total ? Math.round((r.encoded / r.total) * 100) : 0 }); w = 100; }
+    else if (r.stage === 'done') { num = T('st.num.done', { n: n(r.total) }); eta = r.startedAt && r.endedAt ? T('st.num.in', { t: mmss((Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000) }) : ''; w = 100; }
     bar.style.width = `${w}%`; $('#rcNum').textContent = num; $('#rcEta').textContent = eta;
     const f = $('#rcFin'), fs2 = R.finish?.steps ?? []; if (f && fs2.length && R.phase === 'finish' && R.state === 'running') f.textContent = finLabel(fs2.at(-1).label);
   }
   const postJson = (url, data) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data ?? {}) }).then((r) => r.json()).catch(() => null);
   async function launchRender() {
-    const d = drafts().length, s = d > 1 ? 's' : '';
+    const d = drafts().length;
     const open = (STATUS.lots ?? []).filter((L) => L.kind !== 'render' && (!L.claude || L.claude.status === 'taken')).map((L) => L.lot);
-    const msg = [`Lancer le rendu complet de ${META.episode} ?`, '', 'L\'agent lance d\'abord les cinq contrôles automatiques, puis le rendu (25 à 30 min) et la finition (mixage, notes recalées, chapitres). Le studio reste utilisable pendant ce temps, et recharge seul la nouvelle vidéo.'];
-    if (d) msg.push('', `${d} modif${s} en attente dans « Modifs » n'${d > 1 ? 'ont' : 'a'} pas encore été envoyée${s} : ${d > 1 ? 'elles ne seront' : 'elle ne sera'} pas dans ce rendu.`);
-    if (open.length) msg.push('', `Lot${open.length > 1 ? 's' : ''} ${open.join(', ')} encore chez l'agent : il ${open.length > 1 ? 'les' : 'le'} terminera avant de lancer le rendu.`);
+    const msg = [T('st.launch.ask', { ep: META.episode }), '', T('st.launch.what')];
+    if (d) msg.push('', T('st.launch.drafts', { n: d }));
+    if (open.length) msg.push('', T('st.launch.open', { n: open.length, list: open.join(', ') }));
     if (!confirm(msg.join('\n'))) return;
     const r = await postJson('/api/render', { agent: AGENT_PICK });
-    if (!r?.ok) { setSave(`Rendu non demandé : ${r?.why ?? 'le studio ne répond pas'}`, 'err'); return; }
+    if (!r?.ok) { setSave(T('st.launch.failed', { why: r?.why ?? T('st.launch.noStudio') }), 'err'); return; }
     statusTxt = ''; rcKey = '';
-    showModal(`Demande de rendu envoyée · lot ${r.lot}`,
-      r.agent?.watching ? `${agentName()} surveille l'outil : il a déjà reçu la demande, rien à coller. La ligne reste disponible au besoin.` : `Colle cette ligne dans la session de ton agent (${agentName()}), celle qui a fait l'épisode : il lance le rendu.`,
-      r.line, 'L\'avancement s\'affiche dans « Envois » et en haut de l\'écran. Le studio recharge seul la nouvelle vidéo.', { updates: r.updates });
+    showModal(T('st.launch.title', { lot: r.lot }),
+      r.agent?.watching ? T('st.launch.gotIt', { name: agentName() }) : T('st.launch.paste', { name: agentName() }),
+      r.line, T('st.launch.progress'), { updates: r.updates, updatesOk: r.updatesOk });
     setTab('lots');
   }
   async function stopRender() {
-    if (!confirm('Arrêter le rendu en cours ? La vidéo actuelle reste en place ; il faudra relancer le rendu.')) return;
+    if (!confirm(T('st.stop.confirm'))) return;
     const r = await postJson('/api/render/stop');
-    setSave(r?.ok ? 'Arrêt demandé : le rendu s\'arrête dans quelques secondes' : `Arrêt impossible : ${r?.why ?? 'pas de réponse'}`, r?.ok ? 'ok' : 'err');
+    setSave(r?.ok ? T('st.stop.asked') : T('st.cannotStop', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }
   async function showRenderLog() {
     let t = ''; try { t = await (await fetch('/api/render/log', { cache: 'no-store' })).text(); } catch { /* */ }
-    showModal('Journal du rendu', 'Les dernières lignes des contrôles, de Remotion et de la finition (les lignes d\'avancement sont omises).', t || '(vide)', 'Le journal complet est dans revue\\render.log.');
+    showModal(T('st.rlog.title'), T('st.rlog.what'), t || T('st.empty'), T('st.rlog.file'));
   }
   // the video is being replaced (hold): let go of it, then reload once the new one is there
   let wasHeld = false, heldFrame = 0, reloading = false;
   function onHeld() {
     if (!META) return;
-    if (!META.render) { if (STATUS.video && !reloading) { reloading = true; setSave('Premier export : rechargement…', 'ok'); const f = curFrame(); flushNow().then(() => { location.hash = `f=${f}`; location.reload(); }); } return; }
+    if (!META.render) { if (STATUS.video && !reloading) { reloading = true; setSave(T('st.save.firstExport'), 'ok'); const f = curFrame(); flushNow().then(() => { location.hash = `f=${f}`; location.reload(); }); } return; }
     if (!STATUS.video) return;
     const fresh = STATUS.video.size !== META.render.size || STATUS.video.mtime !== META.render.mtime;
     if (STATUS.held && !wasHeld) {
@@ -1633,7 +1661,7 @@
       try { v.removeAttribute('src'); v.load(); } catch { /* */ }
     }
     if (!STATUS.held && fresh && !reloading) {
-      reloading = true; setSave('Nouvelle vidéo : rechargement…', 'ok');
+      reloading = true; setSave(T('st.save.newVideo'), 'ok');
       const f = wasHeld ? heldFrame : curFrame();
       flushNow().then(() => { location.hash = `f=${f}`; location.reload(); });
       return;
@@ -1650,7 +1678,7 @@
   async function openCompare(id) {
     let r = null; try { r = await (await fetch('/api/compare', { cache: 'no-store' })).json(); } catch { /* */ }
     CMP = r?.items ?? [];
-    if (!CMP.length) { setSave('Rien à comparer : aucune note corrigée sur un rendu précédent', 'err'); return; }
+    if (!CMP.length) { setSave(T('st.cmp.nothing'), 'err'); return; }
     cmpI = Math.max(0, CMP.findIndex((x) => x.id === id)); cmpX = 50;
     if (shuttle) stopShuttle(); M.pause();
     $('#cmpW').style.aspectRatio = `${CW} / ${CH}`; $('#cmpW').style.width = `min(100%, calc(72vh * ${CW} / ${CH}))`;
@@ -1658,15 +1686,15 @@
   }
   function showCmp() {
     const it = CMP[cmpI], num = sorted().findIndex((n) => n.id === it.id) + 1;
-    $('#cmpT').textContent = `Note ${num || '?'} · lot ${it.lot}`;
+    $('#cmpT').textContent = T('st.cmp.head', { num: num || '?', lot: it.lot });
     $('#cmpN').textContent = `${cmpI + 1} / ${CMP.length}`;
-    $('#cmpLA').textContent = `Avant · ${it.beforeSource === 'code' ? 'aperçu du code' : `${PROJ ? 'export' : 'rendu'} du ${dayTime(it.beforeRender?.mtime)}`} · image ${it.beforeFrame}`;
-    $('#cmpLB').textContent = `Après · ${PROJ ? 'nouvel export' : 'nouveau rendu'} · image ${it.frame}`;
-    $('#cmpTx').innerHTML = `<b>${esc(it.text || '(un geste sans texte)')}</b>${it.reply ? `<br>Agent : ${esc(it.reply)}` : ''}`;
+    $('#cmpLA').textContent = T('st.cmp.labelBefore', { what: it.beforeSource === 'code' ? T('st.cmp.codePreview') : T(PROJ ? 'st.cmp.exportOf' : 'st.cmp.renderOf', { date: dayTime(it.beforeRender?.mtime) }), f: it.beforeFrame });
+    $('#cmpLB').textContent = T('st.cmp.labelAfter', { what: T(PROJ ? 'st.cmp.newExport' : 'st.cmp.newRender'), f: it.frame });
+    $('#cmpTx').innerHTML = `<b>${esc(it.text || T('st.cmp.noText'))}</b>${it.reply ? T('st.cmp.agentSays', { reply: esc(it.reply) }) : ''}`;
     const A = $('#cmpA'), Bi = $('#cmpB'), w = $('#cmpWait'); let n = 0;
-    w.textContent = 'chargement…';
+    w.textContent = T('st.cmp.loading');
     const ok = () => { if (++n >= 2) w.textContent = ''; };
-    A.onload = ok; Bi.onload = ok; A.onerror = Bi.onerror = () => { w.textContent = 'image indisponible'; };
+    A.onload = ok; Bi.onload = ok; A.onerror = Bi.onerror = () => { w.textContent = T('st.cmp.unavailable'); };
     A.src = it.before; Bi.src = `/api/frame?f=${it.frame}&source=video&w=1600`;
     $('#cmpPrev').disabled = cmpI === 0; $('#cmpNext').disabled = cmpI === CMP.length - 1;
     setWipe(cmpX);
@@ -1696,24 +1724,25 @@
 
   // ---------- modal ----------
   let modalLine = '';
-  function showModal(title, p1, line, p2, { updates = '', pick = false } = {}) {
+  // updatesOk (from the server, lib/updates.mjs): the update line is calm only when everything is up to date
+  function showModal(title, p1, line, p2, { updates = '', updatesOk = false, pick = false } = {}) {
     $('#mT').textContent = title; $('#mP1').textContent = p1; $('#mLine').textContent = line; $('#mP2').textContent = p2 || ''; modalLine = line;
-    const u = $('#mUpd'); u.textContent = updates || ''; u.className = 'upd' + (updates ? ' on' : '') + (updates && !/tout est à jour/.test(updates) ? ' todo' : '');
+    const u = $('#mUpd'); u.textContent = updates || ''; u.className = 'upd' + (updates ? ' on' : '') + (updates && !updatesOk ? ' todo' : '');
     $('#mAgent').classList.toggle('on', pick); markPick();
     $('#modal').style.display = 'flex'; $('#mCopy').focus();
   }
   async function copy(t) {
-    try { await navigator.clipboard.writeText(t); setSave('Copié : colle-le dans la session de ton agent', 'ok'); }
-    catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); setSave('Copié', 'ok'); }
+    try { await navigator.clipboard.writeText(t); setSave(T('st.copy.done'), 'ok'); }
+    catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); setSave(T('st.copy.short'), 'ok'); }
   }
-  $('#mCopy').onclick = () => { copy(modalLine); $('#mCopy').innerHTML = `${ic('check')}Copié`; setTimeout(() => { $('#mCopy').innerHTML = `${ic('copy')}Copier`; }, 1500); };
+  $('#mCopy').onclick = () => { copy(modalLine); $('#mCopy').innerHTML = `${ic('check')}${T('st.copy.short')}`; setTimeout(() => { $('#mCopy').innerHTML = `${ic('copy')}${T('st.modal.copy')}`; }, 1500); };
   $('#mClose').onclick = () => { $('#modal').style.display = 'none'; };
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') $('#modal').style.display = 'none'; });
   const markPick = () => document.querySelectorAll('#mAgent button').forEach((b) => b.classList.toggle('on', b.dataset.a === AGENT_PICK));
   document.querySelectorAll('#mAgent button').forEach((b) => b.addEventListener('click', () => { AGENT_PICK = b.dataset.a; store.set('agent', AGENT_PICK); markPick(); }));
-  $('#agent').onclick = () => showModal(STATUS.agent?.watching ? `${agentName()} est connecté` : 'Connecter à l\'agent',
-    'Colle cette ligne une fois dans la session de ton agent (Claude Code, Codex…), celle de la vidéo. Il surveille alors l\'outil en tâche de fond : chaque envoi le réveille, sans rien recoller. À chaque envoi, le studio vérifie aussi les mises à jour de Remotion et des skills de l\'agent.',
-    META.connectLine, 'Sans connexion, rien ne change : chaque envoi affiche sa propre ligne à coller.', { pick: !STATUS.agent?.watching });
+  const openConnect = () => showModal(STATUS.agent?.watching ? T('st.connect.on', { name: agentName() }) : T('st.agent.connect'),
+    T('st.connect.what'), META.connectLine, T('st.connect.without'), { pick: !STATUS.agent?.watching });
+  $('#agent').onclick = openConnect;
 
   // ---------- note cards (Modifs = waiting to be sent ; Notes = the others) ----------
   function renderAll() { renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (tab === 'scene') renderScene(); }
@@ -1721,7 +1750,7 @@
     if (n.stage) return `<div class="gest">${ic('move')}<span class="obj">${esc(n.stage.name)}</span><span class="k">${esc(deltaWords(n.stage.delta))}</span></div>`;
     if (!n.mark && !n.target) return '';
     const m = n.mark, t = n.target?.hits?.length ? humanTarget(n.target.hits[0]) : null;
-    const w = !m ? '' : m.kind === 'pin' ? `${ic('pin')}<span>pointé</span>` : `${ic('stroke')}<span>dessin · ${m.strokes?.length ?? 1} trait${(m.strokes?.length ?? 1) > 1 ? 's' : ''}</span>`;
+    const w = !m ? '' : m.kind === 'pin' ? `${ic('pin')}<span>${T('st.card.pointed')}</span>` : `${ic('stroke')}<span>${T('st.card.drawing', { n: m.strokes?.length ?? 1 })}</span>`;
     return `<div class="gest">${w}${t ? `<span class="k">·</span><span class="obj">${esc(t.name)}</span><span class="k">${esc(t.kind)}</span>` : ''}</div>`;
   }
   function cardEl(n, i) {
@@ -1732,40 +1761,40 @@
     el.dataset.id = n.id;
     const when = isR ? `${fmt(tOf(n.frame))} → ${fmt(tOf(n.end + 1))}` : fmt(tOf(n.frame));
     const pend = pending[n.id] ?? { text: '', images: [] };
-    const badge = n.draft ? '<span class="badge draft">en attente</span>'
-      : st === 'working' ? `<span class="badge work">L'agent corrige${n.lot ? ' · lot ' + n.lot : ''}</span>`
-      : st === 'done' ? `<span class="badge ok">${ic('check')}corrigée</span>`
-      : n.lot ? `<span class="badge">lot ${n.lot}</span>` : '';
+    const badge = n.draft ? `<span class="badge draft">${T('st.card.pending')}</span>`
+      : st === 'working' ? `<span class="badge work">${T('st.card.working', { lot: n.lot ? T('st.card.lotSuffix', { lot: n.lot }) : '' })}</span>`
+      : st === 'done' ? `<span class="badge ok">${ic('check')}${T('st.card.fixed')}</span>`
+      : n.lot ? `<span class="badge">${T('st.rc.lot', { lot: n.lot })}</span>` : '';
     el.innerHTML = `
       <div class="row">
         <span class="num ${isR ? 'r' : 'p'}">${i + 1}</span>
         <span class="when">${when}</span>
-        ${badge}${n.source === 'code' ? '<span class="badge code" title="Posée sur l\'aperçu du code, pas sur le MP4">code</span>' : ''}
+        ${badge}${n.source === 'code' ? `<span class="badge code" title="${esc(T('st.card.codeTitle'))}">code</span>` : ''}
         <span class="grow"></span>
-        <button class="icon more" title="Plus d'actions">${ic('more')}</button>
+        <button class="icon more" title="${esc(T('st.card.more'))}">${ic('more')}</button>
       </div>
-      <div class="frames">image <input type="number" class="f0" value="${n.frame}" min="0" max="${FRAMES - 1}" title="Première image">
-        ${isR ? `→ <input type="number" class="f1" value="${n.end}" min="0" max="${FRAMES - 1}" title="Dernière image"><span>${((n.end - n.frame + 1) / FPS).toFixed(2)} s</span>` : ''}
-        ${n.before?.length ? `<span title="Recalée sur la nouvelle vidéo">· avant : ${n.before[n.before.length - 1].frame}</span>` : ''}</div>
+      <div class="frames">${T('st.card.frame')} <input type="number" class="f0" value="${n.frame}" min="0" max="${FRAMES - 1}" title="${esc(T('st.card.first'))}">
+        ${isR ? `→ <input type="number" class="f1" value="${n.end}" min="0" max="${FRAMES - 1}" title="${esc(T('st.card.last'))}"><span>${((n.end - n.frame + 1) / FPS).toFixed(2)} s</span>` : ''}
+        ${n.before?.length ? `<span title="${esc(T('st.card.movedTitle'))}">${T('st.card.before', { f: n.before[n.before.length - 1].frame })}</span>` : ''}</div>
       ${n.context?.scene || n.context?.lines?.length ? `<div class="ctx">${esc([n.context?.scene, ...(n.context?.lines ?? [])].filter(Boolean).join('\n'))}</div>` : ''}
       ${gestureHtml(n)}
-      <textarea class="main" placeholder="Ce qu'il faut corriger ici…">${esc(n.text)}</textarea>
+      <textarea class="main" placeholder="${esc(T('st.card.placeholder'))}">${esc(n.text)}</textarea>
       <div class="imgs mainimgs">${(n.images || []).map((img) => thumbHtml(img, true)).join('')}</div>
       <div class="acts">
-        <button class="go" title="Aller à cette image">${ic('goto')}Aller</button>
-        ${isR ? `<button class="play" title="Lire la plage">${ic('play')}Lire</button><button class="loop" title="Boucler la plage (L)">${ic('repeat')}Boucle</button>` : ''}
-        <button class="img" title="Joindre une image (ou Ctrl+V, ou glisser-déposer)">${ic('image')}Image</button>
-        <label class="chk"><input type="checkbox" class="dn" ${st === 'done' ? 'checked' : ''}> corrigé</label>
+        <button class="go" title="${esc(T('st.card.goTitle'))}">${ic('goto')}${T('st.card.go')}</button>
+        ${isR ? `<button class="play" title="${esc(T('st.card.playTitle'))}">${ic('play')}${T('st.card.play')}</button><button class="loop" title="${esc(T('st.card.loopTitle'))}">${ic('repeat')}${T('st.card.loop')}</button>` : ''}
+        <button class="img" title="${esc(T('st.card.imgTitle'))}">${ic('image')}${T('st.card.img')}</button>
+        <label class="chk"><input type="checkbox" class="dn" ${st === 'done' ? 'checked' : ''}> ${T('st.card.done')}</label>
       </div>
       ${msgs.length ? `<div class="thread">${msgs.map((m) => `
-        <div class="msg ${m.from}"><div class="who">${m.from === 'claude' ? esc(m.by ?? 'Agent') : 'Toi'} · ${esc(hhmm(m.at))}</div>${esc(m.text)}
+        <div class="msg ${m.from}"><div class="who">${m.from === 'claude' ? esc(m.by ?? T('st.card.agent')) : T('st.card.you')} · ${esc(hhmm(m.at))}</div>${esc(m.text)}
           <div class="imgs">${(m.images || []).map((img) => thumbHtml(img, false)).join('')}</div></div>`).join('')}</div>` : ''}
       ${hasClaude ? `<div class="repbox">
-        <textarea class="rep" placeholder="Répondre à l'agent…  (Ctrl+Entrée pour envoyer)">${esc(pend.text)}</textarea>
+        <textarea class="rep" placeholder="${esc(T('st.card.reply'))}">${esc(pend.text)}</textarea>
         <div class="imgs repimgs">${pend.images.map((img) => thumbHtml(img, true)).join('')}</div>
-        <div class="repacts"><button class="rimg">${ic('image')}Image</button><button class="send">${ic('send')}Envoyer</button><span class="hint">s'ajoute à la note</span></div>
+        <div class="repacts"><button class="rimg">${ic('image')}${T('st.card.img')}</button><button class="send">${ic('send')}${T('st.card.send')}</button><span class="hint">${T('st.card.hint')}</span></div>
       </div>` : ''}
-      ${n.render && META.render && n.render.size !== META.render.size ? `<div class="old">Note posée sur ${PROJ ? 'un export précédent' : 'un rendu précédent'} : l'image peut avoir bougé.</div>` : ''}`;
+      ${n.render && META.render && n.render.size !== META.render.size ? `<div class="old">${T('st.card.old', { what: T(PROJ ? 'st.card.oldExport' : 'st.card.oldRender') })}</div>` : ''}`;
     if (loopId === n.id) el.querySelector('.loop')?.classList.add('on');
     el.addEventListener('mousedown', (e) => { if (sel !== n.id && !e.target.closest('.more')) { sel = n.id; document.querySelectorAll('.card').forEach((c) => c.classList.toggle('sel', c.dataset.id === sel)); draw(); drawOv(); renderInspector(); } });
     el.querySelectorAll('img[data-full]').forEach((im) => im.addEventListener('click', () => openLightbox(im.dataset.full)));
@@ -1781,14 +1810,14 @@
     el.querySelector('.img').addEventListener('click', () => pick({ kind: 'note', id: n.id }));
     el.querySelector('.more').addEventListener('click', (e) => {
       const items = [
-        ...(STATUS.compare?.includes(n.id) ? [{ icon: 'image', label: 'Comparer avant / après le rendu', run: () => openCompare(n.id) }, '-'] : []),
-        { icon: 'start', label: 'Début = image actuelle', run: () => { setFrames(n, curFrame(), n.end); save(); renderAll(); } },
-        { icon: 'end', label: isR ? 'Fin = image actuelle' : 'Plage jusqu\'à l\'image actuelle', run: () => { setFrames(n, n.frame, curFrame()); save(); renderAll(); } },
-        ...(isR ? [{ icon: 'point', label: 'Ramener à une seule image', run: () => { setFrames(n, n.frame, null); save(); renderAll(); } }] : []),
-        ...(n.mark ? [{ icon: 'x', label: 'Effacer le geste', run: () => { delete n.mark; delete n.target; n.updated = now(); save(); renderAll(); } }] : []),
-        ...(!n.draft ? ['-', { icon: 'repeat', label: 'Renvoyer à l\'agent', run: () => { if (queueFull()) return; n.draft = true; n.updated = now(); if (statusOf(n) === 'done') { n.status = 'open'; n.statusAt = now(); } save(); setTab('queue'); renderAll(); showCard(n.id); } }] : []),
+        ...(STATUS.compare?.includes(n.id) ? [{ icon: 'image', label: T('st.menu.compare'), run: () => openCompare(n.id) }, '-'] : []),
+        { icon: 'start', label: T('st.menu.start'), run: () => { setFrames(n, curFrame(), n.end); save(); renderAll(); } },
+        { icon: 'end', label: isR ? T('st.menu.end') : T('st.menu.rangeTo'), run: () => { setFrames(n, n.frame, curFrame()); save(); renderAll(); } },
+        ...(isR ? [{ icon: 'point', label: T('st.menu.single'), run: () => { setFrames(n, n.frame, null); save(); renderAll(); } }] : []),
+        ...(n.mark ? [{ icon: 'x', label: T('st.menu.clearGesture'), run: () => { delete n.mark; delete n.target; n.updated = now(); save(); renderAll(); } }] : []),
+        ...(!n.draft ? ['-', { icon: 'repeat', label: T('st.menu.resend'), run: () => { if (queueFull()) return; n.draft = true; n.updated = now(); if (statusOf(n) === 'done') { n.status = 'open'; n.statusAt = now(); } save(); setTab('queue'); renderAll(); showCard(n.id); } }] : []),
         '-',
-        { icon: 'trash', label: n.draft ? 'Retirer cette modif' : 'Supprimer la note', danger: true, run: () => { if ((n.draft && !n.text.trim() && !n.images?.length) || confirm(n.draft ? 'Retirer cette modif (la note est supprimée) ?' : 'Supprimer cette note ?')) delNote(n.id); } },
+        { icon: 'trash', label: n.draft ? T('st.menu.removeEdit') : T('st.menu.deleteNote'), danger: true, run: () => { if ((n.draft && !n.text.trim() && !n.images?.length) || confirm(n.draft ? T('st.menu.removeEditConfirm') : T('st.menu.deleteNoteConfirm'))) delNote(n.id); } },
       ];
       openMenu(e.currentTarget, items);
     });
@@ -1816,7 +1845,7 @@
     const all = sorted(), num = new Map(all.map((n, i) => [n.id, i]));
     const others = all.filter((n) => !n.draft), d = all.filter((n) => n.draft), hide = $('#hideDone').checked;
     const ndone = others.filter((n) => statusOf(n) === 'done').length;
-    $('#count').textContent = `${others.length} note${others.length > 1 ? 's' : ''}` + (ndone ? ` · ${ndone} corrigée${ndone > 1 ? 's' : ''}` : '');
+    $('#count').textContent = T('st.list.count', { n: others.length }) + (ndone ? T('st.list.fixed', { n: ndone }) : '');
     $('#nNotes').textContent = others.length;
     const a = document.activeElement, focused = a && a.closest ? a.closest('.card') : null;
     const keep = focused && a.tagName === 'TEXTAREA' ? { id: focused.dataset.id, cls: a.classList.contains('rep') ? 'rep' : 'main', s: a.selectionStart, e: a.selectionEnd } : null;
@@ -1826,8 +1855,8 @@
       for (const n of list) if (!(hide && box.id === 'list' && statusOf(n) === 'done')) box.appendChild(cardEl(n, num.get(n.id)));
       box.scrollTop = scroll;
     };
-    fill($('#draftList'), d, 'Rien en attente.<br><br><b>V</b> pointer puis <b>A</b> · <b>D</b> dessiner · <b>C</b> commenter<br><b>N</b> note · <b>R</b> plage · double-clic sur une réplique<br><br>Chaque note arrive ici, modifiable jusqu\'à l\'envoi.');
-    fill($('#list'), others, 'Aucune note envoyée pour l\'instant.');
+    fill($('#draftList'), d, T('st.list.noDraft'));
+    fill($('#list'), others, T('st.list.noNote'));
     if (keep) { const t = document.querySelector(`.card[data-id="${keep.id}"] textarea.${keep.cls}`); if (t) { t.focus(); t.setSelectionRange(keep.s, keep.e); } }
   }
 
@@ -1839,7 +1868,7 @@
     inspT = performance.now();
     const f = curFrame(), t = (f + 0.5) / FPS, c = contextAt(f), L = LIVE, rows = [];
     const dl = (pairs) => `<div class="box"><dl>${pairs.filter(([, x]) => x !== undefined && x !== null && x !== '').map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl></div>`;
-    rows.push(`<h3>Image ${f} · ${fmt(t)}</h3>`);
+    rows.push(`<h3>${T('st.insp.frame', { f, t: fmt(t) })}</h3>`);
     const last = (arr) => { let x = null; for (const e of arr ?? []) { if (e.t > t) break; x = e; } return x; };
     const cam = last(L?.camera), light = last(L?.light);
     const music = (L?.music ?? []).filter((m) => m.t <= t && t < m.until && m.volume > 0);
@@ -1849,36 +1878,36 @@
     const none = '<span class="muted">—</span>';
     if (PROJ) {
       const at = clipsAt(t);
-      if (at.length) rows.push(dl(at.map(({ tr, c: k }) => [esc(tr.name), `${esc(k.label)}${k.off ? ' <span class="muted">désactivé</span>' : ''}${k.file ? `<br><span class="muted">${esc(k.file)} · ${esc(tr.type === 'band' ? '' : inClip(tr, k, t))}</span>` : ''}`])));
-      else rows.push(`<div class="box"><p class="muted" style="margin:0">${LIVE?.tracks ? 'Aucun clip à cette image.' : 'Pas de plan de montage pour ce projet : le studio connaît seulement la vidéo.'}</p></div>`);
+      if (at.length) rows.push(dl(at.map(({ tr, c: k }) => [esc(tr.name), `${esc(k.label)}${k.off ? ` <span class="muted">${T('st.insp.disabled')}</span>` : ''}${k.file ? `<br><span class="muted">${esc(k.file)} · ${esc(tr.type === 'band' ? '' : inClip(tr, k, t))}</span>` : ''}`])));
+      else rows.push(`<div class="box"><p class="muted" style="margin:0">${LIVE?.tracks ? T('st.insp.noClip') : T('st.insp.noPlan')}</p></div>`);
     } else rows.push(dl([
-      ['Scène', esc(c.scene || '—')],
-      ['Répliques', c.lines.length ? c.lines.map(esc).join('<br>') : none],
-      ['Caméra', cam ? esc(Object.entries(cam.v).map(([k, x]) => `${k} ${x}`).join('  ·  ')) + (t < cam.t + cam.dur ? `<br><span class="muted">en mouvement jusqu'à ${fmt(cam.t + cam.dur)}</span>` : '') : (L ? none : '…')],
-      ['Lumière', light ? esc(light.v) : (L ? none : '…')],
-      ['Musique', music.length ? music.map((m) => `${esc(m.name)} <span class="muted">vol ${m.volume}</span>`).join('<br>') : none],
-      ['Bruitages', sfx.length ? sfx.map((s) => `${esc(s.name)} <span class="muted">${fmt(s.t)}</span>`).join('<br>') : none],
-      ['Émotes', emo.length ? emo.map((e) => `${esc(who(e.actor))} · ${esc(e.name)}`).join('<br>') : none],
-      ['En marche', walking.length ? walking.map(esc).join(', ') : none],
+      [T('st.insp.scene'), esc(c.scene || '—')],
+      [T('st.insp.lines'), c.lines.length ? c.lines.map(esc).join('<br>') : none],
+      [T('st.insp.camera'), cam ? esc(Object.entries(cam.v).map(([k, x]) => `${k} ${x}`).join('  ·  ')) + (t < cam.t + cam.dur ? `<br><span class="muted">${T('st.insp.moving', { t: fmt(cam.t + cam.dur) })}</span>` : '') : (L ? none : '…')],
+      [T('st.insp.light'), light ? esc(light.v) : (L ? none : '…')],
+      [T('st.insp.music'), music.length ? music.map((m) => `${esc(m.name)} <span class="muted">vol ${m.volume}</span>`).join('<br>') : none],
+      [T('st.insp.sfx'), sfx.length ? sfx.map((s) => `${esc(s.name)} <span class="muted">${fmt(s.t)}</span>`).join('<br>') : none],
+      [T('st.insp.emotes'), emo.length ? emo.map((e) => `${esc(who(e.actor))} · ${esc(e.name)}`).join('<br>') : none],
+      [T('st.insp.walking'), walking.length ? walking.map(esc).join(', ') : none],
     ]));
     const n = sel && byId(sel);
-    rows.push('<h3 style="margin-top:14px">Note choisie</h3>');
-    if (!n) rows.push('<div class="empty">Choisis une note (carte, timeline ou geste sur l\'image) pour voir son détail.</div>');
+    rows.push(`<h3 style="margin-top:14px">${T('st.insp.selected')}</h3>`);
+    if (!n) rows.push(`<div class="empty">${T('st.insp.pick')}</div>`);
     else {
       const i = sorted().indexOf(n) + 1, st = statusOf(n), m = n.mark;
-      const gest = !m ? '—' : m.kind === 'pin' ? `pointé au pixel (${m.points[0][0]}, ${m.points[0][1]}) de l'image ${CW}×${CH}` : `dessin, ${m.strokes?.length ?? 1} trait(s) · zone x ${Math.min(...m.points.map((p) => p[0]))}–${Math.max(...m.points.map((p) => p[0]))}, y ${Math.min(...m.points.map((p) => p[1]))}–${Math.max(...m.points.map((p) => p[1]))}`;
+      const gest = !m ? '—' : m.kind === 'pin' ? T('st.insp.pin', { x: m.points[0][0], y: m.points[0][1], w: CW, h: CH }) : T('st.insp.draw', { n: m.strokes?.length ?? 1, x0: Math.min(...m.points.map((p) => p[0])), x1: Math.max(...m.points.map((p) => p[0])), y0: Math.min(...m.points.map((p) => p[1])), y1: Math.max(...m.points.map((p) => p[1])) });
       const t0 = n.target?.hits?.length ? humanTarget(n.target.hits[0]) : null;
       rows.push(dl([
-        ['Note', `n° ${i} · ${n.end !== null ? `images ${n.frame} → ${n.end}` : `image ${n.frame}`}`],
-        ['État', n.draft ? 'en attente d\'envoi' : st === 'working' ? 'l\'agent corrige' : st === 'done' ? 'corrigée' : 'ouverte'],
-        ['Lot', n.lot ? `lot ${n.lot}${n.sentAt ? ' · ' + esc(hhmm(n.sentAt)) : ''}` : none],
-        ['Vue', PROJ ? null : n.source === 'code' ? 'aperçu du code' : 'MP4 rendu'],
-        ['Demande', esc(n.text || '—')],
-        ['Geste', esc(gest)],
-        ['Objet', PROJ && !t0 ? null : t0 ? `${esc(t0.name)} <span class="muted">${esc(t0.kind)}</span>` : none],
-        ['Montage', PROJ && n.context?.clips?.length ? n.context.clips.map(esc).join('<br>') : null],
+        [T('st.insp.note'), T('st.insp.noteNum', { i, where: n.end !== null ? T('st.insp.frames', { a: n.frame, b: n.end }) : T('st.insp.frameAt', { a: n.frame }) })],
+        [T('st.insp.state'), n.draft ? T('st.insp.stDraft') : st === 'working' ? T('st.insp.stWorking') : st === 'done' ? T('st.insp.stDone') : T('st.insp.stOpen')],
+        [T('st.insp.lot'), n.lot ? `${T('st.rc.lot', { lot: n.lot })}${n.sentAt ? ' · ' + esc(hhmm(n.sentAt)) : ''}` : none],
+        [T('st.insp.view'), PROJ ? null : n.source === 'code' ? T('st.insp.viewCode') : T('st.src.video')],
+        [T('st.insp.ask'), esc(n.text || '—')],
+        [T('st.insp.gesture'), esc(gest)],
+        [T('st.insp.object'), PROJ && !t0 ? null : t0 ? `${esc(t0.name)} <span class="muted">${esc(t0.kind)}</span>` : none],
+        [T('st.insp.edit'), PROJ && n.context?.clips?.length ? n.context.clips.map(esc).join('<br>') : null],
       ]));
-      if (n.target?.hits?.length) for (const h of n.target.hits) rows.push(`<div class="hit">${esc(h.names?.[0] ?? h.type)}${h.textures?.length ? '\ntexture ' + esc(h.textures.join(', ')) : ''}${h.count > 1 ? `\n${h.count} points du geste` : ''}</div>`);
+      if (n.target?.hits?.length) for (const h of n.target.hits) rows.push(`<div class="hit">${esc(h.names?.[0] ?? h.type)}${h.textures?.length ? '\ntexture ' + esc(h.textures.join(', ')) : ''}${h.count > 1 ? T('st.insp.points', { n: h.count }) : ''}</div>`);
     }
     $('#insp').innerHTML = rows.join('');
   }
@@ -1901,21 +1930,21 @@
   new ResizeObserver(resize).observe($('#tlwrap'));
   function buildLanes() {
     if (PROJ) {   // the montage plan's tracks, then the sound of the video
-      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [{ id: 'mix', name: 'Son', bh: 34 }] : [])];
+      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [{ id: 'mix', name: T('st.lane.sound'), bh: 34 }] : [])];
       return;
     }
-    const L = LIVE, out = [{ id: 'scenes', name: 'Décors', bh: 22 }];
-    if (L?.camera?.length) out.push({ id: 'camera', name: 'Caméra', bh: 18 });
-    if (L?.light?.length) out.push({ id: 'light', name: 'Lumière', bh: 14 });
+    const L = LIVE, out = [{ id: 'scenes', name: T('st.lane.sets'), bh: 22 }];
+    if (L?.camera?.length) out.push({ id: 'camera', name: T('st.insp.camera'), bh: 18 });
+    if (L?.light?.length) out.push({ id: 'light', name: T('st.insp.light'), bh: 14 });
     const says = L?.says ?? SNAP?.says ?? [], first = new Map();
     for (const s of says) if (!first.has(s.actor)) first.set(s.actor, s.t);
     for (const [a, evs] of Object.entries(L?.moves ?? {})) if (!first.has(a) && evs.length) first.set(a, evs[0].t + 1e4);
     const actors = [...first.keys()].sort((a, b) => (a === 'narrator' ? -1 : b === 'narrator' ? 1 : first.get(a) - first.get(b)));
     actors.forEach((a, i) => actorHsl.set(a, a === 'narrator' ? [230, 25, 80] : PAL[(i - (actors[0] === 'narrator' ? 1 : 0)) % PAL.length]));
     for (const a of actors) out.push({ id: 'actor', actor: a, name: who(a), bh: 26 });
-    if (L?.music?.some((m) => m.channel === 'music')) out.push({ id: 'music', name: 'Musique', bh: 30 });
-    if (L?.music?.some((m) => m.channel !== 'music')) out.push({ id: 'amb', name: 'Ambiance', bh: 22 });
-    if (L?.sfx?.length) out.push({ id: 'sfx', name: 'Bruitages', bh: 24 });
+    if (L?.music?.some((m) => m.channel === 'music')) out.push({ id: 'music', name: T('st.insp.music'), bh: 30 });
+    if (L?.music?.some((m) => m.channel !== 'music')) out.push({ id: 'amb', name: T('st.lane.amb'), bh: 22 });
+    if (L?.sfx?.length) out.push({ id: 'sfx', name: T('st.lane.sfx'), bh: 24 });
     out.push({ id: 'mix', name: 'Mix', bh: 32 });
     lanes = out;
   }
@@ -1976,9 +2005,9 @@
     for (const l of lanes) {
       if (l.y + l.h < Y.top || l.y > H) continue;
       g.fillStyle = 'rgba(255,255,255,0.035)'; g.fillRect(0, l.y + l.h - 1, W, 1);
-      const y = l.y + 2, h = l.h - 5, T = laneTone(l);
+      const y = l.y + 2, h = l.h - 5, TL = laneTone(l);
       if (h < 4) continue;
-      const label = (txt, x0, w) => { if (w < 46 || h < 11) return; g.fillStyle = tone(T, 0.95); g.save(); g.beginPath(); g.rect(x0, y, w - 4, h); g.clip(); g.font = `500 10.5px ${FONT}`; g.fillText(txt, x0 + 6, y + Math.min(h / 2, 8)); g.restore(); };
+      const label = (txt, x0, w) => { if (w < 46 || h < 11) return; g.fillStyle = tone(TL, 0.95); g.save(); g.beginPath(); g.rect(x0, y, w - 4, h); g.clip(); g.font = `500 10.5px ${FONT}`; g.fillText(txt, x0 + 6, y + Math.min(h / 2, 8)); g.restore(); };
       if (l.id === 'scenes') {
         const sets = SNAP?.sets ?? L?.sets ?? [], cuts = SNAP?.cutaways ?? L?.cutaways ?? [], curtain = SNAP?.curtain ?? L?.curtain ?? [];
         for (const w of sets) {
@@ -1992,7 +2021,7 @@
           if (!vis(c.t, c.t + c.dur)) continue;
           const x0 = Math.max(0, tx(c.t)), x1 = Math.min(W, tx(c.t + c.dur)), S = [270, 40, 74];
           g.fillStyle = tone(S, 0.22); rr(g, x0, y, x1 - x0, h, 4); g.fill();
-          if (x1 - x0 > 46) { g.fillStyle = tone(S, 0.95); g.font = `500 10.5px ${FONT}`; g.fillText(c.name ?? 'Plan 3D', x0 + 6, y + h / 2 - 1); }
+          if (x1 - x0 > 46) { g.fillStyle = tone(S, 0.95); g.font = `500 10.5px ${FONT}`; g.fillText(c.name ?? T('st.lane.shot3d'), x0 + 6, y + h / 2 - 1); }
         }
         g.fillStyle = 'rgba(0,0,0,0.35)';
         for (let i = 0; i < curtain.length; i++) { const c = curtain[i]; if (c.open) continue; const e = curtain[i + 1]?.t ?? DUR; if (vis(c.t, e)) g.fillRect(Math.max(0, tx(c.t)), y, Math.min(W, tx(e)) - Math.max(0, tx(c.t)), h); }
@@ -2000,10 +2029,10 @@
         for (const c of L.camera) {
           if (!vis(c.t, c.t + c.dur + 0.01)) continue;
           const x0 = tx(c.t), x1 = tx(c.t + c.dur), my = y + h / 2;
-          if (c.dur > 0) { g.fillStyle = tone(T, 0.18); rr(g, x0, y + 2, x1 - x0, h - 4, 3); g.fill(); }
-          for (const xd of c.dur > 0 ? [x0, x1] : [x0]) { g.fillStyle = tone(T, 0.9); g.beginPath(); g.moveTo(xd, my - 4); g.lineTo(xd + 4, my); g.lineTo(xd, my + 4); g.lineTo(xd - 4, my); g.closePath(); g.fill(); }
+          if (c.dur > 0) { g.fillStyle = tone(TL, 0.18); rr(g, x0, y + 2, x1 - x0, h - 4, 3); g.fill(); }
+          for (const xd of c.dur > 0 ? [x0, x1] : [x0]) { g.fillStyle = tone(TL, 0.9); g.beginPath(); g.moveTo(xd, my - 4); g.lineTo(xd + 4, my); g.lineTo(xd, my + 4); g.lineTo(xd - 4, my); g.closePath(); g.fill(); }
           const lab = `dist ${c.v.dist} · fov ${c.v.fov}`;
-          if (x1 - x0 > g.measureText(lab).width + 20) { g.fillStyle = tone(T, 0.85); g.font = `10.5px ${FONT}`; g.fillText(lab, x0 + 10, my); }
+          if (x1 - x0 > g.measureText(lab).width + 20) { g.fillStyle = tone(TL, 0.85); g.font = `10.5px ${FONT}`; g.fillText(lab, x0 + 10, my); }
         }
       } else if (l.id === 'light' && L) {
         L.light.forEach((c, i) => {
@@ -2016,15 +2045,15 @@
         const says = (L?.says ?? SNAP?.says ?? []).filter((s) => s.actor === l.actor);
         for (const ev of L?.moves?.[l.actor] ?? []) {
           if (ev.kind !== 'walk' || !vis(ev.t, ev.t + ev.dur)) continue;
-          g.fillStyle = tone(T, 0.28); g.fillRect(tx(ev.t), y + h - 1, Math.max(1, tx(ev.t + ev.dur) - tx(ev.t)), 2);
+          g.fillStyle = tone(TL, 0.28); g.fillRect(tx(ev.t), y + h - 1, Math.max(1, tx(ev.t + ev.dur) - tx(ev.t)), 2);
         }
         for (const s of says) {
           if (!vis(s.t, s.t + s.dur)) continue;
           const x0 = tx(s.t), x1 = tx(s.t + s.dur), w = Math.max(2, x1 - x0 - 1);
-          g.fillStyle = tone(T, 0.17); rr(g, x0, y, w, h - 2, 4); g.fill();
-          if (w > 8) wave(g, peaks(s.audio), s.t, s.t, s.t + s.dur, y, h - 2, tone(T, 0.85), Math.min(1, s.gain ?? 1));
-          else { g.fillStyle = tone(T, 0.8); g.fillRect(x0, y, w, h - 2); }
-          if (w > 60 && h > 16) { g.fillStyle = 'rgba(17,17,16,0.55)'; const tw = Math.min(w - 8, g.measureText(s.id).width + 10); rr(g, x0 + 3, y + 3, tw, 13, 4); g.fill(); g.fillStyle = tone(T, 1); g.font = `600 10px ${FONT}`; g.fillText(s.id, x0 + 8, y + 9.5); }
+          g.fillStyle = tone(TL, 0.17); rr(g, x0, y, w, h - 2, 4); g.fill();
+          if (w > 8) wave(g, peaks(s.audio), s.t, s.t, s.t + s.dur, y, h - 2, tone(TL, 0.85), Math.min(1, s.gain ?? 1));
+          else { g.fillStyle = tone(TL, 0.8); g.fillRect(x0, y, w, h - 2); }
+          if (w > 60 && h > 16) { g.fillStyle = 'rgba(17,17,16,0.55)'; const tw = Math.min(w - 8, g.measureText(s.id).width + 10); rr(g, x0 + 3, y + 3, tw, 13, 4); g.fill(); g.fillStyle = tone(TL, 1); g.font = `600 10px ${FONT}`; g.fillText(s.id, x0 + 8, y + 9.5); }
         }
         for (const e of (L?.emotes ?? []).filter((e) => e.actor === l.actor)) {
           if (!vis(e.t, e.t)) continue;
@@ -2036,8 +2065,8 @@
           if ((m.channel === 'music') !== (l.id === 'music')) continue;
           if (m.volume <= 0 || !vis(m.t, m.until)) continue;
           const x0 = tx(m.t), x1 = tx(m.until);
-          g.fillStyle = tone(T, 0.14); rr(g, x0, y, x1 - x0 - 2, h, 4); g.fill();
-          wave(g, peaks(m.src), m.t, Math.max(m.t, view.a), Math.min(m.until, view.b), y, h, tone(T, 0.75), Math.min(1, 0.45 + m.volume * 1.4), true);
+          g.fillStyle = tone(TL, 0.14); rr(g, x0, y, x1 - x0 - 2, h, 4); g.fill();
+          wave(g, peaks(m.src), m.t, Math.max(m.t, view.a), Math.min(m.until, view.b), y, h, tone(TL, 0.75), Math.min(1, 0.45 + m.volume * 1.4), true);
           label(m.name.replace(/^music_/, ''), Math.max(0, x0), x1 - Math.max(0, x0));
         }
       } else if (l.id === 'sfx' && L) {
@@ -2045,21 +2074,21 @@
           const pk = peaks(s.src), d = Math.min(9.5, pk?.dur ?? 0.6);
           if (!vis(s.t, s.t + d)) continue;
           const x0 = tx(s.t), x1 = tx(s.t + d);
-          g.fillStyle = tone(T, 0.12); rr(g, x0, y, x1 - x0, h, 3); g.fill();
-          if (pk) wave(g, pk, s.t, s.t, s.t + d, y, h, tone(T, 0.8), Math.min(1, 0.45 + s.volume));
+          g.fillStyle = tone(TL, 0.12); rr(g, x0, y, x1 - x0, h, 3); g.fill();
+          if (pk) wave(g, pk, s.t, s.t, s.t + d, y, h, tone(TL, 0.8), Math.min(1, 0.45 + s.volume));
           if (x1 - x0 > 70) label(s.name, x0, x1 - x0);
         }
       } else if (l.id === 'mix') {
-        wave(g, peaks('@mix'), 0, view.a, view.b, y, h, tone(T, 0.55), 1);
+        wave(g, peaks('@mix'), 0, view.a, view.b, y, h, tone(TL, 0.55), 1);
       } else if (l.id === 'trk') {
         const tr = l.tr;
         for (const c of tr.clips) {
           if (!vis(c.t0, c.t1)) continue;
           const x0 = Math.max(0, tx(c.t0)), x1 = Math.min(W, tx(c.t1)), w0 = Math.max(1, x1 - x0 - 1);
-          g.fillStyle = tone(T, c.off ? 0.05 : tr.type === 'audio' ? 0.1 : 0.18); rr(g, x0, y, w0, h, 4); g.fill();
-          if (tr.type !== 'audio') { g.fillStyle = tone(T, c.off ? 0.2 : 0.6); g.fillRect(x0, y + h - 2, w0, 2); }
-          if (tr.type === 'audio' && (c.src || c.file)) { const pk = peaks(c.src || c.file); if (pk) wave(g, pk, c.t0 - c.from / FPS, Math.max(view.a, c.t0), Math.min(view.b, c.t1), y, h, tone(T, 0.75), 1); }
-          if (c.off) { g.strokeStyle = tone(T, 0.25); g.setLineDash([3, 3]); rr(g, x0 + 0.5, y + 0.5, w0 - 1, h - 1, 4); g.stroke(); g.setLineDash([]); }
+          g.fillStyle = tone(TL, c.off ? 0.05 : tr.type === 'audio' ? 0.1 : 0.18); rr(g, x0, y, w0, h, 4); g.fill();
+          if (tr.type !== 'audio') { g.fillStyle = tone(TL, c.off ? 0.2 : 0.6); g.fillRect(x0, y + h - 2, w0, 2); }
+          if (tr.type === 'audio' && (c.src || c.file)) { const pk = peaks(c.src || c.file); if (pk) wave(g, pk, c.t0 - c.from / FPS, Math.max(view.a, c.t0), Math.min(view.b, c.t1), y, h, tone(TL, 0.75), 1); }
+          if (c.off) { g.strokeStyle = tone(TL, 0.25); g.setLineDash([3, 3]); rr(g, x0 + 0.5, y + 0.5, w0 - 1, h - 1, 4); g.stroke(); g.setLineDash([]); }
           if (x1 - x0 > 46) label(c.label, x0, x1 - x0);
         }
       }
@@ -2128,8 +2157,8 @@
     g.save(); g.beginPath(); g.rect(0, Y.top, HX, H - Y.top); g.clip();
     for (const l of lanes) {
       if (l.y + l.h < Y.top || l.y > H) continue;
-      const T = laneTone(l);
-      g.fillStyle = tone(T, 0.85); rr(g, 10, l.y + l.h / 2 - Math.min(6, l.h / 2 - 2), 3, Math.min(12, l.h - 4), 2); g.fill();
+      const TL = laneTone(l);
+      g.fillStyle = tone(TL, 0.85); rr(g, 10, l.y + l.h / 2 - Math.min(6, l.h / 2 - 2), 3, Math.min(12, l.h - 4), 2); g.fill();
       if (l.h >= 12) { g.fillStyle = C.s11; g.font = `500 11.5px ${FONT}`; g.fillText(l.name, 22, l.y + l.h / 2); }
       g.fillStyle = 'rgba(255,255,255,0.035)'; g.fillRect(0, l.y + l.h - 1, HX, 1);
     }
@@ -2149,20 +2178,20 @@
     if (l.id === 'actor') {
       const s = (L?.says ?? SNAP?.says ?? []).find((s) => s.actor === l.actor && s.t <= t && t <= s.t + s.dur);
       const e = (L?.emotes ?? []).find((e) => e.actor === l.actor && near(e.t));
-      if (e) return { lane: l, text: `${who(e.actor)} · émote « ${e.name} » · ${fmt(e.t)}` };
-      if (s) return { lane: l, item: s, span: [s.t, s.t + s.dur], text: `${s.id} ${who(s.actor)} : ${s.text}   ${fmt(s.t)} → ${fmt(s.t + s.dur)}   ·   double-clic = note sur la réplique` };
+      if (e) return { lane: l, text: T('st.tip.emote', { who: who(e.actor), name: e.name, t: fmt(e.t) }) };
+      if (s) return { lane: l, item: s, span: [s.t, s.t + s.dur], text: T('st.tip.line', { id: s.id, who: who(s.actor), text: s.text, a: fmt(s.t), b: fmt(s.t + s.dur) }) };
       const w = (L?.moves?.[l.actor] ?? []).find((m) => m.kind === 'walk' && m.t <= t && t <= m.t + m.dur);
-      if (w) return { lane: l, text: `${who(l.actor)} marche · ${fmt(w.t)} → ${fmt(w.t + w.dur)}` };
+      if (w) return { lane: l, text: T('st.tip.walk', { who: who(l.actor), a: fmt(w.t), b: fmt(w.t + w.dur) }) };
     }
-    if (l.id === 'camera') { const c = L?.camera.find((c) => near(c.t) || (c.t <= t && t <= c.t + c.dur)); if (c) return { lane: l, span: [c.t, c.t + c.dur], text: `Caméra ${fmt(c.t)}${c.dur ? ' → ' + fmt(c.t + c.dur) : ''} · ${Object.entries(c.v).map(([k, v]) => `${k} ${v}`).join(' · ')}` }; }
-    if (l.id === 'light') { const i = (L?.light ?? []).findIndex((c, k) => c.t <= t && t < (L.light[k + 1]?.t ?? 1e9)); if (i >= 0) return { lane: l, text: `Lumière « ${L.light[i].v} » depuis ${fmt(L.light[i].t)}` }; }
-    if (l.id === 'music' || l.id === 'amb') { const m = L?.music.find((m) => (m.channel === 'music') === (l.id === 'music') && m.t <= t && t < m.until && m.volume > 0); if (m) return { lane: l, span: [m.t, m.until], text: `${l.id === 'music' ? 'Musique' : 'Ambiance'} ${m.name} · vol ${m.volume} · ${fmt(m.t)} → ${fmt(m.until)}` }; }
-    if (l.id === 'sfx') { const s = [...(L?.sfx ?? [])].reverse().find((s) => s.t <= t && t <= s.t + Math.min(9.5, PEAKS.get(s.src)?.data?.dur ?? 0.6)); if (s) return { lane: l, text: `Bruitage ${s.name} · vol ${s.volume} · ${fmt(s.t)}` }; }
+    if (l.id === 'camera') { const c = L?.camera.find((c) => near(c.t) || (c.t <= t && t <= c.t + c.dur)); if (c) return { lane: l, span: [c.t, c.t + c.dur], text: `${T('st.insp.camera')} ${fmt(c.t)}${c.dur ? ' → ' + fmt(c.t + c.dur) : ''} · ${Object.entries(c.v).map(([k, v]) => `${k} ${v}`).join(' · ')}` }; }
+    if (l.id === 'light') { const i = (L?.light ?? []).findIndex((c, k) => c.t <= t && t < (L.light[k + 1]?.t ?? 1e9)); if (i >= 0) return { lane: l, text: T('st.tip.light', { v: L.light[i].v, t: fmt(L.light[i].t) }) }; }
+    if (l.id === 'music' || l.id === 'amb') { const m = L?.music.find((m) => (m.channel === 'music') === (l.id === 'music') && m.t <= t && t < m.until && m.volume > 0); if (m) return { lane: l, span: [m.t, m.until], text: `${l.id === 'music' ? T('st.insp.music') : T('st.lane.amb')} ${m.name} · vol ${m.volume} · ${fmt(m.t)} → ${fmt(m.until)}` }; }
+    if (l.id === 'sfx') { const s = [...(L?.sfx ?? [])].reverse().find((s) => s.t <= t && t <= s.t + Math.min(9.5, PEAKS.get(s.src)?.data?.dur ?? 0.6)); if (s) return { lane: l, text: T('st.tip.sfx', { name: s.name, v: s.volume, t: fmt(s.t) }) }; }
     if (l.id === 'scenes') return { lane: l, text: contextAt(Math.floor(t * FPS)).scene };
-    if (l.id === 'mix') return { lane: l, text: PROJ ? 'Son de la vidéo' : 'Son du MP4 rendu' };
+    if (l.id === 'mix') return { lane: l, text: PROJ ? T('st.tip.soundVideo') : T('st.tip.soundMp4') };
     if (l.id === 'trk') {
       const c = l.tr.clips.find((c) => c.t0 <= t && t < c.t1);
-      if (c) return { lane: l, item: c, span: [c.t0, c.t1], text: `${l.tr.name} · ${c.label}${c.file ? ' · ' + c.file : ''} · ${fmt(c.t0)} → ${fmt(c.t1)}${c.off ? ' · désactivé' : ''}   ·   double-clic = note sur tout le clip` };
+      if (c) return { lane: l, item: c, span: [c.t0, c.t1], text: T('st.tip.clip', { track: l.tr.name, label: c.label, file: c.file ? ' · ' + c.file : '', a: fmt(c.t0), b: fmt(c.t1), off: c.off ? T('st.tip.off') : '' }) };
     }
     return { lane: l, text: l.name };
   }
@@ -2199,9 +2228,9 @@
       if (x < 0) { tip.style.display = 'none'; cv.style.cursor = 'default'; return; }
       const h = hit(x, y);
       cv.style.cursor = h ? (h.part === 'start' || h.part === 'end' ? 'ew-resize' : 'grab') : (inNotes(y) ? 'crosshair' : 'default');
-      const f = fx(x); let txt = `${fmt(f / FPS)} · image ${f}`;
+      const f = fx(x); let txt = T('st.tip.at', { t: fmt(f / FPS), f });
       if (y >= Y.top) { const th = trackHit(x, y); if (th?.text) txt = th.text; }
-      if (h) { const n = byId(h.s.id); txt = (n.end !== null ? `images ${n.frame} → ${n.end}` : `image ${n.frame}`) + (n.text ? ' · ' + n.text.slice(0, 80) : ''); }
+      if (h) { const n = byId(h.s.id); txt = (n.end !== null ? T('st.insp.frames', { a: n.frame, b: n.end }) : T('st.insp.frameAt', { a: n.frame })) + (n.text ? ' · ' + n.text.slice(0, 80) : ''); }
       tip.textContent = txt; tip.style.display = 'block';
       tip.style.left = Math.min(x + HX + 14, cv.clientWidth - tip.offsetWidth - 6) + 'px'; tip.style.top = Math.max(2, y - 34) + 'px';
       return;
@@ -2244,12 +2273,12 @@
     const th = y >= Y.top ? trackHit(x, y) : null;
     if (th?.lane.id === 'trk' && th.item) {
       const c = th.item, n = addNote(Math.floor(c.t0 * FPS), Math.max(Math.floor(c.t0 * FPS) + 1, Math.ceil(c.t1 * FPS) - 1));
-      if (n) setSave(`Note sur le clip « ${c.label} »`, 'ok');
+      if (n) setSave(T('st.note.onClip', { label: c.label }), 'ok');
       return;
     }
     if (th?.lane.id === 'actor' && th.item) {
       const s = th.item, n = addNote(Math.floor(s.t * FPS), Math.max(Math.floor(s.t * FPS) + 1, Math.ceil((s.t + s.dur) * FPS) - 1));
-      if (n) setSave(`Note sur la réplique ${s.id}`, 'ok');
+      if (n) setSave(T('st.note.onLine', { id: s.id }), 'ok');
     }
   });
   // DaVinci Resolve style: wheel = tracks up / down · Ctrl+wheel = move in time · Alt+wheel = horizontal zoom ·
@@ -2280,7 +2309,7 @@
   document.querySelectorAll('.spd').forEach((b) => b.onclick = () => { M.playbackRate = +b.dataset.s; document.querySelectorAll('.spd').forEach((x) => x.classList.toggle('on', x === b)); });
   $('#hideDone').onchange = renderList;
   function markRange() {
-    if (rangeStart === null) { rangeStart = curFrame(); $('#bRange').classList.add('on'); setSave('Début de plage posé — R à la fin', ''); }
+    if (rangeStart === null) { rangeStart = curFrame(); $('#bRange').classList.add('on'); setSave(T('st.note.rangeStart'), ''); }
     else { const a = rangeStart; rangeStart = null; $('#bRange').classList.remove('on'); M.pause(); addNote(a, curFrame()); }
     draw();
   }
@@ -2291,7 +2320,7 @@
     stopAt = null; loopId = null;
     shuttle = { dir, rate: M.playbackRate, t0: M.currentTime, r0: performance.now() };
     if (dir > 0) { M.playbackRate = SHUTTLE_SPEED; M.play(); } else M.pause();
-    shuttleEl.innerHTML = dir > 0 ? '×2 <small>avance</small>' : '×2 <small>recul</small>';
+    shuttleEl.innerHTML = `×2 <small>${T(dir > 0 ? 'st.shuttle.fwd' : 'st.shuttle.back')}</small>`;
     shuttleEl.classList.add('on');
   }
   function stopShuttle() {
@@ -2314,7 +2343,7 @@
   let playing = null;
   function updateHud() {
     const f = curFrame();
-    $('#tc').textContent = fmt(f / FPS); $('#fr').textContent = `image ${f} / ${FRAMES - 1}`;
+    $('#tc').textContent = fmt(f / FPS); $('#fr').textContent = T('st.hud.frame', { f, max: FRAMES - 1 });
     if (playing !== !M.paused) { playing = !M.paused; $('#bPlay').innerHTML = ic(playing ? 'pause' : 'play', 'fill'); }
     const c = contextAt(f); const el = $('#context');
     el.innerHTML = ''; const b = document.createElement('b'); b.textContent = c.scene || '—'; el.appendChild(b);
@@ -2344,6 +2373,9 @@
   // ---------- keyboard ----------
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Alt') { e.preventDefault(); return; }   // Alt+wheel zooms: Alt alone must not open the browser's menu
+    // the menu bar's shortcuts: F1 = Help › Keyboard shortcuts, Ctrl+O = File › Open a project…
+    if (e.key === 'F1') { e.preventDefault(); $('#help').classList.toggle('open'); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); toHub('?menu=open'); return; }
     if (cmpOpen()) {   // the before / after viewer has the keyboard
       const k0 = e.key.toLowerCase();
       if (e.key === 'Escape') cmpClose(); else if (e.key === 'ArrowLeft') cmpStep(-1); else if (e.key === 'ArrowRight') cmpStep(1); else if (k0 === 'b' || e.key === ' ') setWipe(cmpX > 50 ? 0 : 100); else return;
@@ -2386,7 +2418,7 @@
     else if (k === 'v') setTool('select');
     else if (k === 'd') setTool('draw');
     else if (k === 'c') setTool('comment');
-    else if (k === 'a') { e.preventDefault(); if (pickPt) promptAtPick(); else setSave('Pointe d\'abord un endroit de l\'image (V)', ''); }
+    else if (k === 'a') { e.preventDefault(); if (pickPt) promptAtPick(); else setSave(T('st.key.pointFirst'), ''); }
     else if (k === 'p') { if (!META.features?.code || !META.render) return; if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); }
     else if (k === 'm') { if (!PROJ) setStaging(!staging); }
     else if (k === 'n') { e.preventDefault(); M.pause(); addNote(curFrame()); }
@@ -2395,10 +2427,121 @@
     else if (k === 'i' && sel) { const n = byId(sel); setFrames(n, curFrame(), n.end); save(); renderAll(); }
     else if (k === 'o' && sel) { const n = byId(sel); setFrames(n, n.frame, curFrame()); save(); renderAll(); }
     else if (k === 'l' && sel) { const n = byId(sel); if (n.end !== null) { loopId = loopId === n.id ? null : n.id; if (loopId) { seekFrame(n.frame); M.play(); } renderAll(); } }
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); if (confirm('Supprimer la note sélectionnée ?')) delNote(sel); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); if (confirm(T('st.key.deleteConfirm'))) delNote(sel); }
     else if (e.key === '+' || e.key === '=') { const c = (view.a + view.b) / 2, s = Math.max(40 / FPS, (view.b - view.a) / 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
     else if (e.key === '-') { const c = (view.a + view.b) / 2, s = Math.min(DUR, (view.b - view.a) * 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
   });
+
+  // ---------- the menu bar (menubar.js): « Fichier · Édition · Outils · Aide », every item calls what the page already does ----------
+  const dlg = (o) => window.MenuBar?.dialog({ buttons: [{ label: T('menu.dlg.close'), primary: true }], ...o });
+  const toHub = (q = '') => { if (META?.hub) location.href = META.hub + q; };
+  const noHub = () => (META?.hub ? false : T('menu.why.noHub'));
+  const editLots = () => (STATUS.lots ?? []).filter((L) => L.kind !== 'render');
+  const lastUndo = () => [...editLots()].reverse().find((L) => L.run?.finished && L.run.state !== 'undone');
+  const lastRedo = () => [...editLots()].reverse().find((L) => L.run?.state === 'undone');
+  const lastLot = () => (STATUS.lots ?? []).at(-1);
+  async function revealMenu(what) {
+    const r = await postJson('/api/reveal', { what });
+    if (!r?.ok) setSave(T('menu.reveal.failed', { why: r?.why ?? T('st.noAnswer') }), 'err'); else if (what === 'online') setSave(T('menu.online.opened'), 'ok');
+  }
+  async function showDoc(name, title) {
+    const r = await fetch('/api/doc?name=' + name, { cache: 'no-store' }).catch(() => null);
+    if (!r?.ok) { setSave(T('menu.doc.failed', { name }), 'err'); return; }
+    const text = await r.text();
+    dlg({ title, text, pre: true, buttons: [{ label: T('menu.dlg.copy'), run: () => { copy(text); return false; } }, { label: T('menu.dlg.close'), primary: true }] });
+  }
+  async function showServerLog() {
+    const t = await (await fetch('/api/log', { cache: 'no-store' })).text().catch(() => '');
+    dlg({ title: T('menu.logStudio'), text: t || T('menu.empty'), pre: true });
+  }
+  async function showAbout() {
+    const a = await (await fetch('/api/about', { cache: 'no-store' })).json().catch(() => null) ?? {};
+    const row = (k, v) => (v ? `<div class="row"><span class="lbl">${esc(k)}</span><span>${v}</span></div>` : '');
+    const d = dlg({ title: T('menu.about'), html: `<p><b>Coulisses</b> ${esc(a.version ?? '')}</p><p>${esc(T('menu.about.what'))}</p>`
+      + row(T('menu.about.version'), esc(a.version)) + row(T('menu.about.installed'), a.installed ? esc(hhmm(a.installed)) : '') + row(T('menu.about.commit'), a.commit ? esc(`${a.commit}${a.branch ? ` (${a.branch})` : ''}`) : '')
+      + row(T('menu.about.folder'), `${esc(a.folder ?? '')}${a.place === 'workshop' ? ` · ${esc(T('menu.about.workshop'))}` : ''}`)
+      + row(T('menu.about.license'), esc(a.license)) + row(T('menu.about.source'), `<a href="#" id="mbRepo">${esc(String(a.url ?? '').replace(/^https:\/\//, ''))}</a>`) });
+    d?.querySelector('#mbRepo')?.addEventListener('click', (e) => { e.preventDefault(); revealMenu('online'); });
+  }
+  function showPrefs() {
+    const btn = (attr, v, label, on) => `<button ${attr}="${v}" class="${on ? 'on' : ''}">${esc(label)}</button>`;
+    const env = I18N.source === 'env';
+    const d = dlg({ title: T('menu.prefs.title'), html: `<div class="row"><span class="lbl">${esc(T('menu.prefs.lang'))}</span>${(I18N.langs ?? ['fr', 'en']).map((l) => btn('data-l', l, I18N.names?.[l] ?? l, l === LANG)).join('')}</div>
+      <p>${esc(env ? T('menu.prefs.envNote') : T('menu.prefs.langNote'))}</p>
+      <div class="row"><span class="lbl">${esc(T('menu.prefs.agent'))}</span>${Object.entries({ claude: 'Claude Code', codex: 'Codex (GPT)' }).map(([k, v]) => btn('data-a', k, v, k === AGENT_PICK)).join('')}</div>
+      <p>${esc(T('menu.prefs.agentNote'))}</p>` });
+    d?.querySelectorAll('[data-l]').forEach((b) => { b.disabled = env; b.onclick = () => setLanguage(b.dataset.l); });
+    d?.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => { AGENT_PICK = b.dataset.a; store.set('agent', AGENT_PICK); markPick(); d.querySelectorAll('[data-a]').forEach((x) => x.classList.toggle('on', x === b)); });
+  }
+  async function checkUpdatesMenu() {
+    const d = dlg({ title: T('menu.updates'), text: T('menu.updates.checking'), pre: true });
+    const r = await fetch(`/api/updates?fresh&agent=${encodeURIComponent(AGENT_PICK)}`, { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+    const b = d?.querySelector('.body'); if (b) b.textContent = r ? `${r.line}\n\n${r.md ?? ''}`.trim() : T('st.noAnswer');
+  }
+  async function verifyMenu() {
+    const d = dlg({ title: T('menu.verify'), text: T('menu.verify.running'), pre: true });
+    const r = await postJson('/api/verify');
+    const b = d?.querySelector('.body'); if (b) b.textContent = r ? `${r.file ?? ''}\n\n${r.out ?? r.why ?? ''}`.trim() : T('st.noAnswer');
+  }
+  const renderBusy = () => { const s = renderView().st; return !['idle', 'failed', 'interrupted', 'cancelled'].includes(s); };
+  const sendWhy = () => (sending ? T('menu.why.sending') : !drafts().length ? T('menu.why.noDraft') : $('#qsend').disabled ? T('menu.why.emptyDraft') : false);
+  const exportOpts = () => (META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }]);
+  function mountMenus() {
+    if (!window.MenuBar) return;
+    window.MenuBar.mount($('#menubar'), [
+      { id: 'file', label: T('menu.file'), items: [
+        { id: 'home', label: T('menu.home'), disabled: noHub, run: () => toHub() },
+        { id: 'open', label: T('menu.open'), key: 'Ctrl+O', disabled: noHub, run: () => toHub('?menu=open') },
+        { id: 'importFolder', label: T('menu.importFolder'), disabled: noHub, run: () => toHub('?menu=folder') },
+        { id: 'importVideo', label: T('menu.importVideo'), disabled: noHub, run: () => toHub('?menu=video') },
+        '-',
+        { id: 'revealFolder', label: T('menu.revealFolder'), run: () => revealMenu('folder') },
+        { id: 'revealCoulisses', label: T('menu.revealCoulisses'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: () => revealMenu('coulisses') },
+        '-',
+        { id: 'close', label: T('menu.closeStudio'), disabled: noHub, run: () => toHub() },
+      ] },
+      { id: 'edit', label: T('menu.edit'), items: [
+        { id: 'undo', label: () => (lastUndo() ? T('menu.undoLot', { lot: lastUndo().lot }) : T('menu.undo')), disabled: () => (lastUndo() ? false : T('menu.why.noUndo')), run: () => stepLot(lastUndo(), 'undo') },
+        { id: 'redo', label: () => (lastRedo() ? T('menu.redoLot', { lot: lastRedo().lot }) : T('menu.redo')), disabled: () => (lastRedo() ? false : T('menu.why.noRedo')), run: () => stepLot(lastRedo(), 'redo') },
+        '-',
+        { id: 'copyLine', label: T('menu.copyLine'), disabled: () => (lastLot() ? false : T('menu.why.noLot')), run: () => copy(lastLot().line) },
+        { id: 'copyConnect', label: T('menu.copyConnect'), run: () => copy(META.connectLine) },
+        '-',
+        { id: 'prefs', label: T('menu.prefs'), run: showPrefs },
+      ] },
+      { id: 'tools', label: T('menu.tools'), items: [
+        { id: 'connect', label: T('menu.connect'), run: openConnect },
+        { id: 'send', label: T('menu.send'), disabled: sendWhy, run: sendQueue },
+        '-',
+        { id: 'staging', label: T('menu.staging'), key: 'M', hidden: () => PROJ, run: () => setStaging(!staging) },
+        { id: 'source', label: T('menu.source'), key: 'P', hidden: () => !META?.features?.code, disabled: () => (META?.render ? false : T('menu.why.noVideo')), run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
+        { id: 'export', label: T('menu.export'), hidden: () => META?.kind !== 'remotion', disabled: () => (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false),
+          items: () => exportOpts().map((o, i) => ({ id: `export-${o.id ?? i}`, label: o.label, run: () => startExportUI(o.id, o.label) })) },
+        { id: 'stopExport', label: T('menu.stopExport'), hidden: () => META?.kind !== 'remotion', disabled: () => (STATUS.export?.state === 'running' ? false : T('menu.why.noExportRunning')), run: stopExportUI },
+        { id: 'render', label: T('menu.render'), hidden: () => PROJ, disabled: () => (renderBusy() ? T('menu.why.renderBusy') : false), run: launchRender },
+        { id: 'stopRender', label: T('menu.stopRender'), hidden: () => PROJ, disabled: () => (STATUS.render?.state === 'running' && STATUS.render.phase !== 'finish' ? false : T('menu.why.noRenderRunning')), run: stopRender },
+        { id: 'compare', label: T('menu.compare'), disabled: () => (STATUS.compare?.length ? false : T('menu.why.noCompare')), run: () => openCompare() },
+        '-',
+        { id: 'updates', label: T('menu.updates'), run: checkUpdatesMenu },
+        { id: 'verify', label: T('menu.verify'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: verifyMenu },
+        { id: 'log', label: T('menu.log'), items: () => [
+          { id: 'logStudio', label: T('menu.logStudio'), run: showServerLog },
+          ...(PROJ ? [] : [{ id: 'logRender', label: T('menu.logRender'), run: showRenderLog }]),
+          ...(META?.kind === 'remotion' ? [{ id: 'logExport', label: T('menu.logExport'), run: showExportLog }] : []),
+        ] },
+      ] },
+      { id: 'help', label: T('menu.help'), items: [
+        { id: 'shortcuts', label: T('menu.shortcuts'), key: 'F1', run: () => $('#help').classList.add('open') },
+        '-',
+        { id: 'agentDoc', label: T('menu.agentDoc'), run: () => showDoc('agent', T('menu.agentDoc')) },
+        { id: 'contract', label: T('menu.contract'), run: () => showDoc('contract', T('menu.contract')) },
+        { id: 'online', label: T('menu.online'), run: () => revealMenu('online') },
+        '-',
+        { id: 'about', label: T('menu.about'), run: showAbout },
+      ] },
+    ]);
+  }
+  mountMenus();
 
   const hashFrame = () => { const m = /f=(\d+)/.exec(location.hash); return m ? +m[1] : null; };
 
@@ -2414,19 +2557,19 @@
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
       document.title = PROJ ? `Coulisses — ${META.title}` : `Coulisses · ${META.episode} — ${META.title}`;
-      if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = 'Accueil : tous les épisodes et projets'; l.style.cursor = 'pointer'; }
+      if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; }
       $('#title').textContent = PROJ ? META.title : `${META.episode} · ${META.title}`;
-      $('#render').textContent = META.render ? `${META.render.name} · ${PROJ ? 'exporté' : 'rendu'} du ${new Date(META.render.mtime).toLocaleString()}` : META.features?.code ? 'pas encore d\'export · relecture du code en direct' : 'aucune vidéo trouvée';
+      $('#render').textContent = META.render ? T('st.start.render', { name: META.render.name, what: T(PROJ ? 'st.start.exported' : 'st.start.rendered'), date: FR ? new Date(META.render.mtime).toLocaleString() : new Date(META.render.mtime).toLocaleString('en-US', { hour12: false }) }) : META.features?.code ? T('st.start.liveCode') : T('st.start.noVideo');
       if (PROJ) { /* no episode plan: the montage plan (if any) gives the tracks */ }
-      else if (!SNAP) { $('#warn').style.display = 'block'; $('#warn').textContent = 'Le plan de l\'épisode (revue/timeline.json) est absent : les notes gardent l\'image exacte, mais sans le nom de la scène ni la réplique.'; }
-      else if (!META.snapshotMatches) { $('#warn').style.display = 'block'; $('#warn').textContent = 'La vidéo a été re-rendue depuis l\'export du plan : les noms de scène et de réplique peuvent être décalés. Les numéros d\'image des notes restent exacts.'; }
+      else if (!SNAP) { $('#warn').style.display = 'block'; $('#warn').textContent = T('st.start.noPlan'); }
+      else if (!META.snapshotMatches) { $('#warn').style.display = 'block'; $('#warn').textContent = T('st.start.stalePlan'); }
       const data = await (await fetch('/api/notes')).json();
       notes = (data.notes || []).map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
       STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
       buildLanes(); setTab(tab); fitMedia(); resize(); renderAll(); updateHud();
       loadLive();
-      setSave(notes.length ? `${notes.length} notes chargées` : 'Prêt', 'ok');
+      setSave(notes.length ? T('st.start.loaded', { n: notes.length }) : T('st.start.ready'), 'ok');
       pollReplies();
       v.addEventListener('loadedmetadata', () => {
         const d = v.duration;
@@ -2434,11 +2577,11 @@
         DUR = FRAMES / FPS; view = { a: 0, b: DUR }; resize(); renderAll(); seekFrame(hashFrame() ?? 0);
       }, { once: true });
       window.addEventListener('hashchange', () => { const f = hashFrame(); if (f !== null) { M.pause(); seekFrame(f); } });
-      v.addEventListener('error', () => setSave('Impossible de lire la vidéo', 'err'));
+      v.addEventListener('error', () => setSave(T('st.start.cannotRead'), 'err'));
       v.addEventListener('loadeddata', drawOv);
       const proxyTxt = $('#proxy');
       const coming = (p) => p === 'building' || p === 'missing' || p === 'stale';
-      const showProxy = () => { proxyTxt.textContent = coming(META.proxy) ? 'Préparation du défilement rapide…' : ''; };
+      const showProxy = () => { proxyTxt.textContent = coming(META.proxy) ? T('st.start.proxy') : ''; };
       showProxy();
       if (!META.render && META.features?.code) {   // nothing exported yet: the code is the video
         proxyTxt.textContent = ''; mode = 'code'; media.classList.add('code'); loadCode(); return;
@@ -2460,7 +2603,7 @@
           } catch (e) { waitProxy(); }
         }, 4000);
       })();
-    } catch (e) { setSave('L\'outil ne répond pas — relance le studio', 'err'); console.error(e); }
+    } catch (e) { setSave(T('st.start.noAnswer'), 'err'); console.error(e); }
   })();
   window.addEventListener('resize', () => { fitMedia(); resize(); });
 })();

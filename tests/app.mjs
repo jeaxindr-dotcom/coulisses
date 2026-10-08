@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CACHE } from '../lib/place.mjs';
 
+process.env.COULISSES_LANG = 'fr';   // the window, the home screen and the studio in French (lib/i18n.mjs)
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EXE = path.join(STUDIO, 'Coulisses.exe');
 const DT = 9361;
@@ -15,6 +16,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const procs = (needle) => execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' -and $_.Name -ne 'cmd.exe' } | Select-Object -ExpandProperty ProcessId"`, { encoding: 'utf8' }).split(/\s+/).filter(Boolean);
+// only THIS workshop's home screen and studios: never those of the installed app, which may be open meanwhile
+// (the launcher quotes the script: « …\hub-server.mjs" --lock … »; the home screen starts « …\studio-server.mjs E03 --no-open --hub … »)
+const HUB_PROC = `${STUDIO}\\hub-server.mjs*--lock`, STUDIO_PROC = `${STUDIO}\\studio-server.mjs*--hub http://127.0.0.1:41`;
+const settle = async (ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms && (procs(HUB_PROC).length || procs(STUDIO_PROC).length)) await sleep(500); };
 
 const launcher = spawn(EXE, [], { env: { ...process.env, BRAMBLESHIRE_STUDIO_TEST_PORT: String(DT) }, detached: false, stdio: 'ignore' });
 const launcherExit = new Promise((r) => launcher.on('exit', r));
@@ -44,18 +49,18 @@ try {
   check(inStudio, `the studio of E03 opens in the same window (${await ev('return location.href')})`);
   await sleep(2000); await shot('app-2-studio.png');
   check((await ev(`return document.querySelector('#logo').getAttribute('href') || ''`)).startsWith('http://127.0.0.1:41'), 'the logo leads back to the episodes');
-  check(procs('studio-server.mjs E03 --no-open --hub').length >= 1, 'a studio server runs for E03, started by the home screen');
+  check(procs(`${STUDIO}\\studio-server.mjs E03 --no-open --hub`).length >= 1, 'a studio server runs for E03, started by the home screen');
   // close the window (as the user would): the launcher stops everything
   const bws = new WebSocket((await (await fetch(`http://127.0.0.1:${DT}/json/version`)).json()).webSocketDebuggerUrl);
   await new Promise((r) => bws.addEventListener('open', r, { once: true }));
   bws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
   const code = await Promise.race([launcherExit, sleep(20000).then(() => 'timeout')]);
   check(code !== 'timeout', `the launcher ends when the window is closed (${code})`);
-  await sleep(1000);
-  check(procs('hub-server.mjs --lock').length === 0 && procs('--hub http://127.0.0.1:41').length === 0, 'home screen and studio stopped with it');
+  await settle();
+  check(procs(HUB_PROC).length === 0 && procs(STUDIO_PROC).length === 0, 'home screen and studio stopped with it');
 } finally {
   try { ws?.close(); } catch { /* */ }
-  for (const pid of [...procs('hub-server.mjs --lock'), ...procs('--hub http://127.0.0.1:41')]) try { execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' }); } catch { /* gone */ }
+  for (const pid of [...procs(HUB_PROC), ...procs(STUDIO_PROC)]) try { execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' }); } catch { /* gone */ }
   console.log(`\n${ok} ok, ${ko} échec(s)`);
   process.exit(ko ? 1 : 0);
 }

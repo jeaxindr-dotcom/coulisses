@@ -11,6 +11,7 @@ import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launch } from './cdp.mjs';
 
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIX = path.join(STUDIO, '.cache', 'projects-test'), REG = path.join(FIX, 'projets.json');
 const RUN = path.join(FIX, 'long', '2026-10-01_test-run'), SHORT = path.join(FIX, 'short', '2026-10-02_test-short'), VIDS = path.join(FIX, 'videos');

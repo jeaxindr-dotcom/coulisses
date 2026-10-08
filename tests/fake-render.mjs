@@ -5,9 +5,11 @@
 // never written through. Knobs: FAKE_FAIL=<check key> (that check fails), FAKE_FRAMES (120), FAKE_MS (per frame, 40).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { t } from '../lib/i18n.mjs';
 
 const STEP = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fake-steps.mjs');
-const LABELS = { depth: 'Profondeur', faces: 'Visages masqués', backdrop: 'Paysages au sol', music: 'Musique', motion: 'Sauts' };
+// the same labels as the real checks (lib/render.mjs): « Profondeur », « Visages masqués »… in French
+const LABELS = Object.fromEntries(['depth', 'faces', 'backdrop', 'music', 'motion'].map((k) => [k, t(`rnd.check.${k}`)]));
 export default (p) => {
   const n = (...a) => [process.execPath, STEP, ...a];
   const fail = process.env.FAKE_FAIL ?? '';

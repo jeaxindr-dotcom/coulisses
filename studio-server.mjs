@@ -34,14 +34,17 @@ import { peaksOf } from './lib/peaks.mjs';
 import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
 import { project, tracksOf } from './lib/projects.mjs';
 import { genericTimelineBuilder } from './lib/remotion-module.mjs';
-import { checkUpdates, updatesLine } from './lib/updates.mjs';
+import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/updates.mjs';
+import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
+import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
+import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { spawnSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const epArg = args.find((a) => /^E\d+$/i.test(a)), projArg = args.includes('--project') ? args[args.indexOf('--project') + 1] : null;
-if (!epArg && !projArg) { console.error('usage: node studio-server.mjs E03 [--port 4174] [--no-open] [--episodes <dir>]  |  --project "<dossier>"'); process.exit(1); }
+if (!epArg && !projArg) { console.error(t('srv.usage')); process.exit(1); }
 const P = projArg ? project(projArg) : episode(epArg, optionsFrom(args));
 const B = P.kind === 'brambleshire';   // an episode: live preview of the code, staging, render; a project: the video only
 const G = P.kind === 'remotion';       // a run of a Remotion pipeline (.coulisses): its code played live, before any export
@@ -53,7 +56,8 @@ const IMG_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp
 const MIME = { ...Object.fromEntries(Object.entries(IMG_TYPES).map(([m, e]) => [e, m])), mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
   json: 'application/json', js: 'text/javascript', mp4: 'video/mp4', webm: 'video/webm', svg: 'image/svg+xml', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', glb: 'model/gltf-binary' };
 const time = () => new Date().toLocaleTimeString();
-const log = (m) => console.log(`  ${time()}  ${m}`);
+const ring = logRing();   // Tools › Log in the menu bar
+const log = (m) => { ring.push(`${time()}  ${m}`); console.log(`  ${time()}  ${m}`); };
 
 // ---- review copy of the video (unchanged from the review tool: a keyframe every 6 images, smooth stepping back) ----
 let proxyState = 'missing', proxyFailed = null, proxyChild = null;
@@ -62,7 +66,7 @@ function buildProxy() {
   if (proxyFresh(P)) { proxyState = 'ready'; return; }
   proxyState = 'building';
   const tmp = PROXY.replace(/\.mp4$/, '.tmp.mp4'), t0 = Date.now();
-  log('préparation du défilement rapide (copie de revue de la vidéo, ~1 min)…');
+  log(t('srv.proxyStart'));
   const run = (vcodec, next) => {
     const p = spawn('ffmpeg', ['-v', 'error', '-y', '-i', src, '-map', '0:v:0', '-map', '0:a?', ...vcodec, '-g', '6', '-bf', '0',
       '-c:a', 'copy', '-fps_mode', 'passthrough', '-movflags', '+faststart', tmp], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
@@ -74,10 +78,10 @@ function buildProxy() {
   const done = (err) => {
     proxyChild = null;
     if (held) { proxyState = 'missing'; fs.rmSync(tmp, { force: true }); return; }   // stopped by a hold: built again after it
-    if (err) { proxyState = 'error'; proxyFailed = stamp(src); log(`défilement rapide indisponible (${err}) : la vidéo d'origine reste utilisée`); return; }
+    if (err) { proxyState = 'error'; proxyFailed = stamp(src); log(t('srv.proxyFail', { err })); return; }
     fs.renameSync(tmp, PROXY);
     fs.writeFileSync(PROXY_INFO, JSON.stringify({ source: stamp(src), gop: 6, built: new Date().toISOString() }, null, 1));
-    proxyState = 'ready'; log(`défilement rapide prêt (${Math.round((Date.now() - t0) / 1000)} s)`);
+    proxyState = 'ready'; log(t('srv.proxyReady', { s: Math.round((Date.now() - t0) / 1000) }));
   };
   run(['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '20', '-b:v', '0'], (err) => (err ? run(['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20'], done) : done(null)));
 }
@@ -137,6 +141,7 @@ function meta() {
     code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt },
     agent: agentState(), connectLine: connectLine(P),
     hub: args.includes('--hub') ? args[args.indexOf('--hub') + 1] : null, held,
+    lang: lang(), langSource: langSource(), coulissesFile: coulissesOf(P),
   };
 }
 // ---- hold: a new render is replacing the video (studio-cli.mjs render, around finish-render.sh) ----
@@ -150,9 +155,9 @@ async function hold() {
   videoStreams.clear();
   if (proxyChild) { try { proxyChild.kill(); } catch { /* gone */ } }
   await new Promise((r) => setTimeout(r, 1200));   // the stills being cut (ffmpeg) finish
-  log('vidéo libérée : un nouveau rendu la remplace');
+  log(t('srv.held'));
 }
-function unhold() { held = false; log('vidéo reprise'); refreshProxy(); }
+function unhold() { held = false; log(t('srv.unheld')); refreshProxy(); }
 // an export about to replace the very video under review (COULISSES REMPLACE, lib/export.mjs): let go of it, take it back after
 let exportHolds = false;
 if (G) setInterval(() => {
@@ -160,7 +165,7 @@ if (G) setInterval(() => {
   if (!x) return;
   if (x.state === 'running' && x.remplace && !exportHolds) {
     const v = pickVideo(P);
-    if (!v || path.resolve(v).toLowerCase() === path.resolve(x.remplace).toLowerCase()) { exportHolds = true; hold().then(() => log(`l'export remplace la vidéo revue : ${path.basename(x.remplace)}`)); }
+    if (!v || path.resolve(v).toLowerCase() === path.resolve(x.remplace).toLowerCase()) { exportHolds = true; hold().then(() => log(t('srv.exportHolds', { name: path.basename(x.remplace) }))); }
   }
   if (x.state !== 'running' && exportHolds) { exportHolds = false; unhold(); }
 }, 1000).unref();
@@ -202,7 +207,7 @@ function pipeOut(stream, res, track) {
 let videoSeen = false, lastCount = -1;
 function sendVideo(req, res, which) {
   const video = which === 'revue' && proxyState === 'ready' && proxyFresh(P) ? PROXY : pickVideo(P);
-  if (!videoSeen) { videoSeen = true; log(`le navigateur lit la vidéo (${path.basename(video ?? '?')})`); }
+  if (!videoSeen) { videoSeen = true; log(t('srv.reading', { name: path.basename(video ?? '?') })); }
   if (!video) { res.writeHead(404); return res.end('no video'); }
   if (held) { res.writeHead(503, { 'Retry-After': '5' }); return res.end('video being replaced'); }
   sendFile(req, res, video, 'video/mp4', true);
@@ -210,33 +215,68 @@ function sendVideo(req, res, which) {
 const json = (res, data, code = 200) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(JSON.stringify(data)); };
 const body = (req, max = 60e6) => new Promise((resolve, reject) => {
   const chunks = []; let size = 0;
-  req.on('data', (c) => { size += c.length; if (size > max) { reject(new Error('trop lourd')); req.destroy(); } else chunks.push(c); });
+  req.on('data', (c) => { size += c.length; if (size > max) { reject(new Error(t('srv.tooBig'))); req.destroy(); } else chunks.push(c); });
   req.on('end', () => resolve(Buffer.concat(chunks)));
   req.on('error', reject);
 });
 // inside(root, rel) -> absolute path under root, or null (no ../ escape)
 const inside = (root, rel) => { const f = path.resolve(root, '.' + path.sep + rel); return f.toLowerCase().startsWith(root.toLowerCase() + path.sep) ? f : null; };
 
-process.on('uncaughtException', (e) => console.error(`  ${time()}  erreur ignorée : ${e.message}`));
+process.on('uncaughtException', (e) => console.error(`  ${time()}  ${t('srv.ignored', { msg: e.message })}`));
 // the agent the batch goes to: the one watching the tool (studio-cli wait says who it is), else the one chosen in the
 // page (« Connecter à l'agent »); then what may need updating on its side (lib/updates.mjs), in at most 9 s
 async function updatesFor(chosen, fresh = false) {
   const a = agentState(), ag = (a.watching && a.agent?.id ? agentById(a.agent.id) : null) ?? agentById(chosen) ?? detectAgent() ?? agentById('claude');
   let updates = null;
-  try { updates = await Promise.race([checkUpdates(P, { agent: ag, fresh }), new Promise((r) => setTimeout(() => r(null), 9000))]); } catch (e) { log(`vérification des mises à jour impossible : ${e.message}`); }
+  try { updates = await Promise.race([checkUpdates(P, { agent: ag, fresh }), new Promise((r) => setTimeout(() => r(null), 9000))]); } catch (e) { log(t('srv.updFail', { msg: e.message })); }
   if (updates) log(updatesLine(updates));
-  return { agent: { id: ag.id, name: ag.name }, updates, line: updates ? updatesLine(updates) : 'Mises à jour : vérification impossible pour l\'instant.' };
+  return { agent: { id: ag.id, name: ag.name }, updates, line: updates ? updatesLine(updates) : t('upd.line.unavailable'), ok: updatesOk(updates) };
 }
-process.on('unhandledRejection', (e) => console.error(`  ${time()}  erreur ignorée : ${e?.message ?? e}`));
+process.on('unhandledRejection', (e) => console.error(`  ${time()}  ${t('srv.ignored', { msg: e?.message ?? e })}`));
 
 const FRAME_CACHE = path.join(CACHE, 'frames', ep);
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const pn = decodeURIComponent(url.pathname);
   try {
-    if (pn === '/' || pn === '/index.html') {
+    if (pn === '/' || pn === '/index.html') {   // in the user's language (lib/i18n.mjs: {{key}} and window.T)
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-      return res.end(fs.readFileSync(path.join(HERE, 'studio.html')));
+      return res.end(renderPage(fs.readFileSync(path.join(HERE, 'studio.html'), 'utf8'), { prefixes: ['st.', 'common.', 'menu.'] }));
+    }
+    // « Langue · Language »: the choice is the user's, for the whole app (%LOCALAPPDATA%\Coulisses\settings.json)
+    if (pn === '/api/lang' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      if (!LANGS.includes(b.lang)) return json(res, { ok: false, why: t('srv.langBad') }, 400);
+      const now = setLang(b.lang);
+      return json(res, { ok: true, lang: now, forced: langSource() === 'env' });
+    }
+    if (pn === '/api/lang') return json(res, { lang: lang(), source: langSource(), langs: LANGS });
+    // ---- the menu bar (menubar.js): documents, About, the Explorer on a path this server knows, its log, `projet verifier` ----
+    if (pn === '/menubar.js') return sendFile(req, res, path.join(HERE, 'menubar.js'), 'text/javascript; charset=utf-8');
+    if (pn === '/api/doc') { const d = docText(url.searchParams.get('name')); if (!d) { res.writeHead(404); return res.end('not found'); } res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(d.text); }
+    if (pn === '/api/about') return json(res, about());
+    if (pn === '/api/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(ring.text()); }
+    if (pn === '/api/reveal' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      try {
+        if (b.what === 'folder') reveal(P.EP);
+        else if (b.what === 'coulisses') reveal(coulissesOf(P), { select: true });
+        else if (b.what === 'online') openOnline();
+        else return json(res, { ok: false, why: String(b.what) }, 400);
+        return json(res, { ok: true });
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/verify' && req.method === 'POST') {   // Tools › Check the project: `projet verifier --rapide` on its .coulisses
+      const file = coulissesOf(P);
+      if (!file) return json(res, { ok: false, why: 'no .coulisses' });
+      const r = await new Promise((resolve) => {
+        const c = spawn(process.execPath, [CLI_FILE, 'projet', 'verifier', file, '--rapide'], { cwd: HERE, windowsHide: true, env: process.env });
+        let out = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
+        const timer = setTimeout(() => { try { c.kill(); } catch { /* gone */ } }, 180000);
+        c.on('close', (code) => { clearTimeout(timer); resolve({ code, out }); });
+        c.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, out: e.message }); });
+      });
+      return json(res, { ok: r.code === 0, code: r.code, out: r.out.trim(), file });
     }
     if (pn === '/favicon.png') return sendFile(req, res, path.join(HERE, 'favicon.png'), 'image/png');
     if (pn === '/video' || pn === '/video/original') return sendVideo(req, res, 'original');
@@ -251,12 +291,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (pn === '/api/image' && req.method === 'POST') {
       const ext = IMG_TYPES[(req.headers['content-type'] || '').split(';')[0].trim()];
-      if (!ext) { res.writeHead(415); return res.end('image attendue (png, jpg, webp, gif)'); }
-      let buf; try { buf = await body(req, 40e6); } catch { res.writeHead(413); return res.end('image trop lourde (40 Mo max)'); }
+      if (!ext) { res.writeHead(415, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t('srv.imgType')); }
+      let buf; try { buf = await body(req, 40e6); } catch { res.writeHead(413, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t('srv.imgBig')); }
       const id = String(req.headers['x-note'] || 'note').replace(/[^a-z0-9_-]/gi, '').slice(0, 24) || 'note';
       const name = `${id}-${Date.now().toString(36)}.${ext}`;
       fs.writeFileSync(path.join(IMAGES, name), buf);
-      log(`image ajoutée : images/${name}`);
+      log(t('srv.imgAdded', { name }));
       return json(res, { file: `images/${name}` });
     }
     if (pn.startsWith('/images/')) return sendFile(req, res, path.join(IMAGES, path.basename(pn.slice(8))));
@@ -265,7 +305,7 @@ const server = http.createServer(async (req, res) => {
       const data = JSON.parse((await body(req)).toString('utf8'));
       if (!Array.isArray(data.notes)) throw new Error('notes must be an array');
       writeNotes(data);
-      if (data.notes.length !== lastCount) { lastCount = data.notes.length; log(`${lastCount} note(s)`); }
+      if (data.notes.length !== lastCount) { lastCount = data.notes.length; log(t('srv.notes', { n: lastCount })); }
       return json(res, { ok: true });
     }
     // ---- live preview ----
@@ -291,7 +331,7 @@ const server = http.createServer(async (req, res) => {
       const f = Math.max(0, Math.round(+(url.searchParams.get('f') ?? 0))), source = url.searchParams.get('source') === 'code' ? 'code' : 'video';
       const w = Math.min(1920, +(url.searchParams.get('w') ?? 0) || 0);
       const out = path.join(FRAME_CACHE, `${source}-${f}-${w || 'full'}-${Date.now().toString(36)}.jpg`);
-      if (source === 'code' && !CODE) { res.writeHead(404); return res.end('pas d\'aperçu du code pour ce projet'); }
+      if (source === 'code' && !CODE) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t('srv.noCode')); }
       if (source === 'code') {
         await codeFrame(P, f, out, { log });
         if (w) { const s = out.replace(/\.jpg$/, '-s.jpg'); await videoFrame(out, 0, 30, s, { width: w }).catch(() => {}); if (fs.existsSync(s)) fs.renameSync(s, out); }
@@ -307,12 +347,12 @@ const server = http.createServer(async (req, res) => {
       const b = JSON.parse((await body(req)).toString('utf8'));
       const m = meta(), u = await updatesFor(b.agent);
       const r = await createLot(P, b, { fps: b.fps || m.fps, size: Array.isArray(b.size) ? b.size : m.size, log, updates: u.updates, agent: u.agent });
-      return json(res, { ok: true, ...r, agent: agentState(), updates: u.line });
+      return json(res, { ok: true, ...r, agent: agentState(), updates: u.line, updatesOk: u.ok });
     }
-    if (pn === '/api/updates') { const u = await updatesFor(url.searchParams.get('agent'), url.searchParams.has('fresh')); return json(res, { line: u.line, ...u.updates }); }
+    if (pn === '/api/updates') { const u = await updatesFor(url.searchParams.get('agent'), url.searchParams.has('fresh')); return json(res, { line: u.line, ok: u.ok, md: u.updates ? updatesMarkdown(u.updates, { cli: `node "${CLI_FILE}"`, target: P.target }).join('\n') : '', ...u.updates }); }
     // ---- « Exporter » a run of a Remotion pipeline: the project's script, started here, on the user's order ----
     if (pn === '/api/export' && req.method === 'POST') {
-      if (!G) return json(res, { ok: false, why: 'seul un run Remotion (.coulisses) s\'exporte depuis le studio' });
+      if (!G) return json(res, { ok: false, why: t('srv.exportOnly') });
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
       try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
@@ -321,29 +361,29 @@ const server = http.createServer(async (req, res) => {
     }
     if (pn === '/api/export/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(G ? exportLog(P) : ''); }
     // ---- the full re-render (asked here, run by Claude: studio-cli.mjs render) ----
-    if (pn.startsWith('/api/render') && pn !== '/api/render/log' && !B) return json(res, { ok: false, why: 'ce projet ne se rend pas depuis le studio : exporte-le toi-même, le studio charge seul la nouvelle version' });
+    if (pn.startsWith('/api/render') && pn !== '/api/render/log' && !B) return json(res, { ok: false, why: t('lot.err.noRender') });
     if (pn === '/api/render' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
-      if (renderState(P)?.state === 'running') return json(res, { ok: false, why: 'un rendu tourne déjà' });
+      if (renderState(P)?.state === 'running') return json(res, { ok: false, why: t('lot.err.renderRunning') });
       const u = await updatesFor(b.agent);
       let r; try { r = createRenderLot(P, b, { updates: u.updates, agent: u.agent }); } catch (e) { return json(res, { ok: false, why: e.message }); }
-      log(`demande de rendu envoyée (lot ${r.lot}) -> ${r.md}`);
-      return json(res, { ok: true, ...r, agent: agentState(), updates: u.line });
+      log(t('srv.renderSent', { lot: r.lot, md: r.md }));
+      return json(res, { ok: true, ...r, agent: agentState(), updates: u.line, updatesOk: u.ok });
     }
     if (pn === '/api/render/withdraw' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8'));
-      try { withdrawRenderLot(P, +b.lot); log(`demande de rendu retirée (lot ${b.lot})`); return json(res, { ok: true }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+      try { withdrawRenderLot(P, +b.lot); log(t('srv.renderWithdrawn', { lot: b.lot })); return json(res, { ok: true }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     if (pn === '/api/render/stop' && req.method === 'POST') {
-      if (renderState(P)?.state !== 'running') return json(res, { ok: false, why: 'aucun rendu en cours' });
+      if (renderState(P)?.state !== 'running') return json(res, { ok: false, why: t('srv.noRender') });
       fs.writeFileSync(renderFiles(P).STOP, nowIso());
-      log('arrêt du rendu demandé');
+      log(t('srv.stopAsked'));
       return json(res, { ok: true });
     }
     if (pn === '/api/render/log') {
-      let t = ''; try { t = fs.readFileSync(renderFiles(P).LOG, 'utf8'); } catch { /* no render yet */ }
+      let txt = ''; try { txt = fs.readFileSync(renderFiles(P).LOG, 'utf8'); } catch { /* no render yet */ }
       const NOISE = /X4000|^Copying public dir|^Bundling \d|^Rendered \d|^Encoded \d/;
-      const lines = t.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n|\r/).filter((l) => l.trim() && !NOISE.test(l));
+      const lines = txt.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n|\r/).filter((l) => l.trim() && !NOISE.test(l));
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(lines.slice(-160).join('\n'));
     }
     if (pn === '/api/compare') { const v = pickVideo(P); return json(res, { video: v ? stamp(v) : null, items: compareItems(P) }); }
@@ -351,8 +391,8 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/unhold' && req.method === 'POST') { unhold(); return json(res, { ok: true }); }
     if (pn === '/api/undo' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8'));
-      const r = step(P, +b.lot, b.verb === 'redo' ? 'redo' : 'undo', 'toi (outil)');
-      log(`lot ${b.lot} : ${b.verb === 'redo' ? 'rétabli' : 'annulé'} ${r.ok ? '✓ ' + r.files.join(', ') : '✗ ' + r.why}`);
+      const r = step(P, +b.lot, b.verb === 'redo' ? 'redo' : 'undo', t('srv.youTool'));
+      log(t('srv.undoLog', { lot: b.lot, verb: t(b.verb === 'redo' ? 'srv.redone' : 'srv.undone'), res: r.ok ? '✓ ' + r.files.join(', ') : '✗ ' + r.why }));
       return json(res, r);
     }
     res.writeHead(404); res.end('not found');
@@ -363,10 +403,11 @@ let port = +(args[args.indexOf('--port') + 1] || 0) || DEFAULT_PORT;
 server.on('error', (e) => { if (e.code === 'EADDRINUSE') { port++; server.listen(port, '127.0.0.1'); } else throw e; });
 server.on('listening', async () => {
   const url = `http://localhost:${port}/`;
-  console.log(B ? `\n  Brambleshire Theatre - studio de revue de ${ep} (${folder})${INSTALLED ? '' : ' · atelier Dev'}` : `\n  Studio de revue - ${P.title} (${P.EP})${INSTALLED ? '' : ' · atelier Dev'}`);
-  console.log(`  Ouvre : ${url}`);
-  console.log(`  Notes enregistrées dans : ${NOTES}`);
-  console.log(`  Ferme cette fenêtre pour arrêter l'outil.\n`);
+  const dev = INSTALLED ? '' : t('srv.dev');
+  console.log(B ? t('srv.titleEp', { ep, folder, dev }) : t('srv.titleProj', { title: P.title, dir: P.EP, dev }));
+  console.log(t('srv.open', { url }));   // « Ouvre : <url> » / « Open: <url> »: the home screen reads it (hub-server.mjs)
+  console.log(t('srv.notesIn', { file: NOTES }));
+  console.log(t('srv.close'));
   if (!args.includes('--no-open')) exec(process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`);
   buildProxy();
   await player.build(); player.watch();

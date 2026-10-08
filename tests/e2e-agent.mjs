@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
 import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
 
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs): the CLI below, and the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_Episodes');   // tests can run on their own copy
 const PORT = +(process.env.STUDIO_PORT ?? 4174);
@@ -21,6 +22,7 @@ const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} $
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
 const TEST_TEXTS = ['Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+await requireFrench(`http://localhost:${PORT}/`);
 closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
 
 // 1) the session starts watching

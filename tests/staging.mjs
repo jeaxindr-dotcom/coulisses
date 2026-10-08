@@ -4,8 +4,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs) of the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_Episodes');
 const PORT = +(process.env.STUDIO_PORT ?? 4174);
@@ -13,6 +14,7 @@ const REVUE = path.join(SANDBOX, 'E03 - The Secret Garden', 'revue');
 const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = 0, ko = 0; const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
+await requireFrench(`http://localhost:${PORT}/`);
 const p = await launch({ port: 9370 });
 try {
   await p.goto(`http://localhost:${PORT}/`);

@@ -30,6 +30,10 @@ import { snapshot, finish, step, listRuns } from './lib/runs.mjs';
 import { runRender, markReviewed, PHASES } from './lib/render.mjs';
 import { checkUpdates, updatesLine, updatesMarkdown } from './lib/updates.mjs';
 import { detectAgent, agentById } from './lib/agent.mjs';
+import { t, hhmm } from './lib/i18n.mjs';
+// Machine markers, the same in both languages (agents and pipelines may look for them): « PROJET CONFORME »,
+// « PROJET NON CONFORME », « LOT N REÇU », « DEMANDE DE RENDU (lot N) REÇUE », « RENDU TERMINÉ », « RENDU ARRÊTÉ »,
+// « RENDU NON LANCÉ », « RENDU EN ÉCHEC », « CONTRÔLES PASSÉS », « RENDU FAIT (sans finition) ». English adds a gloss after them.
 
 const argv = process.argv.slice(2);
 const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
@@ -50,10 +54,10 @@ if (cmd === 'projet') {
   if (epArg === 'creer') {
     // the values, from a JSON file (--depuis, recommended: no French text through the shell) and / or flags
     const spec = flag('--depuis') ? readJson(path.resolve(flag('--depuis')), null) : {};
-    if (flag('--depuis') && !spec) die(`--depuis : JSON illisible (${flag('--depuis')})`);
+    if (flag('--depuis') && !spec) die(t('cli.badSpec', { file: flag('--depuis') }));
     const v = (k) => flag(`--${k}`) ?? spec?.[k];
     let props = spec?.props ?? {};
-    if (flag('--props')) { props = readJson(path.resolve(flag('--props')), null); if (!props) die('--props : fichier JSON illisible'); }
+    if (flag('--props')) { props = readJson(path.resolve(flag('--props')), null); if (!props) die(t('cli.badProps')); }
     try {
       const file = createCoulisses({ dossier: v('dossier') && path.resolve(v('dossier')), titre: v('titre'), chaine: v('chaine'), format: v('format'), projet: v('projet') && path.resolve(v('projet')),
         entree: v('entree'), module: v('module'), timeline: v('timeline'), composition: v('composition'), props, exportDossier: v('export'), exportMotif: v('motif'), exportProfondeur: v('profondeur'), plan: v('plan'), nom: v('nom'), moteur: v('moteur') });
@@ -62,19 +66,20 @@ if (cmd === 'projet') {
     process.exit(0);
   }
   if (epArg === 'verifier') {
-    const file = rest[0]; if (!file) die('usage: node studio-cli.mjs projet verifier "<fichier.coulisses>" [--rapide] [--images 1700,8000]');
+    const file = rest[0]; if (!file) die(t('cli.usageCheck'));
     const frames = flag('--images') ? String(flag('--images')).split(/[,; ]+/).filter(Boolean).map(Number) : null;
-    if (frames && frames.some((f) => !Number.isFinite(f) || f < 0)) die('--images : des numéros d\'image séparés par des virgules (ex. --images 1700,8000)');
+    if (frames && frames.some((f) => !Number.isFinite(f) || f < 0)) die(t('cli.badImages'));
     const r = await checkProject(file, { quick: !!flags['--rapide'], frames, log: (m) => console.error(`… ${m}`) });
-    for (const x of r.ok) console.log(`  ok   ${x}`);
-    for (const x of r.warnings) console.log(`  !    ${x}`);
-    for (const x of r.errors) console.log(`  ÉCHEC ${x}`);
-    console.log(r.errors.length ? `\nPROJET NON CONFORME : ${r.errors.length} problème(s) à corriger, puis relancer cette commande.` : r.video ? '\nPROJET CONFORME : Coulisses l\'ouvrira sur la vidéo du run dès le premier export (un double-clic sur le fichier .coulisses).' : `\nPROJET CONFORME : Coulisses peut l'ouvrir et le rejouer avant tout export.${r.images?.length > 1 ? ` Regarder les images de vérification : ${r.images.map((x) => `"${x}"`).join(', ')}.` : r.image ? ` Regarder l'image de vérification : "${r.image}".` : ''}`);
+    for (const x of r.ok) console.log(t('cli.ok', { x }));
+    for (const x of r.warnings) console.log(t('cli.warn', { x }));
+    for (const x of r.errors) console.log(t('cli.fail', { x }));
+    console.log(r.errors.length ? t('cli.notConform', { n: r.errors.length }) : r.video ? t('cli.conformVideo')
+      : t('cli.conform', { images: r.images?.length > 1 ? t('cli.lookImages', { list: r.images.map((x) => `"${x}"`).join(', ') }) : r.image ? t('cli.lookImage', { file: r.image }) : '' }));
     process.exit(r.errors.length ? 1 : 0);
   }
-  die('usage: node studio-cli.mjs projet creer --depuis <spec.json> | --dossier … --titre … (--projet … --composition … | --moteur video [--export … --motif … --plan …])   ·   projet verifier "<fichier.coulisses>"');
+  die(t('cli.usageProjet'));
 }
-if (!cmd || !epArg) die('usage: node studio-cli.mjs <wait|take|snapshot|frame|sheet|reply|done|render|undo|status> <ep> …  (voir AGENT.md)');
+if (!cmd || !epArg) die(t('cli.usage'));
 const P = resolveTarget(epArg, optionsFrom(argv));
 const B = P.kind === 'brambleshire', CODE = B || P.kind === 'remotion';   // CODE: a live preview of the code exists
 const FPS = B ? readJson(P.SNAP, {})?.fps ?? 30 : (stillSource(P) ? probeVideo(stillSource(P)).fps : 30);   // a Remotion run with no export yet: frames are the code's
@@ -97,36 +102,37 @@ async function main() {
         const n = pendingLot();
         if (n) {
           beat(false, n);
-          console.log(`${readLot(P, n)?.kind === 'render' ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`} de l'outil (${P.ep}). Demande complète ci-dessous (aussi dans "${lotFile(P, n, 'md')}").\n`);
+          const render = readLot(P, n)?.kind === 'render';   // the marker never changes with the language
+          console.log(t('cli.waitGot', { marker: render ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`, gloss: render ? `render request ${n} received` : `batch ${n} received`, ep: P.ep, md: lotFile(P, n, 'md') }));
           console.log(fs.readFileSync(lotFile(P, n, 'md'), 'utf8'));
-          console.log(`\nQuand ce lot est traité : relance « node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').join(' ')} » en tâche de fond pour continuer à surveiller.`);
+          console.log(t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').join(' ')}` }));
           return;
         }
-        if (limit && Date.now() - t0 > limit) { beat(false); console.log('aucun lot (délai écoulé)'); return; }
+        if (limit && Date.now() - t0 > limit) { beat(false); console.log(t('cli.waitNone')); return; }
         if (Date.now() - last > 5000) { beat(true); last = Date.now(); }
         await new Promise((r) => setTimeout(r, 1500));
       }
     }
     case 'take': {
-      const n = +rest[0], L = readLot(P, n); if (!L) die(`pas de lot ${n}`);
+      const n = +rest[0], L = readLot(P, n); if (!L) die(t('cli.noLot', { n }));
       const r = replies();
-      if (r.lots[n] && r.lots[n].status !== 'open') die(`lot ${n} déjà ${r.lots[n].status} (${r.lots[n].at})`);
+      if (r.lots[n] && r.lots[n].status !== 'open') die(t('cli.already', { n, status: r.lots[n].status, at: r.lots[n].at }));
       const at = nowIso();
       r.lots[n] = { status: 'taken', at };
       for (const e of L.edits) { const x = (r.notes[e.id] ??= {}); x.status = 'working'; x.statusAt = at; }
       writeJson(P.REPLIES, r);
-      console.log(L.kind === 'render' ? `demande de rendu ${n} prise : l'outil affiche « l'agent prépare le rendu »` : `lot ${n} pris : ${L.edits.length} note(s) « l'agent corrige » dans l'outil`);
+      console.log(L.kind === 'render' ? t('cli.takenRender', { n }) : t('cli.taken', { n, k: L.edits.length }));
       return;
     }
     case 'snapshot': {
-      const n = +rest[0], files = rest.slice(1); if (!n || !files.length) die('usage: snapshot <ep> <lot> <fichier…>');
+      const n = +rest[0], files = rest.slice(1); if (!n || !files.length) die(t('cli.usageSnapshot'));
       const { added, manifest } = snapshot(P, n, files);
-      console.log(`lot ${n} : ${added.length} fichier(s) ajouté(s) à l'instantané (${manifest.files.length} en tout)`);
+      console.log(t('cli.snapshot', { n, a: added.length, m: manifest.files.length }));
       return;
     }
     case 'frame': {
       const f = +rest[0], source = flag('--source', CODE ? 'code' : 'video');
-      if (source === 'code' && !CODE) die('ce projet n\'a pas d\'aperçu du code : --source video (la vidéo revue)');
+      if (source === 'code' && !CODE) die(t('cli.noCodeFrame'));
       const out = path.resolve(flag('--out', path.join(P.IMAGES, `claude-${source}-${f}.jpg`)));
       if (source === 'code') await codeFrame(P, f, out, { log }); else await videoFrame(stillSource(P), f, FPS, out);
       const w = +flag('--width', 0);
@@ -135,9 +141,9 @@ async function main() {
       return;
     }
     case 'sheet': {
-      const id = rest[0], n = notesById()[id]; if (!n) die(`pas de note ${id}`);
+      const id = rest[0], n = notesById()[id]; if (!n) die(t('cli.noNote', { id }));
       const b = flag('--before', CODE && !stillSource(P) ? 'code' : 'video'), a = flag('--after', CODE ? 'code' : 'none');
-      if (!CODE && (a === 'code' || b === 'code')) die('ce projet n\'a pas d\'aperçu du code : la bande « après » se fait sur ta capture de la correction (reply --image)');
+      if (!CODE && (a === 'code' || b === 'code')) die(t('cli.noCodeSheet'));
       // frames shown: a point note = 8 images around it (every 2nd), a range = up to ~16 across it (as note-sheets.py)
       let first, step, count;
       if (n.end == null || n.end <= n.frame) { first = Math.max(0, n.frame - 6); step = 2; count = 8; }
@@ -148,74 +154,74 @@ async function main() {
         const dir = path.join(tmp, tag); let files;
         if (source === 'code') files = await codeFrames(P, frames[0], frames.at(-1), step, dir, { log });
         else { fs.rmSync(dir, { recursive: true, force: true }); files = []; for (const f of frames) { const o = path.join(dir, `${pad3(files.length)}.jpg`); await videoFrame(stillSource(P), f, FPS, o, { width: 480 }); files.push(o); } }
-        const out = path.join(P.IMAGES, `claude-${id}-${tag}.jpg`);
+        const out = path.join(P.IMAGES, `claude-${id}-${tag}.jpg`);   // « avant » / « apres »: file names, the same in both languages
         await tile(files, out, { cols: 4, width: 480, labels: frames.map((f) => `${f}${source === 'code' ? ' code' : ''}`) });
         return out;
       };
       const before = await side(b, 'avant'), after = a === 'none' ? null : await side(a, 'apres');
       fs.rmSync(tmp, { recursive: true, force: true });
-      console.log(`avant (${b}) : ${before}${after ? `\naprès (${a}) : ${after}` : '\naprès : pas d\'aperçu du code pour ce projet ; joins ta capture de la correction (reply --image)'}`);
+      console.log(`${t('cli.before', { b, file: before })}${after ? t('cli.after', { a, file: after }) : t('cli.afterNone')}`);
       return;
     }
     case 'reply': {
-      const [id, text] = rest; if (!id || text === undefined) die('usage: reply <ep> <note id> "<texte>" [--status done|open|working] [--image f]…');
-      if (!notesById()[id]) die(`pas de note ${id} dans notes.json`);
+      const [id, text] = rest; if (!id || text === undefined) die(t('cli.usageReply'));
+      if (!notesById()[id]) die(t('cli.noNoteFile', { id }));
       const status = flag('--status', 'done'); if (!['done', 'open', 'working'].includes(status)) die('--status done|open|working');
       const imgs = [];
       for (const f of flags['--image'] ?? []) {
         let abs = path.resolve(P.REVUE, f);
-        if (!fs.existsSync(abs)) die(`image absente : ${abs}`);
+        if (!fs.existsSync(abs)) die(t('cli.noImage', { file: abs }));
         if (!abs.toLowerCase().startsWith(P.REVUE.toLowerCase() + path.sep)) { const c = path.join(P.IMAGES, `claude-${id}-${Date.now().toString(36)}${path.extname(abs)}`); fs.copyFileSync(abs, c); abs = c; }
         imgs.push(rel(abs));
       }
       if (!flags['--no-images']) for (const tag of ['avant', 'apres']) { const f = path.join(P.IMAGES, `claude-${id}-${tag}.jpg`); if (fs.existsSync(f) && !imgs.includes(rel(f))) imgs.push(rel(f)); }
       const r = replies(), at = nowIso(), e = (r.notes[id] ??= {});
-      let t = text; const m = e.remap; if (m) t += `\nDans la nouvelle vidéo : image ${m.frame}${m.end != null ? ` → ${m.end}` : ''} (la note y est recalée).`;
-      e.messages = [...(e.messages ?? []), { text: t, images: imgs.map((file) => ({ file, at })), at, ...(AG ? { by: AG.name } : {}) }];
+      let msg = text; const m = e.remap; if (m) msg += t('cli.remap', { frame: m.frame, end: m.end != null ? ` → ${m.end}` : '' });
+      e.messages = [...(e.messages ?? []), { text: msg, images: imgs.map((file) => ({ file, at })), at, ...(AG ? { by: AG.name } : {}) }];
       e.status = status; e.statusAt = at;
       writeJson(P.REPLIES, r);
-      console.log(`${id} : ${status}, ${imgs.length} image(s), ${e.messages.length} message(s)`);
+      console.log(t('cli.replied', { id, status, n: imgs.length, m: e.messages.length }));
       return;
     }
     case 'done': {
-      const n = +rest[0], L = readLot(P, n); if (!L) die(`pas de lot ${n}`);
+      const n = +rest[0], L = readLot(P, n); if (!L) die(t('cli.noLot', { n }));
       const mf = finish(P, n), r = replies(), at = nowIso();
       r.lots[n] = { status: flags['--declined'] ? 'declined' : 'done', at, message: rest[1] ?? '', files: mf ? mf.files.filter((x) => x.changed).map((x) => x.rel) : [] };
       for (const e of L.edits) { const x = r.notes[e.id]; if (x?.status === 'working') { x.status = 'open'; x.statusAt = at; } }   // never left « en cours »
       writeJson(P.REPLIES, r);
-      if (L.kind === 'render') { markReviewed(P, rest[1] ?? ''); console.log(`demande de rendu ${n} close : l'outil affiche « Rendu vérifié par l'agent »`); return; }
-      console.log(`lot ${n} clos (${r.lots[n].status})${mf ? ` · ${r.lots[n].files.length} fichier(s) modifié(s), annulable depuis l'outil` : ' · aucun instantané : pas d\'annulation possible'}`);
+      if (L.kind === 'render') { markReviewed(P, rest[1] ?? ''); console.log(t('cli.doneRender', { n })); return; }
+      console.log(t('cli.done', { n, status: r.lots[n].status, extra: mf ? t('cli.doneFiles', { k: r.lots[n].files.length }) : t('cli.doneNoSnap') }));
       return;
     }
     case 'render': {
-      if (!B) die('ce projet ne se rend pas depuis le studio : l\'utilisateur l\'exporte lui-même, et le studio charge seul la nouvelle version');
+      if (!B) die(t('cli.noRender'));
       const n = rest[0] ? +rest[0] : null, L = n ? readLot(P, n) : null;
-      if (n && !L) die(`pas de lot ${n}`);
+      if (n && !L) die(t('cli.noLot', { n }));
       const only = String(flag('--only', PHASES.join(','))).split(',').map((x) => x.trim()).filter((x) => PHASES.includes(x));
       if (!only.length) die(`--only : ${PHASES.join(', ')}`);
       if (n) { const r = replies(); if (!r.lots[n]) { r.lots[n] = { status: 'taken', at: nowIso() }; writeJson(P.REPLIES, r); } }
       const again = `node "${process.argv[1]}" ${argv.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`;
       const S = await runRender(P, { lot: n, only, frames: flag('--frames'), out: flag('--out'), log });
-      const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR').slice(0, 5) : '?');
-      for (const c of S.checks) console.log(`  ${c.status === 'ok' ? 'ok   ' : c.status === 'fail' ? 'ÉCHEC' : '…    '} ${c.label} : ${c.detail}${c.toJudge ? ` (${c.toJudge} apparitions / disparitions en vue à juger)` : ''}`);
-      if (S.render?.stage === 'done') console.log(`  rendu : ${S.render.total} images, ${hm(S.render.startedAt)} → ${hm(S.render.endedAt)}${S.render.output ? ` → "${S.render.output}"` : ''}`);
+      const hm = (iso) => (iso ? hhmm(iso) : '?');
+      for (const c of S.checks) console.log(t('cli.check', { st: c.status === 'ok' ? t('cli.chkOk') : c.status === 'fail' ? t('cli.chkFail') : '…    ', label: c.label, detail: c.detail, judge: c.toJudge ? t('cli.judge', { n: c.toJudge }) : '' }));
+      if (S.render?.stage === 'done') console.log(t('cli.rendered', { n: S.render.total, a: hm(S.render.startedAt), b: hm(S.render.endedAt), out: S.render.output ? ` → "${S.render.output}"` : '' }));
       for (const x of S.finish?.steps ?? []) console.log(`  ${x.label}`);
       if (S.state === 'rendered') {
         const lu = S.finish?.loudness ?? {};
-        console.log(`\nRENDU TERMINÉ${S.video ? ` : "${S.video.name}"` : ''}${S.finish?.duration ? ` · ${S.finish.duration.toFixed(1)} s` : ''}${lu.I != null ? ` · Integrated ${lu.I} LUFS` : ''}${lu.peak != null ? ` · True peak ${lu.peak} dBTP` : ''}${S.finish?.remapped != null ? ` · ${S.finish.remapped} note(s) recalée(s)` : ''}.`);
-        console.log(`À faire : vérifier Integrated ≈ −16 LUFS et True peak ≤ −1,0 dBTP, regarder la vidéo entière (étape 6 du skill), puis ${n ? `node "${process.argv[1]}" done ${P.ep}${flagsOf(P) ? ' ' + flagsOf(P) : ''} ${n} "<ce que j'ai vu>"` : 'le dire à l\'utilisateur'}.`);
+        console.log(t('cli.renderDone', { extra: `${S.video ? t('cli.renderVideo', { name: S.video.name }) : ''}${S.finish?.duration ? ` · ${S.finish.duration.toFixed(1)} s` : ''}${lu.I != null ? ` · Integrated ${lu.I} LUFS` : ''}${lu.peak != null ? ` · True peak ${lu.peak} dBTP` : ''}${S.finish?.remapped != null ? t('cli.remapped', { n: S.finish.remapped }) : ''}` }));
+        console.log(t('cli.renderNext', { next: n ? `node "${process.argv[1]}" done ${P.ep}${flagsOf(P) ? ' ' + flagsOf(P) : ''} ${n} "${t('cli.sawIt')}"` : t('cli.tellUser') }));
         return;
       }
-      if (S.state === 'checked' || S.state === 'rendered-raw') { console.log(`\n${S.state === 'checked' ? 'CONTRÔLES PASSÉS' : 'RENDU FAIT (sans finition)'}.`); return; }
-      console.log(`\n${S.state === 'blocked' ? 'RENDU NON LANCÉ' : S.state === 'cancelled' ? 'RENDU ARRÊTÉ' : 'RENDU EN ÉCHEC'} : ${S.error}`);
-      if (S.tail.length) console.log('Dernières lignes :\n' + S.tail.slice(-8).map((l) => '    ' + l).join('\n'));
-      console.log(`Journal complet : "${path.join(P.REVUE, 'render.log')}".${S.state === 'cancelled' ? ' Arrêté par l\'utilisateur : ne pas relancer sans qu\'il le demande.' : ` Après correction, relancer : ${again}`}`);
+      if (S.state === 'checked' || S.state === 'rendered-raw') { console.log(t(S.state === 'checked' ? 'cli.checksPassed' : 'cli.rawDone')); return; }
+      console.log(t(S.state === 'blocked' ? 'cli.blocked' : S.state === 'cancelled' ? 'cli.cancelled' : 'cli.failed', { error: S.error }));
+      if (S.tail.length) console.log(t('cli.lastLines') + S.tail.slice(-8).map((l) => '    ' + l).join('\n'));
+      console.log(t('cli.fullLog', { file: path.join(P.REVUE, 'render.log'), extra: S.state === 'cancelled' ? t('cli.byUser') : t('cli.rerun', { cmd: again }) }));
       await closeCode(); process.exit(1);
     }
     case 'undo': {
-      const res = step(P, +rest[0], flags['--redo'] ? 'redo' : 'undo', AG?.name ?? 'l\'agent');
+      const res = step(P, +rest[0], flags['--redo'] ? 'redo' : 'undo', AG?.name ?? t('cli.theAgent'));
       if (!res.ok) die(res.why);
-      console.log(`lot ${rest[0]} ${flags['--redo'] ? 'rétabli' : 'annulé'} : ${res.files.join(', ')}`);
+      console.log(t('cli.undo', { n: rest[0], verb: t(flags['--redo'] ? 'cli.redone' : 'cli.undone'), files: res.files.join(', ') }));
       return;
     }
     case 'updates': {
@@ -226,16 +232,16 @@ async function main() {
     case 'status': {
       const r = replies(), runs = listRuns(P), a = readJson(P.AGENT, null);
       console.log(`${P.ep} · ${P.EP}`);
-      console.log(`session qui surveille : ${a?.waiting && Date.now() - Date.parse(a.beat) < 20000 ? 'oui' : 'non'}`);
+      console.log(t('cli.watching', { yn: t(a?.waiting && Date.now() - Date.parse(a.beat) < 20000 ? 'cli.yes' : 'cli.no') }));
       for (const n of lotNumbers(P)) {
         const L = readLot(P, n);
-        console.log(`lot ${n} · ${L.edits.length} modif(s) · ${L.sentAt} · agent : ${r.lots[n]?.status ?? 'pas encore pris'}${runs[n] ? ` · instantané : ${runs[n].state}` : ''}`);
+        console.log(t('cli.lotLine', { n, k: L.edits.length, at: L.sentAt, status: r.lots[n]?.status ?? t('cli.notTaken'), snap: runs[n] ? t('cli.snap', { state: runs[n].state }) : '' }));
       }
       const drafts = Object.values(notesById()).filter((x) => x.draft).length;
-      console.log(`${drafts} modif(s) en attente d'envoi dans l'outil`);
+      console.log(t('cli.drafts', { n: drafts }));
       return;
     }
-    default: die(`commande inconnue : ${cmd}`);
+    default: die(t('cli.unknown', { cmd }));
   }
 }
-main().then(() => closeCode()).then(() => process.exit(0)).catch(async (e) => { await closeCode(); die(`erreur : ${e.message}`); });
+main().then(() => closeCode()).then(() => process.exit(0)).catch(async (e) => { await closeCode(); die(t('cli.error', { msg: e.message })); });

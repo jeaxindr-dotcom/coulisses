@@ -6,8 +6,12 @@
 //   Coulisses.exe E03      straight into the studio of E03
 //   Coulisses.exe "<folder or video>"   imports it (like opening a project in DaVinci Resolve), then opens it:
 //                                    what Windows does when a folder or a video is dropped on the app's icon
-//   Coulisses.exe --pick folder|video <out file> [<start folder>]   the Windows « open » dialog, for the home
-//                                    screen's « Importer un projet… »: the chosen path written to <out file> (UTF-8)
+//   Coulisses.exe --pick folder|video|project <out file> [<start folder>]   the Windows « open » dialog, for the home
+//                                    screen's « Importer un projet… » and the menu bar's « Ouvrir un projet… » (a
+//                                    .coulisses file or a video): the chosen path written to <out file> (UTF-8)
+//   Coulisses.exe --lang <out file>  writes the language the app's dialogs use (fr | en): the tests
+// The dialogs speak the language of the app (lib/i18n.mjs): COULISSES_LANG, else the choice kept in
+// %LOCALAPPDATA%\Coulisses\settings.json, else the Windows display language (French -> fr, anything else -> en).
 // Built by app\build.ps1 with the C# compiler of the .NET Framework (csc.exe, C# 5): no SDK, nothing to install.
 using System;
 using System.Diagnostics;
@@ -34,13 +38,14 @@ static class Launcher
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Length >= 2 && args[0] == "--lang") { File.WriteAllText(args[1], L.Lang, new UTF8Encoding(false)); return 0; }
         if (args.Length >= 3 && args[0] == "--pick")
         {
             try { return Picker.Pick(args[1], args[2], args.Length > 3 ? args[3] : null); }
-            catch (Exception e) { Fail("La fenêtre de choix n'a pas pu s'ouvrir :\n" + e.Message); return 1; }
+            catch (Exception e) { Fail(L.T("La fenêtre de choix n'a pas pu s'ouvrir :\n", "The file dialog could not open:\n") + e.Message); return 1; }
         }
         try { return Run(args); }
-        catch (Exception e) { Fail("Erreur inattendue :\n" + e.Message); return 1; }
+        catch (Exception e) { Fail(L.T("Erreur inattendue :\n", "Unexpected error:\n") + e.Message); return 1; }
     }
 
     static int Run(string[] args)
@@ -53,9 +58,9 @@ static class Launcher
             else if (Directory.Exists(a) || File.Exists(a)) import = Path.GetFullPath(a);   // dropped on the icon
         }
         string hubScript = Path.Combine(dir, "hub-server.mjs");
-        if (!File.Exists(hubScript)) { Fail("Le studio est introuvable à côté de l'application :\n" + hubScript); return 1; }
+        if (!File.Exists(hubScript)) { Fail(L.T("Le studio est introuvable à côté de l'application :\n", "The studio cannot be found next to the app:\n") + hubScript); return 1; }
         string node = FindNode();
-        if (node == null) { Fail("Node.js est introuvable (node.exe).\nInstalle Node.js ou ajoute-le au PATH, puis relance."); return 1; }
+        if (node == null) { Fail(L.T("Node.js est introuvable (node.exe).\nInstalle Node.js ou ajoute-le au PATH, puis relance.", "Node.js cannot be found (node.exe).\nInstall Node.js or add it to the PATH, then start again.")); return 1; }
 
         string local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Coulisses");
         Directory.CreateDirectory(local);
@@ -74,11 +79,11 @@ static class Launcher
             DateTime t0 = DateTime.Now;
             while (port == 0 && (DateTime.Now - t0).TotalSeconds < 40)
             {
-                if (hub.HasExited) { Fail("Le studio n'a pas pu démarrer.\nJournal : " + Path.Combine(local, "cache-*", "logs", "hub.log")); return 1; }
+                if (hub.HasExited) { Fail(L.T("Le studio n'a pas pu démarrer.\nJournal : ", "The studio could not start.\nLog: ") + Path.Combine(local, "cache-*", "logs", "hub.log")); return 1; }
                 Thread.Sleep(150);
                 port = RunningHub(lockFile);
             }
-            if (port == 0) { KillTree(hub.Id); Fail("Le studio ne répond pas (délai dépassé)."); return 1; }
+            if (port == 0) { KillTree(hub.Id); Fail(L.T("Le studio ne répond pas (délai dépassé).", "The studio does not answer (timed out).")); return 1; }
         }
 
         string url = "http://127.0.0.1:" + port + "/" + (import != null ? "import?path=" + Uri.EscapeDataString(import) : ep != null ? "go/" + ep : "");
@@ -86,7 +91,7 @@ static class Launcher
         if (browser == null)
         {
             Process.Start(url);
-            if (hub != null) { MessageBox.Show("Le studio est ouvert dans ton navigateur.\nClique sur OK pour l'arrêter.", App, MessageBoxButtons.OK, MessageBoxIcon.Information); KillTree(hub.Id); }
+            if (hub != null) { MessageBox.Show(L.T("Le studio est ouvert dans ton navigateur.\nClique sur OK pour l'arrêter.", "The studio is open in your browser.\nClick OK to stop it."), App, MessageBoxButtons.OK, MessageBoxIcon.Information); KillTree(hub.Id); }
             return 0;
         }
         ProcessStartInfo w = new ProcessStartInfo(browser,
@@ -239,20 +244,27 @@ static class Picker
     const uint SIGDN_FILESYSPATH = 0x80058000;
     const int ERROR_CANCELLED = unchecked((int)0x800704C7);
 
-    // mode = folder | video | check (creates the dialog without showing it: the tests)
+    // mode = folder | video | project (a .coulisses file, or a video) | check / project-check (creates the dialog without
+    // showing it: the tests)
     public static int Pick(string mode, string outFile, string startFolder)
     {
         IFileDialog d = (IFileDialog)new FileOpenDialogCom();
-        bool folder = mode != "video";
+        bool proj = mode == "project" || mode == "project-check", folder = mode != "video" && !proj;
+        const string VIDEOS = "*.mp4;*.mov;*.m4v;*.mkv;*.webm";
         d.SetOptions(FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | (folder ? FOS_PICKFOLDERS : FOS_FILEMUSTEXIST));
-        d.SetTitle(folder ? "Importer un projet : choisis son dossier" : "Importer une vidéo");
-        d.SetOkButtonLabel("Importer");
-        if (!folder) d.SetFileTypes(2, new[] { new FilterSpec { Name = "Vidéos", Spec = "*.mp4;*.mov;*.m4v;*.mkv;*.webm" }, new FilterSpec { Name = "Tous les fichiers", Spec = "*.*" } });
+        d.SetTitle(proj ? L.T("Ouvrir un projet : un fichier .coulisses ou une vidéo", "Open a project: a .coulisses file or a video")
+            : folder ? L.T("Importer un projet : choisis son dossier", "Import a project: choose its folder") : L.T("Importer une vidéo", "Import a video"));
+        d.SetOkButtonLabel(proj ? L.T("Ouvrir", "Open") : L.T("Importer", "Import"));
+        if (proj) d.SetFileTypes(4, new[] {
+            new FilterSpec { Name = L.T("Projets Coulisses et vidéos", "Coulisses projects and videos"), Spec = "*.coulisses;" + VIDEOS },
+            new FilterSpec { Name = L.T("Projets Coulisses", "Coulisses projects"), Spec = "*.coulisses" },
+            new FilterSpec { Name = L.T("Vidéos", "Videos"), Spec = VIDEOS }, new FilterSpec { Name = L.T("Tous les fichiers", "All files"), Spec = "*.*" } });
+        else if (!folder) d.SetFileTypes(2, new[] { new FilterSpec { Name = L.T("Vidéos", "Videos"), Spec = VIDEOS }, new FilterSpec { Name = L.T("Tous les fichiers", "All files"), Spec = "*.*" } });
         if (!string.IsNullOrEmpty(startFolder) && Directory.Exists(startFolder))
         {
             try { IShellItem start; SHCreateItemFromParsingName(startFolder, IntPtr.Zero, typeof(IShellItem).GUID, out start); d.SetFolder(start); } catch { }
         }
-        if (mode == "check") { File.WriteAllText(outFile, "ok", new UTF8Encoding(false)); return 0; }
+        if (mode == "check" || mode == "project-check") { File.WriteAllText(outFile, "ok", new UTF8Encoding(false)); return 0; }
 
         using (Form owner = new Form())
         {

@@ -4,6 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// The suites check Coulisses' French texts (lib/i18n.mjs): a studio started by hand for them must speak French
+// (COULISSES_LANG=fr). Exits with a clear message otherwise.
+export async function requireFrench(base) {
+  let m = null; try { m = await (await fetch(new URL('api/meta', base))).json(); } catch { return; }   // not started: the test says so
+  if (m?.lang && m.lang !== 'fr') { console.error(`Le studio ${base} parle « ${m.lang} » : le relancer avec COULISSES_LANG=fr (les tests vérifient les textes français).`); process.exit(2); }
+}
+
 export async function launch({ port = 9333, headless = true } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-cdp-'));
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [

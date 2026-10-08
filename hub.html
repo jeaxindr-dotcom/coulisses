@@ -81,58 +81,71 @@
   .imp .paste input { flex: 1; min-width: 0; height: 38px; border-radius: 999px; border: 1px solid var(--stroke-2); background: rgba(0,0,0,.3); color: var(--s12); padding: 0 14px; font: 12.5px var(--font); }
   .imp a { color: var(--s9); font-size: 12px; cursor: pointer; text-decoration: underline dotted; }
   .imp .err { max-width: 320px; }
+  /* « Langue · Language »: the app's language, for the user (settings.json) */
+  .langs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(24,27,40,.58); backdrop-filter: blur(20px); border: 1px solid var(--stroke); }
+  .langs button { height: 26px; padding: 0 11px; border-radius: 999px; background: transparent; color: var(--s11); box-shadow: none; font: 600 11.5px var(--font-d); }
+  .langs button.on { background: #f4f5fa; color: #11131c; }
+  .langs button:disabled { opacity: .5; }
+  body > #menubar { position: sticky; top: 0; }
 </style>
+<!--I18N-->
 </head>
 <body>
+<nav id="menubar"></nav>
 <header>
   <span class="logo">C</span>
-  <div><h1>Coulisses</h1><div class="sub">Revue vidéo · annoter, envoyer à l'agent, corriger</div></div>
+  <div><h1>Coulisses</h1><div class="sub">{{hub.sub}}</div></div>
   <span class="grow"></span>
-  <span class="pill" id="where"><span class="dot"></span>Pipeline</span>
+  <span class="langs" id="langs" title="Langue · Language"><button data-l="fr">FR</button><button data-l="en">EN</button></span>
+  <span class="pill" id="where"><span class="dot"></span>{{hub.where}}</span>
 </header>
 <main>
   <section><h2>Brambleshire Theatre</h2>
-  <div class="grid" id="grid"><div class="empty">Chargement…</div></div></section>
-  <section><h2>Projets importés <span class="n" id="nproj"></span></h2>
+  <div class="grid" id="grid"><div class="empty">{{hub.loading}}</div></div></section>
+  <section><h2>{{hub.imported}} <span class="n" id="nproj"></span></h2>
   <div class="grid" id="pgrid"></div></section>
 </main>
 <footer id="foot"></footer>
+<script src="/menubar.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
+  // the texts of this page, in the user's language (window.T, given by hub-server.mjs: lib/i18n.mjs)
+  const I18N = window.__I18N ?? { lang: 'fr', dict: {} }, LANG = I18N.lang, T = window.T ?? ((k) => k);
+  const LOC = LANG === 'fr' ? [] : 'en-US', TLOC = LANG === 'fr' ? [] : 'en-GB';   // French: the browser's own formats, as before
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const dur = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '');
-  const day = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+  const day = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(LOC, { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString(TLOC, { hour: '2-digit', minute: '2-digit' }); };
   let busy = null, last = '';
-  const KIND = { aitelier: 'AItelier', folder: 'Dossier', video: 'Vidéo', remotion: 'Remotion', run: 'Run' };
+  const KIND = { aitelier: 'AItelier', folder: T('hub.kind.folder'), video: T('hub.kind.video'), remotion: 'Remotion', run: 'Run' };
   // a run of a Remotion pipeline (.coulisses) opens on its code, before any export
   const openable = (e) => !e.missing && (!!e.video || e.kind === 'remotion');
-  const kindOf = (e) => (e.kind === 'run' ? (e.channel || 'Run') : e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : ' · code en direct'}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : 'long') : ''}` : KIND[e.kind] ?? 'Projet');
+  const kindOf = (e) => (e.kind === 'run' ? (e.channel || 'Run') : e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : T('hub.liveCode')}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : T('hub.long')) : ''}` : KIND[e.kind] ?? T('hub.kind.project'));
   function chipsOf(e) {
     const R = e.render;
     return [
-      R ? (R.state === 'running' ? `<span class="chip render">${R.pct != null ? `Rendu ${R.pct} %` : R.phase === 'checks' ? 'Rendu : contrôles' : R.phase === 'finish' ? 'Rendu : finition' : 'Rendu : préparation'}</span>`
-        : R.state === 'rendered' ? '<span class="chip render">Nouvelle vidéo prête</span>' : `<span class="chip renderbad">${R.state === 'blocked' ? 'Rendu bloqué' : 'Rendu en échec'}</span>`) : '',
-      e.notes ? `<span class="chip">${e.notes} note${e.notes > 1 ? 's' : ''}</span>` : '',
-      e.open ? `<span class="chip open">${e.open} à corriger</span>` : (e.notes ? '<span class="chip ok">tout corrigé</span>' : ''),
-      e.drafts ? `<span class="chip draft">${e.drafts} en attente</span>` : '',
-      e.lots ? `<span class="chip">${e.lots} lot${e.lots > 1 ? 's' : ''}</span>` : '',
+      R ? (R.state === 'running' ? `<span class="chip render">${R.pct != null ? T('hub.chip.renderPct', { pct: R.pct }) : R.phase === 'checks' ? T('hub.chip.checks') : R.phase === 'finish' ? T('hub.chip.finish') : T('hub.chip.preparing')}</span>`
+        : R.state === 'rendered' ? `<span class="chip render">${T('hub.chip.ready')}</span>` : `<span class="chip renderbad">${R.state === 'blocked' ? T('hub.chip.blocked') : T('hub.chip.failed')}</span>`) : '',
+      e.notes ? `<span class="chip">${T('hub.chip.notes', { n: e.notes })}</span>` : '',
+      e.open ? `<span class="chip open">${T('hub.chip.open', { n: e.open })}</span>` : (e.notes ? `<span class="chip ok">${T('hub.chip.allFixed')}</span>` : ''),
+      e.drafts ? `<span class="chip draft">${T('hub.chip.drafts', { n: e.drafts })}</span>` : '',
+      e.lots ? `<span class="chip">${T('hub.chip.lots', { n: e.lots })}</span>` : '',
     ].join('');
   }
   function card(e) {
     const c = document.createElement('div'); c.className = 'card' + (openable(e) ? '' : ' off'); c.dataset.id = e.id;
-    const what = e.project ? (e.video ? `exporté le ${esc(day(e.video.mtime))}` : e.missing ? 'dossier introuvable' : e.kind === 'remotion' ? 'pas encore exporté · relecture du code' : e.kind === 'run' ? 'en attente du premier export' : 'pas encore de vidéo') : (e.video ? `rendu du ${esc(day(e.video.mtime))}` : 'pas encore rendu');
-    c.innerHTML = `<div class="thumb" style="${e.thumb ? `background-image:url('/thumb/${e.id}?v=${encodeURIComponent(e.video?.mtime ?? '')}')` : ''}"><span class="id">${esc(e.project ? (e.missing ? 'introuvable' : 'Projet') : e.id)}</span>${e.studio && !e.studio.paused ? '<span class="live">ouvert</span>' : ''}${e.project && !e.missing ? `<span class="kind">${esc(kindOf(e))}</span>` : ''}</div>
+    const what = e.project ? (e.video ? T('hub.exported', { day: esc(day(e.video.mtime)) }) : e.missing ? T('hub.missingFolder') : e.kind === 'remotion' ? T('hub.notExported') : e.kind === 'run' ? T('hub.waitingExport') : T('hub.noVideo')) : (e.video ? T('hub.rendered', { day: esc(day(e.video.mtime)) }) : T('hub.notRendered'));
+    c.innerHTML = `<div class="thumb" style="${e.thumb ? `background-image:url('/thumb/${e.id}?v=${encodeURIComponent(e.video?.mtime ?? '')}')` : ''}"><span class="id">${esc(e.project ? (e.missing ? T('hub.badge.missing') : T('hub.badge.project')) : e.id)}</span>${e.studio && !e.studio.paused ? `<span class="live">${T('hub.badge.open')}</span>` : ''}${e.project && !e.missing ? `<span class="kind">${esc(kindOf(e))}</span>` : ''}</div>
       <div class="body"><div class="title">${esc(e.title)}</div>
-        <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? `revu le ${esc(day(e.reviewed))}` : ''].filter(Boolean).join(' · ')}</div>
+        <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? T('hub.reviewed', { day: esc(day(e.reviewed)) }) : ''].filter(Boolean).join(' · ')}</div>
         ${e.project ? `<div class="meta" title="${esc(e.root ?? e.revue)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.root ?? e.why ?? '')}</div>` : ''}
         <div class="chips">${chipsOf(e)}</div>
-        <div class="row">${e.project ? '<button class="more" title="Retirer ce projet de la liste (rien n\'est supprimé)">Retirer</button>' : ''}<span class="grow"></span><button class="open" ${openable(e) ? '' : 'disabled'}>Ouvrir le studio</button></div>
+        <div class="row">${e.project ? `<button class="more" title="${esc(T('hub.removeTitle'))}">${T('hub.remove')}</button>` : ''}<span class="grow"></span><button class="open" ${openable(e) ? '' : 'disabled'}>${T('hub.openStudio')}</button></div>
         <div class="err"></div></div>`;
     c.addEventListener('click', (ev) => { if (!ev.target.closest('.more')) openEp(e, c); });
     c.querySelector('.more')?.addEventListener('click', async (ev) => {
       ev.stopPropagation();
-      if (!confirm(`Retirer « ${e.title} » de la liste ?\n\nRien n'est supprimé : la vidéo et les notes restent dans\n${e.revue}\n\nTu pourras le réimporter quand tu veux.`)) return;
+      if (!confirm(T('hub.removeConfirm', { title: e.title, revue: e.revue }))) return;
       await fetch('/api/remove?ep=' + e.id, { method: 'POST' }); last = ''; load(true);
     });
     return c;
@@ -140,26 +153,26 @@
   // « Importer un projet » : the Windows dialog (a folder, or a video), or a pasted path
   function importCard() {
     const c = document.createElement('div'); c.className = 'card imp';
-    c.innerHTML = `<div class="plus">+</div><div class="t">Importer un projet</div>
-      <div class="d">Un run de L'AItelier, un dossier de vidéos, ou une seule vidéo. Ses notes vont dans son dossier, sous revue\\.</div>
-      <div class="btns"><button id="impFolder">Un dossier…</button><button class="soft" id="impVideo">Une vidéo…</button></div>
-      <a id="impPaste">ou colle un chemin</a>
-      <div class="paste"><input id="impPath" placeholder="C:\\…\\dossier du projet ou vidéo.mp4" spellcheck="false"><button id="impGo">Importer</button></div>
+    c.innerHTML = `<div class="plus">+</div><div class="t">${T('hub.import.title')}</div>
+      <div class="d">${T('hub.import.what')}</div>
+      <div class="btns"><button id="impFolder">${T('hub.import.folder')}</button><button class="soft" id="impVideo">${T('hub.import.video')}</button></div>
+      <a id="impPaste">${T('hub.import.paste')}</a>
+      <div class="paste"><input id="impPath" placeholder="${esc(T('hub.import.placeholder'))}" spellcheck="false"><button id="impGo">${T('hub.import.go')}</button></div>
       <div class="err" id="impErr"></div>`;
     const err = (m) => { c.querySelector('#impErr').textContent = m || ''; };
     const doImport = async (p) => {
       err('');
       const r = await (await fetch('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: p }) })).json().catch(() => null);
-      if (!r?.ok) { err(r?.why ?? 'import impossible'); return; }
+      if (!r?.ok) { err(r?.why ?? T('hub.import.failed')); return; }
       last = ''; await load(true);
       const el = document.querySelector(`.card[data-id="${r.project.id}"]`); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.animate([{ boxShadow: '0 0 0 4px rgba(201,242,107,.5)' }, { boxShadow: '0 0 0 0 rgba(201,242,107,0)' }], { duration: 1600 });
     };
     const pickAnd = async (what, b) => {
-      err(''); const t = b.textContent; b.disabled = true; b.innerHTML = '<span class="spin"></span>Fenêtre ouverte…';
+      err(''); const t = b.textContent; b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.import.dialogOpen')}`;
       try {
         const r = await (await fetch('/api/import/pick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ what }) })).json();
-        if (r.ok) await doImport(r.path); else if (!r.cancelled) err(r.why ?? 'la fenêtre ne s\'est pas ouverte : colle le chemin');
-      } catch { err('la fenêtre ne s\'est pas ouverte : colle le chemin'); }
+        if (r.ok) await doImport(r.path); else if (!r.cancelled) err(r.why ?? T('hub.import.noDialog'));
+      } catch { err(T('hub.import.noDialog')); }
       b.disabled = false; b.textContent = t;
     };
     c.querySelector('#impFolder').onclick = (e) => pickAnd('folder', e.currentTarget);
@@ -173,12 +186,12 @@
   async function openEp(e, card) {
     if (busy || !openable(e)) return;
     busy = e.id;
-    const b = card.querySelector('button.open'); b.disabled = true; b.innerHTML = '<span class="spin"></span>Ouverture…';
+    const b = card.querySelector('button.open'); b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.opening')}`;
     try {
       const r = await (await fetch('/api/open?ep=' + e.id, { method: 'POST' })).json();
-      if (!r.ok) throw new Error(r.why || 'erreur');
+      if (!r.ok) throw new Error(r.why || T('hub.error'));
       location.href = r.url;
-    } catch (err) { busy = null; b.disabled = false; b.textContent = 'Réessayer'; card.querySelector('.err').textContent = err.message; }
+    } catch (err) { busy = null; b.disabled = false; b.textContent = T('hub.retry'); card.querySelector('.err').textContent = err.message; }
   }
   let timer = null, impCard = null;
   async function load(once) {
@@ -187,7 +200,7 @@
       const sig = JSON.stringify(r);
       if (sig !== last) {
         last = sig;
-        $('#where').innerHTML = `<span class="dot"></span>${r.installed ? 'Pipeline Brambleshire' : 'Atelier · bac à sable'}`;
+        $('#where').innerHTML = `<span class="dot"></span>${r.installed ? T('hub.wherePipeline') : T('hub.whereWorkshop')}`;
         $('#foot').textContent = r.episodesDir;
         const pg = $('#pgrid'), keep = document.activeElement?.closest?.('.imp');
         impCard ??= importCard();
@@ -197,7 +210,7 @@
         $('#nproj').textContent = r.projects?.length ? String(r.projects.length) : '';
         if (keep) keep.querySelector('input')?.focus();
         const grid = $('#grid'); grid.innerHTML = '';
-        if (!r.episodes.length) grid.innerHTML = '<div class="empty">Aucun épisode trouvé.</div>';
+        if (!r.episodes.length) grid.innerHTML = `<div class="empty">${T('hub.noEpisode')}</div>`;
         for (const e of r.episodes) {
           grid.appendChild(card(e));
         }
@@ -205,6 +218,107 @@
     } catch { /* the hub restarts: retried */ }
     if (!once) { clearTimeout(timer); timer = setTimeout(load, 5000); }
   }
+  // « Langue · Language »: kept for the user (settings.json), the page comes back in the new language
+  async function setLanguage(l) {
+    if (l === LANG) return;
+    const r = await (await fetch('/api/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: l }) })).json().catch(() => null);
+    if (r?.ok) location.reload();
+  }
+  for (const b of document.querySelectorAll('#langs button')) {
+    b.classList.toggle('on', b.dataset.l === LANG);
+    if (I18N.source === 'env') { b.disabled = true; b.title = 'COULISSES_LANG'; }
+    b.onclick = () => setLanguage(b.dataset.l);
+  }
+
+  // ---------- the menu bar (menubar.js): the same four menus as the studio; what needs a studio is greyed, with why ----------
+  const postJSON = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b ?? {}) }).then((r) => r.json()).catch(() => null);
+  const dlg = (o) => window.MenuBar?.dialog({ buttons: [{ label: T('menu.dlg.close'), primary: true }], ...o });
+  const inStudio = () => T('menu.why.inStudio');
+  const impErr = (m) => { const e = document.querySelector('#impErr'); if (e) { e.textContent = m || ''; e.closest('.imp')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } };
+  // the Windows dialog, then the import; « Ouvrir un projet… » then opens it in the studio
+  async function menuPick(what, open) {
+    impErr('');
+    const r = await postJSON('/api/import/pick', { what });
+    if (!r?.ok) { if (!r?.cancelled) impErr(r?.why ?? T('hub.import.noDialog')); return; }
+    const imp = await postJSON('/api/import', { path: r.path });
+    if (!imp?.ok) { impErr(imp?.why ?? T('hub.import.failed')); return; }
+    const p = imp.project;
+    if (open && (p.episode || p.video || p.kind === 'remotion')) { location.href = '/go/' + p.id; return; }
+    last = ''; await load(true);
+    document.querySelector(`.card[data-id="${p.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  async function showDoc(name, title) {
+    const r = await fetch('/api/doc?name=' + name, { cache: 'no-store' }).catch(() => null);
+    if (!r?.ok) { impErr(T('menu.doc.failed', { name })); return; }
+    const text = await r.text();
+    dlg({ title, text, pre: true, buttons: [{ label: T('menu.dlg.copy'), run: () => { navigator.clipboard?.writeText(text); return false; } }, { label: T('menu.dlg.close'), primary: true }] });
+  }
+  async function showAbout() {
+    const a = await (await fetch('/api/about', { cache: 'no-store' })).json().catch(() => null) ?? {};
+    const row = (k, v) => (v ? `<div class="row"><span class="lbl">${esc(k)}</span><span>${v}</span></div>` : '');
+    const d = dlg({ title: T('menu.about'), html: `<p><b>Coulisses</b> ${esc(a.version ?? '')}</p><p>${esc(T('menu.about.what'))}</p>`
+      + row(T('menu.about.version'), esc(a.version)) + row(T('menu.about.installed'), a.installed ? esc(day(a.installed)) : '') + row(T('menu.about.commit'), a.commit ? esc(`${a.commit}${a.branch ? ` (${a.branch})` : ''}`) : '')
+      + row(T('menu.about.folder'), `${esc(a.folder ?? '')}${a.place === 'workshop' ? ` · ${esc(T('menu.about.workshop'))}` : ''}`)
+      + row(T('menu.about.license'), esc(a.license)) + row(T('menu.about.source'), `<a href="#" id="mbRepo">${esc(String(a.url ?? '').replace(/^https:\/\//, ''))}</a>`) });
+    d?.querySelector('#mbRepo')?.addEventListener('click', (e) => { e.preventDefault(); postJSON('/api/reveal', { what: 'online' }); });
+  }
+  function showPrefs() {
+    const env = I18N.source === 'env';
+    const d = dlg({ title: T('menu.prefs.title'), html: `<div class="row"><span class="lbl">${esc(T('menu.prefs.lang'))}</span>${(I18N.langs ?? ['fr', 'en']).map((l) => `<button data-l="${l}" class="${l === LANG ? 'on' : ''}">${esc(I18N.names?.[l] ?? l)}</button>`).join('')}</div>
+      <p>${esc(env ? T('menu.prefs.envNote') : T('menu.prefs.langNote'))}</p>` });
+    d?.querySelectorAll('[data-l]').forEach((b) => { b.disabled = env; b.onclick = () => setLanguage(b.dataset.l); });
+  }
+  async function showLog() { const t = await (await fetch('/api/log', { cache: 'no-store' })).text().catch(() => ''); dlg({ title: T('menu.logHub'), text: t || T('menu.empty'), pre: true }); }
+  window.MenuBar?.mount($('#menubar'), [
+    { id: 'file', label: T('menu.file'), items: [
+      { id: 'home', label: T('menu.home'), disabled: () => T('menu.why.here') },
+      { id: 'open', label: T('menu.open'), key: 'Ctrl+O', run: () => menuPick('project', true) },
+      { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
+      { id: 'importVideo', label: T('menu.importVideo'), run: () => menuPick('video', false) },
+      { id: 'pastePath', label: T('menu.pastePath'), run: () => { const c = document.querySelector('.imp'); if (!c) return; c.classList.add('pasting'); c.scrollIntoView({ block: 'center' }); c.querySelector('#impPath').focus(); } },
+      '-',
+      { id: 'revealFolder', label: T('menu.revealFolder'), disabled: inStudio },
+      { id: 'revealCoulisses', label: T('menu.revealCoulisses'), disabled: inStudio },
+      '-',
+      { id: 'close', label: T('menu.closeStudio'), disabled: inStudio },
+    ] },
+    { id: 'edit', label: T('menu.edit'), items: [
+      { id: 'undo', label: T('menu.undo'), disabled: inStudio },
+      { id: 'redo', label: T('menu.redo'), disabled: inStudio },
+      '-',
+      { id: 'copyLine', label: T('menu.copyLine'), disabled: inStudio },
+      '-',
+      { id: 'prefs', label: T('menu.prefs'), run: showPrefs },
+    ] },
+    { id: 'tools', label: T('menu.tools'), items: [
+      { id: 'connect', label: T('menu.connect'), disabled: inStudio },
+      { id: 'send', label: T('menu.send'), disabled: inStudio },
+      '-',
+      { id: 'export', label: T('menu.export'), disabled: inStudio },
+      { id: 'render', label: T('menu.render'), disabled: inStudio },
+      { id: 'compare', label: T('menu.compare'), disabled: inStudio },
+      '-',
+      { id: 'updates', label: T('menu.updates'), disabled: inStudio },
+      { id: 'verify', label: T('menu.verify'), disabled: inStudio },
+      { id: 'log', label: T('menu.log'), items: () => [{ id: 'logHub', label: T('menu.logHub'), run: showLog }] },
+    ] },
+    { id: 'help', label: T('menu.help'), items: [
+      { id: 'shortcuts', label: T('menu.shortcuts'), key: 'F1', disabled: () => T('menu.why.shortcutsStudio') },
+      '-',
+      { id: 'agentDoc', label: T('menu.agentDoc'), run: () => showDoc('agent', T('menu.agentDoc')) },
+      { id: 'contract', label: T('menu.contract'), run: () => showDoc('contract', T('menu.contract')) },
+      { id: 'online', label: T('menu.online'), run: () => postJSON('/api/reveal', { what: 'online' }) },
+      '-',
+      { id: 'about', label: T('menu.about'), run: showAbout },
+    ] },
+  ]);
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); menuPick('project', true); }
+    if (e.key === 'F1') e.preventDefault();
+  });
+  // File › Open a project… / Import… chosen in a studio: it comes back here (?menu=open|folder|video) to use the dialog
+  const asked = new URLSearchParams(location.search).get('menu');
+  if (asked) { history.replaceState(null, '', '/'); setTimeout(() => menuPick(asked === 'open' ? 'project' : asked === 'video' ? 'video' : 'folder', asked === 'open'), 400); }
   load();
 })();
 </script>

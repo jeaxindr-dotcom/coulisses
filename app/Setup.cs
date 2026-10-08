@@ -26,7 +26,8 @@ class SetupForm : Form
     readonly string src = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
     internal string node, target;
     readonly RichTextBox logBox = new RichTextBox();
-    readonly PillButton install = new PillButton("Installer", true), openBtn = new PillButton("Ouvrir Coulisses", false), close = new PillButton("Fermer", false);
+    // the dialogs speak the app's language (app\Lang.cs: COULISSES_LANG, settings.json, the Windows display language)
+    readonly PillButton install = new PillButton(L.T("Installer", "Install"), true), openBtn = new PillButton(L.T("Ouvrir Coulisses", "Open Coulisses"), false), close = new PillButton(L.T("Fermer", "Close"), false);
     readonly Label status = new Label();
 
     [STAThread]
@@ -48,7 +49,7 @@ class SetupForm : Form
         {
             SetupForm f = new SetupForm();
             f.node = FindNode();
-            if (f.node == null) throw new Exception("Node.js introuvable");
+            if (f.node == null) throw new Exception(L.T("Node.js introuvable", "Node.js not found"));
             int c; f.target = f.RunNodeCode("install.mjs --where", out c).Trim().Split('\n').Last().Trim();
             string o = f.RunNodeCode("install.mjs", out c); log.AppendLine(o.Trim());
             if (c == 0)
@@ -57,21 +58,21 @@ class SetupForm : Form
                 code = 0;
             }
         }
-        catch (Exception e) { log.AppendLine("Erreur : " + e.Message); }
+        catch (Exception e) { log.AppendLine(L.T("Erreur : ", "Error: ") + e.Message); }
         File.WriteAllText(Path.Combine(local, "setup.log"), DateTime.Now + "\r\n" + log.ToString().Replace("\n", "\r\n"), Encoding.UTF8);
         return code;
     }
 
     SetupForm()
     {
-        Text = "Coulisses — installation"; BackColor = Bg; ForeColor = Ink; FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false;
+        Text = L.T("Coulisses — installation", "Coulisses — setup"); BackColor = Bg; ForeColor = Ink; FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen; ClientSize = new Size(760, 520); Font = new Font("Segoe UI", 10f);
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         PictureBox badge = new PictureBox { Size = new Size(48, 48), Location = new Point(28, 26), BackColor = Color.Transparent };
         badge.Paint += (s, e) => { e.Graphics.SmoothingMode = SmoothingMode.AntiAlias; using (GraphicsPath p = Round(new Rectangle(0, 0, 47, 47), 14)) using (LinearGradientBrush b = new LinearGradientBrush(new Rectangle(0, 0, 48, 48), Color.FromArgb(220, 247, 122), Color.FromArgb(111, 226, 201), 45f)) e.Graphics.FillPath(b, p); TextRenderer.DrawText(e.Graphics, "C", new Font("Segoe UI", 20f, FontStyle.Bold), new Rectangle(0, 0, 48, 48), Color.FromArgb(16, 20, 10), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter); };
         Controls.Add(badge);
         Controls.Add(new Label { Text = "Coulisses", Location = new Point(90, 24), AutoSize = true, Font = new Font("Segoe UI Semibold", 17f), ForeColor = Ink });
-        Controls.Add(new Label { Text = "Installe ou met à jour Coulisses, ses raccourcis et l'ouverture des fichiers .coulisses.", Location = new Point(92, 58), AutoSize = true, ForeColor = Muted });
+        Controls.Add(new Label { Text = L.T("Installe ou met à jour Coulisses, ses raccourcis et l'ouverture des fichiers .coulisses.", "Installs or updates Coulisses, its shortcuts and the opening of .coulisses files."), Location = new Point(92, 58), AutoSize = true, ForeColor = Muted });
         status.Location = new Point(30, 96); status.Size = new Size(700, 44); status.ForeColor = Faint; Controls.Add(status);
         logBox.Location = new Point(30, 146); logBox.Size = new Size(700, 290); logBox.BackColor = Panel; logBox.ForeColor = Muted; logBox.BorderStyle = BorderStyle.None; logBox.ReadOnly = true; logBox.Font = new Font("Consolas", 9.5f);
         Controls.Add(logBox);
@@ -79,7 +80,7 @@ class SetupForm : Form
         openBtn.Location = new Point(192, 456); openBtn.Size = new Size(170, 42); openBtn.Enabled = false; Controls.Add(openBtn);
         close.Location = new Point(610, 456); close.Size = new Size(120, 42); Controls.Add(close);
         install.Click += (s, e) => Start(false);
-        openBtn.Click += (s, e) => { try { Process.Start(Path.Combine(target, "Coulisses.exe")); Close(); } catch (Exception x) { Log("Impossible d'ouvrir : " + x.Message, true); } };
+        openBtn.Click += (s, e) => { try { Process.Start(Path.Combine(target, "Coulisses.exe")); Close(); } catch (Exception x) { Log(L.T("Impossible d'ouvrir : ", "Cannot open: ") + x.Message, true); } };
         close.Click += (s, e) => Close();
         Shown += (s, e) => Prepare();
     }
@@ -87,14 +88,14 @@ class SetupForm : Form
     void Prepare()
     {
         node = FindNode();
-        if (node == null) { Log("Node.js est introuvable : installe-le, puis relance l'installation.", true); install.Enabled = false; return; }
-        if (!File.Exists(Path.Combine(src, "install.mjs")) || !File.Exists(Path.Combine(src, "Coulisses.exe"))) { Log("Cet installateur doit rester dans l'atelier de Coulisses (à côté de install.mjs et de « Coulisses.exe »).", true); install.Enabled = false; return; }
+        if (node == null) { Log(L.T("Node.js est introuvable : installe-le, puis relance l'installation.", "Node.js cannot be found: install it, then run the setup again."), true); install.Enabled = false; return; }
+        if (!File.Exists(Path.Combine(src, "install.mjs")) || !File.Exists(Path.Combine(src, "Coulisses.exe"))) { Log(L.T("Cet installateur doit rester dans l'atelier de Coulisses (à côté de install.mjs et de « Coulisses.exe »).", "This installer must stay in the Coulisses workshop (next to install.mjs and \"Coulisses.exe\")."), true); install.Enabled = false; return; }
         string where = RunNode("install.mjs --where", null).Trim();
         target = where.Split('\n').Last().Trim();
-        status.Text = "Depuis : " + src + "\nVers : " + target;
+        status.Text = L.T("Depuis : ", "From: ") + src + L.T("\nVers : ", "\nTo: ") + target;
         string dry = RunNode("install.mjs --dry", null);
-        Log(dry.Trim().Length > 0 ? dry.Trim() : "(rien à copier)", false);
-        if (File.Exists(Path.Combine(target, "installed.json"))) install.Text = "Mettre à jour";
+        Log(dry.Trim().Length > 0 ? dry.Trim() : L.T("(rien à copier)", "(nothing to copy)"), false);
+        if (File.Exists(Path.Combine(target, "installed.json"))) install.Text = L.T("Mettre à jour", "Update");
     }
 
     void Start(bool force)
@@ -107,28 +108,30 @@ class SetupForm : Form
                 // a studio of the pipeline is open: it must be closed (its code is replaced)
                 if (StudioRunning())
                 {
-                    bool stop = (bool)Invoke(new Func<bool>(() => MessageBox.Show(this, "Coulisses est ouvert. Le fermer pour faire la mise à jour ?\n(tes notes sont enregistrées à chaque frappe)", Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK));
+                    bool stop = (bool)Invoke(new Func<bool>(() => MessageBox.Show(this, L.T("Coulisses est ouvert. Le fermer pour faire la mise à jour ?\n(tes notes sont enregistrées à chaque frappe)", "Coulisses is open. Close it to update?\n(your notes are saved at every keystroke)"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK));
                     if (!stop) { Done(false); return; }
                     QuitStudio();
                 }
-                Log("— installation —", false);
+                Log(L.T("— installation —", "— setup —"), false);
                 int code; string outp = RunNodeCode("install.mjs" + (force ? " --force" : ""), out code);
                 Log(outp.Trim(), code != 0);
                 if (code != 0)
                 {
-                    bool again = !force && outp.Contains("depuis la dernière installation") && (bool)Invoke(new Func<bool>(() => MessageBox.Show(this, "Des fichiers de Coulisses installé ont été modifiés directement dans sa copie.\nLes écraser avec la version de l'atelier ?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes));
+                    // files changed in the installed copy: install.mjs exits with 3 (any language; older versions: 1 and this sentence)
+                    bool touched = code == 3 || outp.Contains("depuis la dernière installation");
+                    bool again = !force && touched && (bool)Invoke(new Func<bool>(() => MessageBox.Show(this, L.T("Des fichiers de Coulisses installé ont été modifiés directement dans sa copie.\nLes écraser avec la version de l'atelier ?", "Files of the installed Coulisses were changed directly in its copy.\nOverwrite them with the workshop's version?"), Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes));
                     if (again) { Invoke(new Action(() => Start(true))); return; }
                     Done(false); return;
                 }
                 Log(Finish(Path.Combine(target, "Coulisses.exe")), false);
-                Log("Terminé.", false);
+                Log(L.T("Terminé.", "Done."), false);
                 Done(true);
             }
-            catch (Exception x) { Log("Erreur : " + x.Message, true); Done(false); }
+            catch (Exception x) { Log(L.T("Erreur : ", "Error: ") + x.Message, true); Done(false); }
         }).Start();
     }
 
-    void Done(bool ok) { Invoke(new Action(() => { install.Enabled = true; openBtn.Enabled = ok; if (ok) install.Text = "Mettre à jour"; })); }
+    void Done(bool ok) { Invoke(new Action(() => { install.Enabled = true; openBtn.Enabled = ok; if (ok) install.Text = L.T("Mettre à jour", "Update"); })); }
 
     static string[] LockFiles()
     {
@@ -166,7 +169,7 @@ class SetupForm : Form
         Thread.Sleep(1500);
         // the app's own process (it waits for its window): the window is gone with the home screen, then it ends by itself
         foreach (string p in new[] { "Coulisses", "Brambleshire Studio" }) foreach (Process pr in Process.GetProcessesByName(p)) try { pr.WaitForExit(4000); if (!pr.HasExited) pr.Kill(); } catch { }
-        Log("Coulisses fermé.", false);
+        Log(L.T("Coulisses fermé.", "Coulisses closed."), false);
     }
 
     // after install.mjs: the « Coulisses » shortcuts (the old « Brambleshire Studio » ones removed) and the .coulisses files
@@ -177,7 +180,7 @@ class SetupForm : Form
         Shortcut(Path.Combine(menu, "Coulisses.lnk"), exe);
         foreach (string old in new[] { Path.Combine(desk, "Brambleshire Studio.lnk"), Path.Combine(menu, "Brambleshire Studio.lnk") }) try { if (File.Exists(old)) File.Delete(old); } catch { }
         Associate(exe);
-        return "Raccourcis « Coulisses » : Bureau et menu Démarrer -> " + exe + "\nFichiers .coulisses : un double-clic les ouvre dans Coulisses.";
+        return L.T("Raccourcis « Coulisses » : Bureau et menu Démarrer -> ", "\"Coulisses\" shortcuts: Desktop and Start menu -> ") + exe + L.T("\nFichiers .coulisses : un double-clic les ouvre dans Coulisses.", "\n.coulisses files: a double-click opens them in Coulisses.");
     }
     // HKCU\Software\Classes: for this user only, no admin right
     static void Associate(string exe)
@@ -185,7 +188,7 @@ class SetupForm : Form
         using (RegistryKey ext = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.coulisses")) ext.SetValue("", "Coulisses.Projet");
         using (RegistryKey prog = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Coulisses.Projet"))
         {
-            prog.SetValue("", "Projet Coulisses");
+            prog.SetValue("", L.T("Projet Coulisses", "Coulisses project"));
             using (RegistryKey icon = prog.CreateSubKey("DefaultIcon")) icon.SetValue("", "\"" + exe + "\",0");
             using (RegistryKey cmd = prog.CreateSubKey(@"shell\open\command")) cmd.SetValue("", "\"" + exe + "\" \"%1\"");
         }
@@ -200,11 +203,11 @@ class SetupForm : Form
         link.SetPath(exe);
         link.SetWorkingDirectory(Path.GetDirectoryName(exe));
         link.SetIconLocation(exe, 0);
-        link.SetDescription("Coulisses : relire et annoter ses vidéos avant l'export");
+        link.SetDescription(L.T("Coulisses : relire et annoter ses vidéos avant l'export", "Coulisses: review and annotate your videos before the export"));
         ((System.Runtime.InteropServices.ComTypes.IPersistFile)link).Save(lnk, true);
         StringBuilder check = new StringBuilder(1024);
         link.GetPath(check, check.Capacity, IntPtr.Zero, 0);
-        if (!File.Exists(check.ToString())) throw new Exception("raccourci incorrect : " + check);
+        if (!File.Exists(check.ToString())) throw new Exception(L.T("raccourci incorrect : ", "wrong shortcut: ") + check);
     }
 
     string RunNode(string a, string dummy) { int c; return RunNodeCode(a, out c); }

@@ -22,6 +22,8 @@ import { STUDIO, INSTALLED, CACHE } from './lib/place.mjs';
 import { ffmpeg } from './lib/frames.mjs';
 import { renderState } from './lib/render.mjs';
 import { registry, importProject, removeProject, project, revueOf } from './lib/projects.mjs';
+import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { docText, about, openOnline, logRing } from './lib/menu.mjs';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
@@ -33,8 +35,9 @@ const O = optionsFrom(args);
 const PASS = ['--theatre', '--episodes', '--remotion'].flatMap((k) => (opt(k) ? [k, opt(k)] : []));   // given to every studio
 const LOGS = path.join(CACHE, 'logs'); fs.mkdirSync(LOGS, { recursive: true });
 const logFile = fs.createWriteStream(path.join(LOGS, 'hub.log'), { flags: 'a' });
-const log = (m) => { const line = `${new Date().toLocaleString()}  ${m}`; logFile.write(line + '\n'); console.log(line); };
-process.on('uncaughtException', (e) => log(`erreur ignorée : ${e.stack || e.message}`));
+const ring = logRing();   // Tools › Log in the menu bar
+const log = (m) => { const line = `${new Date().toLocaleString()}  ${m}`; logFile.write(line + '\n'); ring.push(line); console.log(line); };
+process.on('uncaughtException', (e) => log(t('hubsrv.ignored', { msg: e.stack || e.message })));
 
 // ---------- episodes and imported projects ----------
 // ids: E03 (an episode), P1a2b3c4d (an imported project, lib/projects.mjs)
@@ -114,7 +117,7 @@ let hubUrl = '';
 function open(id) {
   const cur = studios.get(id);
   if (cur && !cur.paused && cur.proc.exitCode === null) return cur.ready;
-  if (id.startsWith('P') && !revueOf(id)) return Promise.reject(new Error('ce projet n\'est plus dans la liste'));
+  if (id.startsWith('P') && !revueOf(id)) return Promise.reject(new Error(t('hubsrv.gone')));
   // after a pause (render), the studio comes back on ITS port: the window, still open on it, finds it again
   const again = cur?.url ? ['--port', new URL(cur.url).port] : [];
   const st = { proc: null, url: null, paused: false };
@@ -123,27 +126,27 @@ function open(id) {
   st.proc = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), ...target, '--no-open', '--hub', hubUrl, ...again, ...(proj ? [] : PASS)], { cwd: STUDIO, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   st.ready = new Promise((resolve, reject) => {
     let buf = '';
-    const timer = setTimeout(() => reject(new Error('le studio ne répond pas (voir ' + path.join(LOGS, `${id}.log`) + ')')), 60000);
+    const timer = setTimeout(() => reject(new Error(t('hubsrv.noAnswer', { log: path.join(LOGS, `${id}.log`) }))), 60000);
     st.proc.stdout.on('data', (d) => {
       out.write(d); buf += d;
-      const m = /Ouvre : (http:\/\/localhost:\d+\/)/.exec(buf);
+      const m = /(?:Ouvre :|Open:) (http:\/\/localhost:\d+\/)/.exec(buf);   // the studio's language (studio-server.mjs)
       if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); }
     });
     st.proc.stderr.on('data', (d) => { out.write(d); buf += d; });
-    st.proc.on('exit', (c) => { clearTimeout(timer); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || `arrêt (${c})`)); });
+    st.proc.on('exit', (c) => { clearTimeout(timer); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || t('hubsrv.exit', { code: c }))); });
   });
   studios.set(id, st);
-  log(`studio ${id} : démarrage`);
-  st.ready.then((u) => log(`studio ${id} : ${u}`), (e) => log(`studio ${id} : ${e.message}`));
+  log(t('hubsrv.starting', { id }));
+  st.ready.then((u) => log(t('hubsrv.studio', { id, msg: u })), (e) => log(t('hubsrv.studio', { id, msg: e.message })));
   return st.ready;
 }
 // the whole process tree (the studio's ffmpeg, its headless Chrome for the eyes…)
 const killTree = (pid) => new Promise((r) => execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => r()));
 async function pause(id) {
   const st = studios.get(id); if (!st) return false;
-  st.paused = true; await killTree(st.proc.pid); log(`studio ${id} : en pause (rendu)`); return true;
+  st.paused = true; await killTree(st.proc.pid); log(t('hubsrv.paused', { id })); return true;
 }
-async function quit() { for (const st of studios.values()) if (st.proc.exitCode === null) await killTree(st.proc.pid); log('arrêt'); process.exit(0); }
+async function quit() { for (const st of studios.values()) if (st.proc.exitCode === null) await killTree(st.proc.pid); log(t('hubsrv.quit')); process.exit(0); }
 for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, quit);
 
 // ---------- « Importer un projet… » ----------
@@ -152,10 +155,11 @@ const startDir = () => [path.join(os.homedir(), 'Desktop', 'Youtube', 'AItelier'
 let picking = null;
 function pick(what) {
   if (picking) return picking;
-  if (!fs.existsSync(APP_EXE)) return Promise.reject(new Error('Coulisses.exe introuvable : colle le chemin à la place'));
+  if (!fs.existsSync(APP_EXE)) return Promise.reject(new Error(t('hubsrv.noExe')));
   const out = path.join(CACHE, 'hub', `pick-${Date.now()}.txt`); fs.mkdirSync(path.dirname(out), { recursive: true });
   picking = new Promise((resolve) => {
-    execFile(APP_EXE, ['--pick', what === 'video' ? 'video' : 'folder', out, startDir()], { windowsHide: false }, () => {
+    // folder | video | project (a .coulisses file, or a video: File › Open a project… in the menu bar)
+    execFile(APP_EXE, ['--pick', ['video', 'project'].includes(what) ? what : 'folder', out, startDir()], { windowsHide: false }, () => {
       let p = ''; try { p = fs.readFileSync(out, 'utf8').trim(); fs.rmSync(out, { force: true }); } catch { /* cancelled */ }
       picking = null; resolve(p || null);
     });
@@ -165,18 +169,33 @@ function pick(what) {
 const readBody = (req) => new Promise((r) => { let b = ''; req.on('data', (d) => { b += d; }); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch { r({}); } }); });
 function doImport(p) {
   const r = importProject(p, { episodesDir: O.episodesDir });
-  log(r.episode ? `épisode ouvert depuis son fichier .coulisses : ${r.id}` : `projet importé : ${r.title} (${r.kind}) -> ${r.revue}`);
+  log(r.episode ? t('hubsrv.episodeOpened', { id: r.id }) : t('hubsrv.imported', { title: r.title, kind: r.kind, revue: r.revue }));
   return r;
 }
 
 // ---------- http ----------
 const send = (res, code, type, body) => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-cache' }); res.end(body); };
 const json = (res, data, code = 200) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(data));
-const page = (title, msg) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">Retour à l'accueil</a></p></div>`;
+const page = (title, msg) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">${t('hubsrv.back')}</a></p></div>`;
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'), pn = decodeURIComponent(url.pathname), ep = normId(url.searchParams.get('ep')) ?? '';
   try {
-    if (pn === '/' || pn === '/index.html') return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(path.join(STUDIO, 'hub.html')));
+    // the home screen, in the user's language (lib/i18n.mjs: {{key}} and window.T)
+    if (pn === '/' || pn === '/index.html') return send(res, 200, 'text/html; charset=utf-8', renderPage(fs.readFileSync(path.join(STUDIO, 'hub.html'), 'utf8'), { prefixes: ['hub.', 'common.', 'menu.'] }));
+    // « Langue · Language »: the user's choice for the whole app (%LOCALAPPDATA%\Coulisses\settings.json)
+    if (pn === '/api/lang' && req.method === 'POST') {
+      const b = await readBody(req);
+      if (!LANGS.includes(b.lang)) return json(res, { ok: false, why: t('srv.langBad') }, 400);
+      const now = setLang(b.lang); log(`lang: ${now} (${langSource()})`);
+      return json(res, { ok: true, lang: now, forced: langSource() === 'env' });
+    }
+    if (pn === '/api/lang') return json(res, { lang: lang(), source: langSource(), langs: LANGS });
+    // the menu bar (menubar.js): documents, About, the online documentation, the home screen's log
+    if (pn === '/menubar.js') return send(res, 200, 'text/javascript; charset=utf-8', fs.readFileSync(path.join(STUDIO, 'menubar.js')));
+    if (pn === '/api/doc') { const d = docText(url.searchParams.get('name')); return d ? send(res, 200, 'text/plain; charset=utf-8', d.text) : send(res, 404, 'text/plain', 'not found'); }
+    if (pn === '/api/about') return json(res, about());
+    if (pn === '/api/log') return send(res, 200, 'text/plain; charset=utf-8', ring.text());
+    if (req.method === 'POST' && pn === '/api/reveal') { const b = await readBody(req); if (b.what !== 'online') return json(res, { ok: false, why: String(b.what) }, 400); openOnline(); return json(res, { ok: true }); }
     if (pn === '/favicon.png') return send(res, 200, 'image/png', fs.readFileSync(path.join(STUDIO, 'favicon.png')));
     if (pn === '/api/ping') return json(res, { hub: true, installed: INSTALLED, episodesDir: O.episodesDir, studios: Object.fromEntries([...studios].map(([k, s]) => [k, { url: s.url, paused: s.paused }])) });
     if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes(), projects: projects() });
@@ -185,11 +204,11 @@ const server = http.createServer(async (req, res) => {
     if (go) {
       const id = normId(go[1]);
       try { const u = await open(id); res.writeHead(302, { Location: u }); return res.end(); }
-      catch (e) { return send(res, 500, 'text/html; charset=utf-8', page(`Le studio de ${id} n'a pas démarré`, e.message)); }
+      catch (e) { return send(res, 500, 'text/html; charset=utf-8', page(t('hubsrv.noStart', { id }), e.message)); }
     }
     if (pn === '/import') {   // a folder or a video dropped on the app's icon: import, then open it
       try { const r = doImport(url.searchParams.get('path') ?? ''); res.writeHead(302, { Location: r.video || r.episode || r.kind === 'remotion' ? `/go/${r.id}` : '/' }); return res.end(); }
-      catch (e) { return send(res, 400, 'text/html; charset=utf-8', page('Import impossible', e.message)); }
+      catch (e) { return send(res, 400, 'text/html; charset=utf-8', page(t('hubsrv.importFail'), e.message)); }
     }
     if (req.method === 'POST' && pn === '/api/import/pick') { const b = await readBody(req); const p = await pick(b.what); return json(res, p ? { ok: true, path: p } : { ok: false, cancelled: true }); }
     if (req.method === 'POST' && pn === '/api/import') {
@@ -197,27 +216,27 @@ const server = http.createServer(async (req, res) => {
       try { return json(res, { ok: true, project: doImport(b.path) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     if (req.method === 'POST' && pn === '/api/remove') {
-      if (!ep.startsWith('P')) return json(res, { ok: false, why: 'seuls les projets importés se retirent' }, 400);
+      if (!ep.startsWith('P')) return json(res, { ok: false, why: t('hubsrv.onlyProjects') }, 400);
       const st = studios.get(ep); if (st && st.proc.exitCode === null) await killTree(st.proc.pid);
       studios.delete(ep);
-      const ok = removeProject(ep); log(`projet retiré de la liste : ${ep}`);
+      const ok = removeProject(ep); log(t('hubsrv.removed', { ep }));
       return json(res, { ok });
     }
-    if (req.method === 'POST' && pn === '/api/open') { if (!ep) return json(res, { ok: false, why: 'épisode ou projet ?' }, 400); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/open') { if (!ep) return json(res, { ok: false, why: t('hubsrv.which') }, 400); return json(res, { ok: true, url: await open(ep) }); }
     if (req.method === 'POST' && pn === '/api/pause') return json(res, { ok: await pause(ep) });
-    if (req.method === 'POST' && pn === '/api/resume') { const st = studios.get(ep); if (!st) return json(res, { ok: false, why: 'pas de studio ' + ep }); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/resume') { const st = studios.get(ep); if (!st) return json(res, { ok: false, why: t('hubsrv.noStudio', { ep }) }); return json(res, { ok: true, url: await open(ep) }); }
     if (req.method === 'POST' && pn === '/api/quit') { json(res, { ok: true }); return setTimeout(quit, 100); }
     send(res, 404, 'text/plain', 'not found');
   } catch (e) { json(res, { ok: false, why: e.message }, 500); }
 });
 let port = +(opt('--port') ?? 0) || (INSTALLED ? 4170 : 4171);
-server.on('error', (e) => { if (e.code === 'EADDRINUSE' && port < 4199) { port++; server.listen(port, '127.0.0.1'); } else { log(`impossible d'écouter : ${e.message}`); process.exit(1); } });
+server.on('error', (e) => { if (e.code === 'EADDRINUSE' && port < 4199) { port++; server.listen(port, '127.0.0.1'); } else { log(t('hubsrv.listen', { msg: e.message })); process.exit(1); } });
 server.on('listening', () => {
   hubUrl = `http://127.0.0.1:${port}/`;
-  log(`accueil prêt : ${hubUrl} (épisodes : ${O.episodesDir})`);
+  log(t('hubsrv.ready', { url: hubUrl, dir: O.episodesDir }));
   if (opt('--lock')) fs.writeFileSync(opt('--lock'), JSON.stringify({ pid: process.pid, port, url: hubUrl, studio: STUDIO }));
   console.log(`HUB_READY ${hubUrl}`);
   if (opt('--episode')) open(opt('--episode').toUpperCase()).catch(() => {});
-  if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion') open(r.id).catch(() => {}); } catch (e) { log(`import impossible : ${e.message}`); } }
+  if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion') open(r.id).catch(() => {}); } catch (e) { log(t('hubsrv.importLog', { msg: e.message })); } }
 });
 server.listen(port, '127.0.0.1');

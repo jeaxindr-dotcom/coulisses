@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { launch } from './cdp.mjs';
 import { makeFixture, RUN, PROJET } from './coulisses-fixture.mjs';
 
+process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HUB_PORT = 4188, CLI = path.join(STUDIO, 'studio-cli.mjs'), shots = path.join(STUDIO, '.cache', 'shots'), REG = path.join(STUDIO, '.cache', 'coulisses-test-projets.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

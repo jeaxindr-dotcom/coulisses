@@ -16,6 +16,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_THEATRE } from './lib/episode.mjs';
+import { t } from './lib/i18n.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -26,7 +27,7 @@ const OLD = path.join(DEFAULT_THEATRE, '06_Remotion', 'review', 'studio');
 const DRY = args.includes('--dry'), FORCE = args.includes('--force');
 if (args.includes('--where')) { console.log(TO); process.exit(0); }   // for « Coulisses Setup.exe »
 // the app: « Coulisses.exe » (built by app\build.ps1) + its home screen (hub-server.mjs, hub.html) and icon
-const FILES = ['studio-server.mjs', 'studio.html', 'studio-cli.mjs', 'hub-server.mjs', 'hub.html', 'favicon.png', 'Coulisses.exe', 'AGENT.md', 'README.md'];
+const FILES = ['studio-server.mjs', 'studio.html', 'studio-cli.mjs', 'hub-server.mjs', 'hub.html', 'menubar.js', 'favicon.png', 'Coulisses.exe', 'AGENT.md', 'AGENT.en.md', 'README.md', 'README.fr.md'];
 const DIRS = ['lib', 'player', 'tests', 'docs'];
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 
@@ -37,8 +38,8 @@ const before = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifest
 // files changed in the installed copy since the last install
 const touched = before ? Object.entries(before.files).filter(([f, h]) => fs.existsSync(path.join(TO, f)) && sha(path.join(TO, f)) !== h).map(([f]) => f) : [];
 if (touched.length && !FORCE) {
-  console.error(`Modifié(s) dans ${TO} depuis la dernière installation : ${touched.join(', ')}\nRapatrie ces changements dans l'atelier, ou relance avec --force pour les écraser.`);
-  process.exit(1);
+  console.error(t('inst.touched', { to: TO, files: touched.join(', ') }));
+  process.exit(3);   // « Coulisses Setup.exe » offers to overwrite them (exit code 3, whatever the language)
 }
 const files = {};
 let changed = 0;
@@ -47,13 +48,13 @@ for (const f of list) {
   files[f.split(path.sep).join('/')] = h;
   if (fs.existsSync(dst) && sha(dst) === h) continue;
   changed++;
-  console.log(`${fs.existsSync(dst) ? 'mis à jour' : 'ajouté   '}  ${f}`);
+  console.log(`${t(fs.existsSync(dst) ? 'inst.updated' : 'inst.added')}  ${f}`);
   if (!DRY) { fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(src, dst); }
 }
 // files of an earlier install that this version no longer has
-for (const f of Object.keys(before?.files ?? {})) if (!files[f] && fs.existsSync(path.join(TO, f))) { console.log(`retiré      ${f}`); if (!DRY) fs.rmSync(path.join(TO, f)); }
+for (const f of Object.keys(before?.files ?? {})) if (!files[f] && fs.existsSync(path.join(TO, f))) { console.log(`${t('inst.removed')}${f}`); if (!DRY) fs.rmSync(path.join(TO, f)); }
 if (!DRY) fs.writeFileSync(manifestFile, JSON.stringify({ installed: new Date().toISOString(), from: HERE, app: 'Coulisses', files }, null, 1));
-console.log(`${DRY ? '[essai] ' : ''}${changed} fichier(s) copié(s) vers ${TO}${changed ? ' — un Coulisses déjà lancé doit être relancé' : ' (déjà à jour)'}`);
+console.log(t('inst.copied', { dry: DRY ? t('inst.dry') : '', n: changed, to: TO, extra: t(changed ? 'inst.restart' : 'inst.upToDate') }));
 
 // ---- moving from the old place, inside the Brambleshire pipeline ----
 const oldManifest = path.join(OLD, 'installed.json');
@@ -63,7 +64,7 @@ if (path.resolve(OLD).toLowerCase() !== TO.toLowerCase() && fs.existsSync(oldMan
   for (const [f, h] of Object.entries(m.files ?? {})) {
     const abs = path.join(OLD, f); if (!fs.existsSync(abs)) continue;
     if (sha(abs) !== h) { kept.push(f); continue; }   // changed there by someone: left in place
-    if (!DRY) try { fs.rmSync(abs); } catch { kept.push(`${f} (en cours d'utilisation)`); }
+    if (!DRY) try { fs.rmSync(abs); } catch { kept.push(t('inst.inUse', { file: f })); }
   }
   if (!DRY) {
     for (const d of DIRS) { const dir = path.join(OLD, d); try { if (fs.existsSync(dir) && !fs.readdirSync(dir).length) fs.rmdirSync(dir); } catch { /* not empty */ } }
@@ -80,11 +81,11 @@ if (path.resolve(OLD).toLowerCase() !== TO.toLowerCase() && fs.existsSync(oldMan
     fs.writeFileSync(path.join(OLD, 'LISEZMOI.txt'), [`Coulisses (anciennement « Brambleshire Studio ») est installé dans :`, TO, '',
       'Ce dossier ne garde qu\'un studio-cli.mjs de renvoi, pour les commandes écrites dans les anciens lots.', ''].join('\r\n'));
   }
-  console.log(`${DRY ? '[essai] ' : ''}ancien emplacement ${OLD} : vidé (commande de renvoi laissée)${kept.length ? `, gardés car modifiés : ${kept.join(', ')}` : ''}`);
+  console.log(t('inst.old', { dry: DRY ? t('inst.dry') : '', old: OLD, kept: kept.length ? t('inst.kept', { list: kept.join(', ') }) : '' }));
 }
 // ---- the list of imported projects follows the app ----
 const oldReg = path.join(LOCAL, 'BrambleshireStudio', 'projets.json'), newReg = path.join(LOCAL, 'Coulisses', 'projets.json');
 if (fs.existsSync(oldReg) && !fs.existsSync(newReg)) {
   if (!DRY) { fs.mkdirSync(path.dirname(newReg), { recursive: true }); fs.copyFileSync(oldReg, newReg); }
-  console.log(`${DRY ? '[essai] ' : ''}liste des projets importés reprise : ${newReg}`);
+  console.log(t('inst.registry', { dry: DRY ? t('inst.dry') : '', file: newReg }));
 }
