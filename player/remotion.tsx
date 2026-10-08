@@ -92,6 +92,7 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   cameraPos: () => s3?.cameraPos() ?? null,   // where the 3D camera is (tests)
   composition: __COMPOSITION__, fps: FPS, width: W, height: H, durationInFrames, ok: !!comp,
   whenReady: () => settle(),
+  sleep: (on: boolean) => s3?.sleep?.(on) ?? on,
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,

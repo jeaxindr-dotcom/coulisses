@@ -74,6 +74,19 @@ try {
   const md = fs.readFileSync(path.join(REVUE, 'lots', String(lot).padStart(3, '0') + '.md'), 'utf8');
   check(/Mise en scène proposée/.test(md) && /Δx 0\.200/.test(md) && /set_ladder/.test(md), 'the batch tells Claude the exact offset (Δx 0.200, the ladder)');
   console.log(md.split('\n').filter((l) => /Mise en scène|Décalage|Transformation|Portée|après le déplacement/.test(l)).map((l) => '     ' + l.slice(0, 200)).join('\n'));
+  // the live preview asleep behind the MP4, awake when shown (09/10/2026: « met du temps à charger »: it is preloaded
+  // behind the MP4, and must cost nothing there); a texture the browser already has is not sent again (304)
+  await p.eval(`document.querySelector('#modal').style.display = 'none'; document.querySelector('#srcVideo').click(); return 1`); await sleep(800);
+  const draws = () => p.eval(`const c = document.querySelector('#code').contentWindow.document.querySelector('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl');
+    let n = 0; const o = gl.drawElements.bind(gl); gl.drawElements = (...x) => { n++; return o(...x); }; await new Promise((r) => setTimeout(r, 1000)); gl.drawElements = o; return n`);
+  const asleep = await draws();
+  await p.eval(`document.querySelector('#srcCode').click(); return 1`); await sleep(800);
+  const awake = await draws();
+  check(asleep === 0 && awake > 50, `the live preview draws nothing behind the MP4 (${asleep} draw calls in 1 s), and again once shown (${awake})`);
+  const png = await p.eval(`return document.querySelector('#code').contentWindow.performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\\/public\\/.+\\.png/.test(n))`);
+  const r1 = png ? await fetch(png) : null, etag = r1?.headers.get('etag');
+  const r2 = etag ? await fetch(png, { headers: { 'If-None-Match': etag } }) : null;
+  check(!!etag && r2?.status === 304, `a texture already received is not sent again (ETag ${etag}, then 304)`);
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.message); } finally {
   const errs = p.logs.filter((l) => /exception|\[error\]/.test(l) && !/WebGL|X4000/.test(l));
   if (errs.length) console.log('page errors:\n' + errs.slice(0, 5).join('\n'));

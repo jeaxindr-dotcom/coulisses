@@ -10,5 +10,5 @@ export function create3d({ W, H, frame }: { W: number; H: number; frame: () => n
   // what the 3D scene holds ({ type, name } of every object): the tests, and a quick look at what the agent built
   const objects = () => R3F.roots().flatMap((r: any) => { const out: { type: string; name: string }[] = []; r.store?.getState?.().scene?.traverse((o: any) => out.push({ type: o.type, name: o.name })); return out; });
   const cameraPos = () => { const r: any = R3F.roots().find((x: any) => x?.store?.getState?.().camera); const c = r?.store.getState().camera; return c ? [c.position.x, c.position.y, c.position.z] : null; };
-  return { stage, cameraPos, hasScene: R3F.hasScene, pick: (x: number, y: number) => R3F.pick(x, y, W, H), settle: () => R3F.settle(false), objects };
+  return { stage, cameraPos, hasScene: R3F.hasScene, pick: (x: number, y: number) => R3F.pick(x, y, W, H), settle: () => R3F.settle(false), objects, sleep: (on: boolean) => R3F.sleep(on) };
 }

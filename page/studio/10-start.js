@@ -35,6 +35,7 @@
         const d = v.duration;
         FRAMES = SNAP?.frames && Math.abs(SNAP.frames / FPS - d) < 1 ? SNAP.frames : Math.round(d * FPS);
         DUR = FRAMES / FPS; view = { a: 0, b: DUR }; resize(); renderAll(); seekFrame(hashFrame() ?? 0);
+        preloadCode();   // the live preview, ready behind for « Code actuel » and the staging (01-preview.js)
       }, { once: true });
       window.addEventListener('hashchange', () => { const f = hashFrame(); if (f !== null) { M.pause(); seekFrame(f); } });
       v.addEventListener('error', () => setSave(T('st.start.cannotRead'), 'err'));

@@ -37,6 +37,7 @@ const stage = createStage({
   episode: __EPISODE__, fps: FPS, width: W, height: H, durationInFrames, ok: !!entry,
   // ready to be shown: the stage's canvas there and its meshes loaded (a new version is shown only then: ~20 s for an episode)
   whenReady: () => settle(),
+  sleep: (on: boolean) => R3F.sleep(on),
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,

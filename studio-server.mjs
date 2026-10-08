@@ -218,16 +218,24 @@ function sendFile(req, res, file, type, track) {
   if (!st || !st.isFile()) { res.writeHead(404); return res.end('not found'); }
   const size = st.size, range = req.headers.range;
   type ??= MIME[path.extname(file).slice(1).toLowerCase()] || 'application/octet-stream';
+  // the browser keeps what it got and asks « changed? » (no-cache): an unchanged file is not sent again — the live
+  // preview of an episode loads ~260 MB of textures, at every load and every rebuild (user report, 09/10/2026: « met du
+  // temps à charger »)
+  const etag = `"${size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}"`, modified = st.mtime.toUTCString();
+  const inm = req.headers['if-none-match'];
+  if (!range && (inm ? inm.split(/\s*,\s*/).includes(etag) : req.headers['if-modified-since'] === modified)) {
+    res.writeHead(304, { ETag: etag, 'Last-Modified': modified, 'Cache-Control': 'no-cache' }); return res.end();
+  }
   if (range) {
     const m = /bytes=(\d*)-(\d*)/.exec(range);
     let start = m && m[1] ? +m[1] : 0, end = m && m[2] ? +m[2] : size - 1;
     if (m && !m[1] && m[2]) { start = size - +m[2]; end = size - 1; }
     end = Math.min(end, size - 1);
     if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
-    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type, 'Cache-Control': 'no-cache' });
+    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type, 'Cache-Control': 'no-cache', ETag: etag, 'Last-Modified': modified });
     pipeOut(fs.createReadStream(file, { start, end }), res, track);
   } else {
-    res.writeHead(200, { 'Content-Length': size, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { 'Content-Length': size, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', ETag: etag, 'Last-Modified': modified });
     pipeOut(fs.createReadStream(file), res, track);
   }
 }

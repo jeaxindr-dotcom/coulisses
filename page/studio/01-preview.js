@@ -60,7 +60,8 @@
         });
         if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
         else showCodeNote('');
-        if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); setSave(T('st.code.updated'), 'ok'); }
+        if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); if (mode === 'code') setSave(T('st.code.updated'), 'ok'); }
+        if (old && mode !== 'code') sp.sleep?.(true);   // a new version, ready (whenReady above): asleep behind the MP4; a first load sleeps once ready (preloadCode)
         stageSynced = new Set();
         setTimeout(async () => {
           // the offsets not queued yet (an image dropped from « Médias » too), then the queued ones (syncStage)
@@ -94,6 +95,24 @@
     codeLoad = job; codeLoading = job.promise;
     return job.promise;
   }
+  // The live preview loaded in the background as soon as the studio has opened its video (user report, 09/10/2026: « le
+  // bouton pour activer la caméra libre met du temps à charger » — 12 s for E03, the episode's 260 MB of textures and its
+  // cardboard): once its scene is there it goes to sleep (nothing drawn), and « Code actuel », M or the staging find it
+  // ready. Only when the page is shown and the MP4 not playing, so that it never makes the video stutter.
+  let preloaded = false;
+  function preloadCode(delay = 2500) {
+    if (preloaded || !META?.features?.code) return;
+    setTimeout(function go() {
+      if (preloaded || mode === 'code' || SP || codeLoad) { preloaded = true; return; }
+      if (document.hidden || !M.paused) { setTimeout(go, 2000); return; }   // later: the user is watching
+      preloaded = true;
+      loadCode().then(async (sp) => {
+        if (!sp || mode === 'code') return;
+        await Promise.race([sp.whenReady?.() ?? null, new Promise((r) => setTimeout(r, 90000))]);
+        if (mode !== 'code' && SP === sp) sp.sleep?.(true);
+      });
+    }, delay);
+  }
   let codeNote = '';
   const showCodeNote = (t) => { codeNote = t; showCodeStatus(); };
   function showCodeStatus() {
@@ -110,6 +129,7 @@
     if (m === 'code' && !(await loadCode())) return;
     if (m === 'video' && SP) SP.pause();
     mode = m;
+    SP?.sleep?.(m !== 'code');   // drawn only while it is on screen (Remotion's 3D canvas draws at every frame, even paused)
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');
     seekFrame(f); if (was) M.play();

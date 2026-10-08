@@ -281,7 +281,7 @@
     const ver = STATUS.code?.version ?? 0;
     if (SP && ver !== codeVer && STATUS.code?.status === 'ready') {
       if (mode === 'code') { if (codeLoad?.ver !== ver) loadCode(); }   // shown when ready, at the frame and in the state of now
-      else SP = null;
+      else if (codeLoad?.ver !== ver) loadCode();   // the MP4 shown: the preview made ready behind, asleep (01-preview.js)
     } else if (!SP && mode === 'code' && STATUS.code?.status === 'ready' && !codeLoading) loadCode();   // the preview was not built yet at the start
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
     showCodeStatus();

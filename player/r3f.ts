@@ -136,6 +136,17 @@ export const meshCount = () => {
   for (const c of Array.from(document.querySelectorAll('canvas'))) (_roots as any).get(c)?.store?.getState?.().scene?.traverse((o: any) => { if (o.isMesh) n++; });
   return n;
 };
+// asleep: React Three Fiber draws nothing (Remotion's ThreeCanvas draws at every display frame, even paused); awake: as
+// before. The studio puts a preview to sleep while it is not on screen (preloaded, or the MP4 shown)
+const asleep = new Map<any, string>();
+export function sleep(on: boolean) {
+  for (const r of roots()) {
+    const st = r?.store?.getState?.(); if (!st?.setFrameloop) continue;
+    if (on) { if (!asleep.has(r)) asleep.set(r, st.frameloop ?? 'always'); st.setFrameloop('never'); }
+    else if (asleep.has(r)) { st.setFrameloop(asleep.get(r)); asleep.delete(r); }
+  }
+  return on;
+}
 export const settle = async (waitCanvas = true) => {
   for (let i = 0; i < 300 && waitCanvas && !document.querySelector('canvas'); i++) await new Promise((r) => setTimeout(r, 100));
   // every pick (a seek can mount an actor that enters later): ~0.4 s when nothing loads, up to 24 s while it does
