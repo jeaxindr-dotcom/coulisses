@@ -115,7 +115,7 @@ try {
   fs.writeFileSync(path.join(bramble, 'E09.coulisses'), JSON.stringify({ coulisses: 1, moteur: 'brambleshire', episode: 'E09', titre: 'E09' }));
   const br = cli('projet', 'creer', '--moteur', 'video', '--dossier', bramble, '--nom', 'E09', '--titre', 'E09');
   const unk = cli('projet', 'creer', '--moteur', 'hyperframes', '--dossier', RUN, '--titre', 'x');
-  check(noTitle.code === 1 && br.code === 1 && /épisode Brambleshire/.test(br.out) && unk.code === 1 && /inconnu/.test(unk.out), 'refused: no title, a Brambleshire episode, an unknown engine');
+  check(noTitle.code === 1 && br.code === 1 && /épisode du Théâtre/.test(br.out) && unk.code === 1 && /inconnu/.test(unk.out), 'refused: no title, a Brambleshire episode, an unknown engine');
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
   if (studio) { try { execFileSync('taskkill', ['/PID', String(studio.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } }
   console.log(`\n${ok} ok, ${ko} échec(s)`);

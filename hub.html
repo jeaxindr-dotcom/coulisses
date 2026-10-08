@@ -100,7 +100,7 @@
   <span class="pill" id="where"><span class="dot"></span>{{hub.where}}</span>
 </header>
 <main>
-  <section><h2>Brambleshire Theatre</h2>
+  <section id="theatreSec"><h2 id="theatreName">{{hub.theatre}}</h2>
   <div class="grid" id="grid"><div class="empty">{{hub.loading}}</div></div></section>
   <section><h2>{{hub.imported}} <span class="n" id="nproj"></span></h2>
   <div class="grid" id="pgrid"></div></section>
@@ -210,6 +210,8 @@
         $('#nproj').textContent = r.projects?.length ? String(r.projects.length) : '';
         if (keep) keep.querySelector('input')?.focus();
         const grid = $('#grid'); grid.innerHTML = '';
+        $('#theatreSec').style.display = r.theatre?.exists === false && !r.episodes.length ? 'none' : '';   // no theatre on this PC: no section
+        if (r.theatre?.name) $('#theatreName').textContent = r.theatre.name;
         if (!r.episodes.length) grid.innerHTML = `<div class="empty">${T('hub.noEpisode')}</div>`;
         for (const e of r.episodes) {
           grid.appendChild(card(e));

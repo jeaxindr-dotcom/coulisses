@@ -241,7 +241,9 @@ process.on('unhandledRejection', (e) => console.error(`  ${time()}  ${t('srv.ign
 
 const FRAME_CACHE = path.join(CACHE, 'frames', ep);
 // the « Médias » tab: the library of the project's channel (lib/medias.mjs), made on first use
-const CHANNEL = P.channel ?? (B ? 'Brambleshire Theatre' : P.kind === 'aitelier' ? "L'AItelier" : null);
+// a Theatre episode: the channel its own .coulisses names (the user's), else « Theatre »
+const episodeChannel = () => { try { const f = fs.readdirSync(P.EP).find((x) => x.toLowerCase().endsWith('.coulisses')); return (f && readJson(path.join(P.EP, f), null)?.chaine) || 'Theatre'; } catch { return 'Theatre'; } };   // a folder name: the same in both languages
+const CHANNEL = P.channel ?? (B ? episodeChannel() : P.kind === 'aitelier' ? "L'AItelier" : null);
 let LIB = null;
 const lib = () => (LIB ??= library(CHANNEL));
 const projTitle = () => (B ? folder.replace(/^Ed+ - /, '') : P.title);

@@ -69,6 +69,18 @@ function projects() {
     } catch (e) { return { id, project: true, missing: true, revue, title: path.basename(path.dirname(revue)), why: e.message, studio: live }; }
   });
 }
+// the Theatre section of the home screen: its name is the channel its episodes' .coulisses give (the user's own), else
+// « Théâtre »; it exists only when the episodes' folder is on this PC
+function theatreInfo() {
+  const exists = fs.existsSync(O.episodesDir);
+  let name = null;
+  if (exists) for (const d of fs.readdirSync(O.episodesDir).filter((x) => /^E\d+ - /i.test(x))) {
+    const f = fs.readdirSync(path.join(O.episodesDir, d)).find((x) => x.toLowerCase().endsWith('.coulisses'));
+    const c = f ? readJson(path.join(O.episodesDir, d, f), null) : null;
+    if (c?.chaine) { name = c.chaine; break; }
+  }
+  return { exists, name };
+}
 function episodes() {
   if (!fs.existsSync(O.episodesDir)) return [];
   return fs.readdirSync(O.episodesDir).filter((d) => /^E\d+ - /i.test(d)).sort().map((folder) => {
@@ -198,7 +210,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pn === '/api/reveal') { const b = await readBody(req); if (b.what !== 'online') return json(res, { ok: false, why: String(b.what) }, 400); openOnline(); return json(res, { ok: true }); }
     if (pn === '/favicon.png') return send(res, 200, 'image/png', fs.readFileSync(path.join(STUDIO, 'favicon.png')));
     if (pn === '/api/ping') return json(res, { hub: true, installed: INSTALLED, episodesDir: O.episodesDir, studios: Object.fromEntries([...studios].map(([k, s]) => [k, { url: s.url, paused: s.paused }])) });
-    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes(), projects: projects() });
+    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, theatre: theatreInfo(), episodes: episodes(), projects: projects() });
     if (pn.startsWith('/thumb/')) { const f = await thumb(normId(pn.slice(7)) ?? ''); if (!f) return send(res, 404, 'text/plain', 'no thumbnail'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=3600' }); return fs.createReadStream(f).pipe(res); }
     const go = /^\/go\/(E\d+|P[0-9a-f]{8})$/i.exec(pn);
     if (go) {
