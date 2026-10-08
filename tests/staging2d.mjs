@@ -121,6 +121,16 @@ try {
   const camMd = lotMarkdown({ kind: 'remotion', target: 'x', title: 'Essai', remotionDir: SCR, remotion: { composition: 'C' }, coulisses: file, EP: SCR, REVUE: imp.revue },
     { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1920, 1080], render: null, edits: [{ k: 1, id: 'c', frame: 45, end: null, time: 1.5, text: '', thread: [], context: null, mark: null, target: null, source: 'code', images: [], captures: {}, stage: { id: '@camera', name: 'Caméra', kind: 'cadre entier', delta: cam.delta, base: null, scope: { label: 'tout', from: 0, to: 299 }, frame: 45, dim: '2d', size: [1920, 1080] } }] });
   check(/Cadrage proposé par l'utilisateur/.test(camMd) && /mouvement de caméra/.test(camMd), 'a reframing goes to the agent as a camera move');
+  // a rebuild of the preview while an offset is in progress (here the frame, not queued): the new version takes over, the offset with it
+  { const KEYS = path.join(STUDIO, 'player', 'keys.ts');
+    await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.setDelta('@camera', { p: [33, 0, 0], r: [0, 0, 0], s: 1 }, 0, 1e9); return 1`); await sleep(300);
+    const v0 = await p.eval(`return document.querySelector('#codeStatus').textContent`), f0 = await p.eval(`return __studio.state().frame`);
+    fs.writeFileSync(KEYS, fs.readFileSync(KEYS));
+    await p.until(`document.querySelector('#codeStatus').textContent !== ${JSON.stringify(v0)} && document.querySelectorAll('#media iframe').length === 1 && !/préparation/.test(document.querySelector('#codeStatus').textContent)`, 90000); await sleep(1500);
+    const dx = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info('@camera').delta.p[0]`);
+    check(dx === 33 && (await p.eval(`return __studio.state().frame`)) === f0, `a rebuild of the preview: the new version shows the offset in progress (Δx ${dx}) at the same frame (${f0})`);
+    await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.reset('@camera'); return 1`);
+  }
   // « Médias » on a 2D picture: the image itself, laid where it was dropped, staged, queued with its box
   await p.eval(`document.querySelector('#sc-cam0').click(); return 1`); await sleep(300);
   const item = await p.eval(`const c = document.createElement('canvas'); c.width = 300; c.height = 600; const g = c.getContext('2d');

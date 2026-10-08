@@ -311,6 +311,7 @@ export function createStage2d(D: Deps) {
     addCutout, has: (id: string) => cutouts.has(id) || edits.has(id),
     // « Caméra »: the whole frame is the object (drag = reframe, wheel = zoom)
     freeCamera: (want: boolean) => { select(want ? CAMERA : null); return want; },
+    freePose: () => null,   // the 2D camera is an offset like the others (it goes over with them)
     resetCamera: () => { const had = edits.has(CAMERA) && !isZero(edits.get(CAMERA)!.delta); reset(CAMERA); return had; },
     snapshot: async () => '',   // the « after » image of a 2D staging is made by the server (/api/stage-shot)
     screenPos: (id: string) => { const b = frameBox(id); return b ? [Math.round(b[0] + b[2] / 2), Math.round(b[1] + b[3] / 2)] : null; },

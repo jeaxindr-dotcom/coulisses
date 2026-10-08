@@ -99,6 +99,21 @@ try {
   const back = await camPos();
   void shotView;
   check(moved && back && Math.hypot(moved[0] - back[0], moved[1] - back[1], moved[2] - back[2]) > 0.05 && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)), `« Réinitialiser la caméra »: the shot's camera again, the free camera still on (${moved?.map((x) => x.toFixed(1)).join(',')} → ${back?.map((x) => x.toFixed(1)).join(',')})`);
+  // a rebuild of the preview (as after each edit of the agent; 08/10/2026 « des fois la vidéo déconnecte »): the new
+  // version is prepared behind, the old one stays on screen, then the new one takes over with the staging in progress
+  { const KEYS = path.join(STUDIO, 'player', 'keys.ts');
+    const look = () => p.eval(`const sp = document.querySelector('#code').contentWindow.StudioPlayer; return { ver: document.querySelector('#codeStatus').textContent, frames: document.querySelectorAll('#media iframe').length,
+      cam: sp.stage.freePose?.()?.p ?? null, sel: sp.stage.selected, list: sp.stage.list().map((x) => x.id + '|' + x.delta.p.map((v) => v.toFixed(3)).join(',')).sort().join(';'), sp: !!sp }`);
+    const b0 = await look();
+    fs.writeFileSync(KEYS, fs.readFileSync(KEYS));   // the server watches player/: a new version of the preview
+    let two = false, l = b0;
+    for (let i = 0; i < 120; i++) { await sleep(500); l = await look(); if (l.frames === 2) two = true; if (l.ver.match(/v(\d+)/)?.[1] !== b0.ver.match(/v(\d+)/)?.[1] && l.frames === 1 && !/préparation/.test(l.ver)) break; }
+    await sleep(2500); l = await look();
+    const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+    check(two && l.ver !== b0.ver && l.frames === 1, `a rebuild: the new version is prepared behind the old one (two frames for a while), then takes its place (« ${b0.ver} » → « ${l.ver} »)`);
+    check(same(l.cam, b0.cam) && l.sel === b0.sel && l.list === b0.list && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)),
+      'the staging survives it: the free camera where it was, the object chosen, its offset not queued yet');
+  }
   // « Médias » → 3D cardboard: an image of the library (a lantern drawn here, transparent around it) dropped on the
   // preview stands there as cardboard at once, is staged like the others, goes to the queue with its place
   await p.eval(`document.querySelector('#sc-cam').click(); return 1`); await sleep(300);   // the shot's camera again

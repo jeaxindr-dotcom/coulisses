@@ -385,9 +385,15 @@ export function createStage(D: Deps) {
     info, get selected() { return selected; }, get enabled() { return on; },
     // « Médias »: an image as cardboard, where it was dropped (at: a point of the frame), or again at its place (base)
     addCutout, has: (id: string) => cutouts.has(id) || edits.has(id),
-    freeCamera: (want: boolean) => {
+    // where the free camera is ({ p, q }), null when off: a new version of the preview puts it back there
+    freePose: () => (freeCam ? { p: freeCam.p.toArray(), q: freeCam.q.toArray() } : null),
+    freeCamera: (want: boolean, pose?: { p: number[]; q: number[] } | null) => {
       if (!orbit || !st) return false;
-      if (want) { freeCam = { p: st.camera.position.clone(), q: st.camera.quaternion.clone() }; const t = new THREE.Vector3(0, 0, -1).applyQuaternion(st.camera.quaternion).multiplyScalar(8).add(st.camera.position); orbit.target.copy(t); orbit.enabled = true; }
+      // (a pose given: the camera goes there at the next frame — the shot's own pose is still read first, for « Réinitialiser »)
+      if (want) {
+        freeCam = pose ? { p: new THREE.Vector3().fromArray(pose.p), q: new THREE.Quaternion().fromArray(pose.q) } : { p: st.camera.position.clone(), q: st.camera.quaternion.clone() };
+        const t = new THREE.Vector3(0, 0, -1).applyQuaternion(freeCam.q).multiplyScalar(8).add(freeCam.p); orbit.target.copy(t); orbit.enabled = true;
+      }
       else { freeCam = null; orbit.enabled = false; if (scenePose) { st.camera.position.copy(scenePose.p); st.camera.quaternion.copy(scenePose.q); } }
       return !!freeCam;
     },

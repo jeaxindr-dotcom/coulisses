@@ -123,6 +123,7 @@
   #media { position: relative; display: block; line-height: 0; }
   #media video { display: block; width: 640px; height: 360px; background: #000; }
   #code { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; background: #000; }
+  #media .code-next { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; }   /* a new version, being prepared */
   #media.code #code { opacity: 1; }
   #media.code video { visibility: hidden; }
   #ov { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
@@ -585,7 +586,8 @@
   // numbers and dates: French keeps the formats it always had (decimal comma, the browser's own date formats)
   const dec = (x) => (FR ? String(x).replace('.', ',') : String(x));
   const hm5 = (d) => (FR ? d.toLocaleTimeString() : d.toLocaleTimeString('en-GB')).slice(0, 5);
-  const v = $('#v'), cv = $('#tl'), tip = $('#tip'), ov = $('#ov'), media = $('#media'), codeEl = $('#code');
+  const v = $('#v'), cv = $('#tl'), tip = $('#tip'), ov = $('#ov'), media = $('#media');
+  let codeEl = $('#code');   // the live preview's frame (a new version of the code comes in a new one, then takes its place)
   let META = null, SNAP = null, LIVE = null, FPS = 30, FRAMES = 0, DUR = 0, MAXQ = 10;
   let CW = 1920, CH = 1080;                    // the frame's pixels (1920×1080 for an episode; a project: its video's): every mark is stored in these
   let PROJ = false;                            // an imported project (AItelier run, any video), not a Brambleshire episode
@@ -721,40 +723,81 @@
     on(t, f) { bus.addEventListener(t, f); },
   };
   ['play', 'pause', 'seeked'].forEach((t) => v.addEventListener(t, () => { if (mode === 'video' || !SP) fire(t); }));
+  // The live preview: the player of the code, in an iframe. A new version of the code (every edit of the agent rebuilds it)
+  // is prepared in a second, hidden frame while the one on screen keeps playing; once its scene is there (an episode of
+  // the Theatre loads its textures again: about 20 s), it takes the old one's place, at the same frame, playing if it
+  // was, with the staging in progress (the free camera where it was, the object chosen, the offsets not queued yet), and
+  // the old one goes (user bug, 08/10/2026: « des fois la vidéo déconnecte » — the preview was reloaded in place, and
+  // stayed black that long after every edit of the agent). A newer version while one is prepared: that one is dropped.
+  let codeLoad = null;   // { ver, frame, promise, dropped }
   function loadCode() {
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
     if (SP && codeVer === ver) return Promise.resolve(SP);
-    if (codeLoading) return codeLoading;
-    $('#codeStatus').textContent = T('st.code.loading');
-    codeLoading = new Promise((resolve) => {
-      SP = null;
-      const f = curFrame();
-      const done = (sp) => { codeLoading = null; resolve(sp); };
-      codeEl.onload = () => {
-        const w = codeEl.contentWindow, t0 = performance.now();
-        (function wait() {
-          const sp = w.StudioPlayer;
-          if (sp) {
-            SP = sp; codeVer = ver;
-            if (!META.render && sp.durationInFrames) adoptCode(sp);
-            sp.setVolume(vol); sp.setRate(rate);
-            sp.on((ev) => {
-              if (mode !== 'code') return;
-              if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
-              if (ev.type === 'ended') fire('pause');
-            });
-            if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
-            else showCodeNote('');
-            stageSynced = new Set(); setTimeout(() => { syncStage(); if (staging) { staging = false; setStaging(true); } }, 0);
-            showCodeStatus(); return done(sp);
+    if (codeLoad && codeLoad.ver === ver) return codeLoad.promise;
+    if (codeLoad) { codeLoad.dropped = true; if (codeLoad.frame !== codeEl) codeLoad.frame.remove(); }
+    const inPlace = !SP;   // nothing on screen yet (the first time, after the video): loaded in the frame itself
+    const el = inPlace ? codeEl : document.createElement('iframe');
+    if (!inPlace) { el.className = 'code-next'; el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k)); codeEl.after(el); }
+    const job = { ver, frame: el, dropped: false };
+    if (inPlace) $('#codeStatus').textContent = T('st.code.loading'); else showCodeNote(T('st.code.preparing'));
+    job.promise = new Promise((resolve) => {
+      const f0 = curFrame();
+      const finish = (sp) => {
+        if (codeLoad === job) { codeLoad = null; codeLoading = null; }
+        if (job.dropped) return resolve(SP);
+        if (!sp) {
+          if (!inPlace) { el.remove(); showCodeNote(''); setSave(T('st.code.unavailable'), 'err'); } else $('#codeStatus').textContent = T('st.code.unavailable');
+          return resolve(inPlace ? null : SP);
+        }
+        // what the preview on screen showed, carried over to the new one
+        const old = inPlace ? null : SP, f = old ? old.frame() : f0, was = !!old && old.isPlaying();
+        const pose = old && staging ? old.stage?.freePose?.() ?? null : null, chosen = old && staging ? stSel?.id ?? null : null;
+        const queued = new Set(drafts().filter((n) => n.stage).map((n) => n.stage.id));
+        const carry = old && old.stage ? old.stage.list().filter((x) => !queued.has(x.id)) : [];
+        if (old) { try { old.pause(); } catch { /* gone */ } codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
+        SP = sp; codeVer = ver;
+        if (!META.render && sp.durationInFrames) adoptCode(sp);
+        sp.setVolume(vol); sp.setRate(rate);
+        sp.on((ev) => {
+          if (mode !== 'code' || SP !== sp) return;
+          if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
+          if (ev.type === 'ended') fire('pause');
+        });
+        if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
+        else showCodeNote('');
+        if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); setSave(T('st.code.updated'), 'ok'); }
+        stageSynced = new Set();
+        setTimeout(async () => {
+          // the offsets not queued yet (an image dropped from « Médias » too), then the queued ones (syncStage)
+          for (const x of carry) {
+            if (x.cutout && SP.stage.addCutout) SP.stage.addCutout(cutSpec(x)).then((c) => { if (c) SP.stage.setDelta(x.id, x.delta, x.from, x.to); });
+            else if (!x.cutout) SP.stage.setDelta(x.id, x.delta, x.from, x.to);
           }
-          if (performance.now() - t0 > 30000) { $('#codeStatus').textContent = T('st.code.unavailable'); return done(null); }
-          setTimeout(wait, 100);
+          syncStage();
+          if (staging) {
+            staging = false; freeCamOn = false; await setStaging(true);
+            if (pose && SP.stage.freeCamera) freeCamOn = SP.stage.freeCamera(true, pose);
+            if (chosen) SP.stage.select(chosen);
+            renderScene();
+          }
+        }, 0);
+        showCodeStatus(); resolve(sp);
+      };
+      el.onload = () => {
+        const w = el.contentWindow, t0 = performance.now();
+        (async function wait() {
+          if (job.dropped) return finish(null);
+          const sp = w.StudioPlayer;
+          if (!sp) { if (performance.now() - t0 > 60000) return finish(null); setTimeout(wait, 100); return; }
+          // a new version is shown once its scene is there (at most 90 s: then as it is)
+          if (!inPlace) await Promise.race([sp.whenReady?.() ?? null, new Promise((r) => setTimeout(r, 90000))]);
+          finish(sp);
         })();
       };
-      codeEl.src = `/player.html?f=${f}&v=${ver}`;
+      el.src = `/player.html?f=${f0}&v=${ver}`;
     });
-    return codeLoading;
+    codeLoad = job; codeLoading = job.promise;
+    return job.promise;
   }
   let codeNote = '';
   const showCodeNote = (t) => { codeNote = t; showCodeStatus(); };
@@ -1162,7 +1205,7 @@
     b.title = a.watching ? T('st.agent.watchTitle', { name: a.agent?.name ?? T('st.agent.Yours'), since: hhmm(a.since) }) : T('st.agent.clickTitle');
     const ver = STATUS.code?.version ?? 0;
     if (SP && ver !== codeVer && STATUS.code?.status === 'ready') {
-      if (mode === 'code') { const was = !M.paused; loadCode().then(() => { seekFrame(curFrame()); if (was) M.play(); setSave(T('st.code.updated'), 'ok'); }); }
+      if (mode === 'code') { if (codeLoad?.ver !== ver) loadCode(); }   // shown when ready, at the frame and in the state of now
       else SP = null;
     } else if (!SP && mode === 'code' && STATUS.code?.status === 'ready' && !codeLoading) loadCode();   // the preview was not built yet at the start
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
