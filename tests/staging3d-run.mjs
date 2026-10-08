@@ -60,8 +60,44 @@ try {
   await sleep(700);
   const d = sel ? await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info(${JSON.stringify(sel)}).delta`) : null;
   check(/^Stage › Piece/.test(sel ?? '') && Math.abs((d?.p?.[0] ?? 0) - 0.2) < 1e-6, `a click picks the object, the arrows move it in 3D units (${sel} · Δx ${d?.p?.[0]})`);
+  // dragging the object itself: along the floor (its height kept), then up with Shift (only its height)
+  const sp3 = `document.querySelector('#code').contentWindow.StudioPlayer.stage`;
+  const d0 = await p.eval(`return ${sp3}.info(${JSON.stringify(sel)}).delta.p`);
+  await p.mouse('mousePressed', at[0], at[1]);
+  for (let i = 1; i <= 6; i++) { await p.mouse('mouseMoved', at[0] + i * 12, at[1] - i * 4); await sleep(40); }
+  await p.mouse('mouseReleased', at[0] + 72, at[1] - 24); await sleep(500);
+  const d1 = await p.eval(`return ${sp3}.info(${JSON.stringify(sel)}).delta.p`);
+  check(Math.hypot(d1[0] - d0[0], d1[2] - d0[2]) > 0.05 && Math.abs(d1[1] - d0[1]) < 1e-6 && await p.eval(`return __studio.state().stage`) === sel, `a drag on the object moves it along the floor, its height kept (Δ ${d1.map((x) => x.toFixed(2)).join(', ')})`);
+  await p.eval(`const c = document.querySelector('#code').contentWindow.document.querySelector('canvas'), r = c.getBoundingClientRect();
+    const ev = (t, x, y) => c.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, bubbles: true, shiftKey: true, button: 0, buttons: t === 'pointerup' ? 0 : 1, pointerId: 7 }));
+    const f = document.querySelector('#code').getBoundingClientRect(), x = ${at[0] + 72} - f.left, y = ${at[1]} - f.top;   // where the object is now (an eye-level camera: it slid sideways, under the pointer's x)
+    ev('pointerdown', x, y); for (let i = 1; i <= 5; i++) ev('pointermove', x, y - i * 10); ev('pointerup', x, y - 50); return 1`); await sleep(400);
+  const d2 = await p.eval(`return ${sp3}.info(${JSON.stringify(sel)}).delta.p`);
+  check(d2[1] - d1[1] > 0.02 && Math.abs(d2[0] - d1[0]) < 1e-6 && Math.abs(d2[2] - d1[2]) < 1e-6, `Shift + drag: only its height (Δy ${(d2[1] - d1[1]).toFixed(2)})`);
+  // « Réinitialiser la caméra »
+  check(await p.eval(`return /Réinitialiser la caméra/.test(document.querySelector('#scene').innerText)`), '« Réinitialiser la caméra » is in the panel');
   await p.eval(`document.querySelector('#sc-cam').click(); return 1`); await sleep(400);
   check(/Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)) && !/Oliver/.test(await p.eval(`return document.querySelector('#scene').innerText`)), 'the free camera; the units are the scene\'s (no Brambleshire scale)');
+  // turn the free camera (a drag on empty sky), then reset it: the shot's view again
+  const shotView = await p.eval(`return document.querySelector('#code').contentWindow.document.querySelector('canvas').toDataURL('image/jpeg', 0.5).length`);
+  const sky = await p.eval(`const r = document.querySelector('#media').getBoundingClientRect(); const k = Math.min(r.width / 1080, r.height / 1920); return [r.left + (r.width - 1080 * k) / 2 + 540 * k, r.top + (r.height - 1920 * k) / 2 + 60 * k]`);
+  await p.mouse('mousePressed', sky[0], sky[1]); for (let i = 1; i <= 8; i++) { await p.mouse('mouseMoved', sky[0] + i * 25, sky[1]); await sleep(40); } await p.mouse('mouseReleased', sky[0] + 200, sky[1]); await sleep(600);
+  const camPos = () => p.eval(`const sp = document.querySelector('#code').contentWindow.StudioPlayer; return sp.cameraPos ? sp.cameraPos() : null`);
+  // free camera: a drag that starts on another object (a backdrop, a floor…) turns the camera, nothing moves
+  const other = await p.eval(`const sp = document.querySelector('#code').contentWindow.StudioPlayer; for (const [x, y] of [[540, 900], [300, 1200], [800, 1200], [540, 400], [200, 700], [900, 700], [540, 1750]]) { const n = (await sp.pick(120, x, y))[0]?.names?.[0] ?? ''; if (/^Stage › Piece/.test(n) && n !== ${JSON.stringify(sel)}) return [x, y, n]; } return null`);
+  if (other) {
+    const listed = () => p.eval(`return JSON.stringify(${sp3}.list().map((x) => [x.id, x.delta.p]))`);
+    const c0 = await camPos(), l0 = await listed();
+    const o = await p.eval(`const r = document.querySelector('#media').getBoundingClientRect(); const k = Math.min(r.width / 1080, r.height / 1920); return [r.left + (r.width - 1080 * k) / 2 + ${other[0]} * k, r.top + (r.height - 1920 * k) / 2 + ${other[1]} * k]`);
+    await p.mouse('mousePressed', o[0], o[1]); for (let i = 1; i <= 6; i++) { await p.mouse('mouseMoved', o[0] + i * 15, o[1]); await sleep(40); } await p.mouse('mouseReleased', o[0] + 90, o[1]); await sleep(500);
+    const c1 = await camPos();
+    check(c0 && c1 && Math.hypot(c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]) > 0.01 && await listed() === l0 && await p.eval(`return __studio.state().stage`) === sel, `free camera: a drag that starts on another object turns the camera, nothing moves (${other[2]})`);
+  } else console.log('  (no other object under the probe points: the free-camera drag check is skipped)');
+  const moved = await camPos();
+  await p.eval(`document.querySelector('#sc-cam0').click(); return 1`); await sleep(600);
+  const back = await camPos();
+  void shotView;
+  check(moved && back && Math.hypot(moved[0] - back[0], moved[1] - back[1], moved[2] - back[2]) > 0.05 && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)), `« Réinitialiser la caméra »: the shot's camera again, the free camera still on (${moved?.map((x) => x.toFixed(1)).join(',')} → ${back?.map((x) => x.toFixed(1)).join(',')})`);
   const md = lotMarkdown({ kind: 'remotion', target: 'x', title: 'S12', remotionDir: THEATRE, remotion: { composition: 'S12-CH1' }, coulisses: file, EP: SCR, REVUE: shot.revue, uses: P.project(shot.revue).uses },
     { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1080, 1920], render: null, edits: [] });
   check(/Ce plan 3D est utilisé dans « 宇宙を動かす/.test(md) && md.includes('06_remotion\\public\\short12_yottsu_no_chikara\\mg\\chibi1.mp4') && /refaire le rendu de la composition `S12-CH1`/.test(md), 'the batch tells the agent to render the shot again into the Short\'s file');

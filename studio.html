@@ -1492,7 +1492,7 @@
         <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
       : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.scene.pick')}</p>`}
       <div class="row"><button class="soft ${freeCamOn ? 'on' : ''}" id="sc-cam">${ic('camera')}${freeCamOn ? T('st.scene.camOn') : T('st.scene.cam')}</button>
-        ${freeCamOn ? `<button class="soft" id="sc-cam0">${T('st.scene.camBack')}</button>` : ''}<span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
+        <button class="soft" id="sc-cam0" title="${esc(T('st.scene.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
       ${freeCamOn ? `<p class="muted" style="margin:8px 0 0">${T('st.scene.camHelp')}</p>` : ''}
     </div>` + listHtml();
     box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
@@ -1503,7 +1503,7 @@
     $('#sc-reset')?.addEventListener('click', () => { const id = stSel.id; SP.stage.reset(id); stSel = null; renderScene(); syncStage(); });
     $('#sc-add')?.addEventListener('click', addStageNote);
     $('#sc-cam').onclick = () => { freeCamOn = SP.stage.freeCamera(!freeCamOn); renderScene(); };
-    $('#sc-cam0')?.addEventListener('click', () => { freeCamOn = SP.stage.freeCamera(false); renderScene(); });
+    $('#sc-cam0')?.addEventListener('click', () => { SP.stage.resetCamera?.(); setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); });
     $('#sc-off').onclick = () => setStaging(false);
     bindList();
   }
@@ -1526,7 +1526,7 @@
         <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
         <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button>${cam ? '' : `<button class="soft" id="sc-parent" title="${esc(T('st.s2.parentTitle'))}">${T('st.s2.parent')}</button>`}<span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
       : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.s2.pick')}</p>`}
-      <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
+      <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><button class="soft" id="sc-cam0" title="${esc(T('st.s2.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
     </div>` + listHtml();
     const fields = () => { const v = (k) => +($('#sc-' + k)?.value || 0); return { p: [v('x'), v('y'), 0], r: [0, 0, rad(v('rz'))], s: (v('s') || 100) / 100 }; };
     box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
@@ -1537,6 +1537,7 @@
     $('#sc-reset')?.addEventListener('click', () => { const id = stSel.id; SP.stage.reset(id); stSel = null; renderScene(); syncStage(); });
     $('#sc-add')?.addEventListener('click', addStageNote);
     $('#sc-cam').onclick = () => { SP.stage.freeCamera(!cam); renderScene(); };
+    $('#sc-cam0').onclick = () => { SP.stage.resetCamera?.(); stSel = SP.stage.selected ? stSel : null; setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); syncStage(); };
     $('#sc-parent')?.addEventListener('click', () => { if (!SP.stage.selectParent()) setSave(T('st.s2.noParent'), 'err'); });
     $('#sc-off').onclick = () => setStaging(false);
     bindList();

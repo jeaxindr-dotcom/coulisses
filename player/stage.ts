@@ -135,8 +135,58 @@ export function createStage(D: Deps) {
     return null;
   }
   let down: { x: number; y: number } | null = null;
-  const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY }; };
+  // Dragging an object moves it straight away, as in 2D: along the floor at its own height (a horizontal plane through
+  // it), or up and down with Shift (a vertical plane facing the camera). The gizmo's arrows stay for exact moves, and a
+  // drag on empty space still turns the free camera around. With the free camera on, only the object already chosen is
+  // dragged (a set's backdrop or floor fills the picture: a drag on it turns the camera, a click on it chooses it). The
+  // object moves once the pointer has gone 4 px: a simple click never nudges it.
+  // A camera that looks at the floor almost flat (a Short's eye-level camera, 08/10/2026: 24 px of mouse sent Uchu 16 units
+  // away) makes the floor useless to drag on: then the object slides sideways, in the plane facing the camera, at its own
+  // height (« side »); the depth stays for the arrows (PageUp/PageDown) and the gizmo. A move is never more than twice
+  // the camera's distance to the object (near the horizon a floor point runs to infinity).
+  let pdrag: { id: string; plane: THREE.Plane; offset: THREE.Vector3; start: THREE.Vector3; how: 'floor' | 'side' | 'height'; reach: number; orbitWas: boolean; live: boolean } | null = null;
+  const rayAt = (cx: number, cy: number) => {
+    const r = canvas!.getBoundingClientRect(), ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), st.camera);
+    return ray;
+  };
+  const onDown = (e: PointerEvent) => {
+    down = { x: e.clientX, y: e.clientY };
+    if (e.button !== 0 || (tc as any)?.axis || !st || !canvas) return;   // the gizmo's own drag
+    const id = pickAt(e.clientX, e.clientY); if (!id) return;
+    if (orbit?.enabled && id !== selected) return;                        // free camera: the drag turns it
+    if (id !== selected) select(id);
+    const ed = edits.get(id); if (!ed?.obj) return;
+    const world = ed.obj.getWorldPosition(new THREE.Vector3()), look = world.clone().sub(st.camera.position), reach = 2 * Math.max(look.length(), 0.5);
+    const how = e.shiftKey ? 'height' : Math.abs(look.normalize().y) < 0.34 ? 'side' : 'floor';   // < 20° above the floor: « side »
+    const n = how === 'floor' ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3().subVectors(st.camera.position, world).setY(0).normalize();
+    if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, world), hit = rayAt(e.clientX, e.clientY).ray.intersectPlane(plane, new THREE.Vector3());
+    if (!hit) return;
+    pdrag = { id, plane, offset: world.clone().sub(hit), start: world.clone(), how, reach, orbitWas: !!orbit?.enabled, live: false };
+    if (orbit) orbit.enabled = false;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* */ }
+  };
+  const onMove = (e: PointerEvent) => {
+    if (!pdrag || !st) return;
+    if (!pdrag.live) { if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 4) return; pdrag.live = true; }
+    const ed = edits.get(pdrag.id), o = ed?.obj; if (!o || !o.parent || !ed.base) return;
+    const hit = rayAt(e.clientX, e.clientY).ray.intersectPlane(pdrag.plane, new THREE.Vector3()); if (!hit) return;
+    const world = hit.add(pdrag.offset);
+    if (pdrag.how === 'height') { world.x = pdrag.start.x; world.z = pdrag.start.z; }   // Shift: only the height
+    else world.y = pdrag.start.y;                                                         // on the floor or sideways: its height kept
+    const mv = world.clone().sub(pdrag.start); if (mv.length() > pdrag.reach) world.copy(pdrag.start).add(mv.setLength(pdrag.reach));
+    const local = o.parent.worldToLocal(world.clone());
+    o.position.copy(local); o.updateMatrixWorld();
+    ed.delta = delta(ed); ed.applied = { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() };
+    emit({ type: 'change', ...info(ed.id) });
+  };
   const onUp = (e: PointerEvent) => {
+    if (pdrag) {   // a drag of the object is done; a simple click chose it already (on pointerdown)
+      if (orbit) orbit.enabled = pdrag.orbitWas;
+      pdrag = null; down = null;
+      return;
+    }
     if (!down || (tc as any)?.dragging) { down = null; return; }
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4; down = null;
     if (moved || (tc as any)?.axis) return;                              // an orbit, or a click on the gizmo
@@ -185,7 +235,7 @@ export function createStage(D: Deps) {
         e.delta = delta(e); e.applied = { p: e.obj.position.clone(), r: e.obj.rotation.clone(), s: e.obj.scale.clone() };
         emit({ type: 'change', ...info(e.id) });
       });
-      canvas.addEventListener('pointerdown', onDown); canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('pointerdown', onDown); canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointermove', onMove);
       window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp);
       canvas.style.cursor = 'crosshair'; canvas.tabIndex = 0; canvas.focus();
       // the bubbles / curtain / titles are HTML layers above the 3D canvas: in this mode only the canvas takes the mouse
@@ -195,7 +245,7 @@ export function createStage(D: Deps) {
       tc?.detach(); if (helper && st) st.scene.remove(helper); tc?.dispose(); tc = null; helper = null;
       orbit?.dispose(); orbit = null; freeCam = null;
       if (box && st) { st.scene.remove(box); box = null; }
-      canvas?.removeEventListener('pointerdown', onDown); canvas?.removeEventListener('pointerup', onUp);
+      canvas?.removeEventListener('pointerdown', onDown); canvas?.removeEventListener('pointerup', onUp); canvas?.removeEventListener('pointermove', onMove);
       window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp);
       if (canvas) canvas.style.cursor = '';
       document.getElementById('studio-staging')?.remove();
@@ -225,6 +275,15 @@ export function createStage(D: Deps) {
       if (want) { freeCam = { p: st.camera.position.clone(), q: st.camera.quaternion.clone() }; const t = new THREE.Vector3(0, 0, -1).applyQuaternion(st.camera.quaternion).multiplyScalar(8).add(st.camera.position); orbit.target.copy(t); orbit.enabled = true; }
       else { freeCam = null; orbit.enabled = false; if (scenePose) { st.camera.position.copy(scenePose.p); st.camera.quaternion.copy(scenePose.q); } }
       return !!freeCam;
+    },
+    // back to the shot's camera; a free camera stays free, from there (« Réinitialiser la caméra »)
+    resetCamera: () => {
+      if (!orbit || !st) return false;
+      const was = !!freeCam;
+      freeCam = null; orbit.enabled = false;
+      if (scenePose) { st.camera.position.copy(scenePose.p); st.camera.quaternion.copy(scenePose.q); st.camera.updateMatrixWorld(); }
+      if (was) { freeCam = { p: st.camera.position.clone(), q: st.camera.quaternion.clone() }; const t = new THREE.Vector3(0, 0, -1).applyQuaternion(st.camera.quaternion).multiplyScalar(8).add(st.camera.position); orbit.target.copy(t); orbit.enabled = true; }
+      return was;
     },
     // the 3D image as the shot's camera sees it, with the offsets, without gizmo (the after image sent to Claude)
     snapshot: () => new Promise<string>((res) => { capture = res; setTimeout(() => { if (capture === res) { capture = null; res(''); } }, 3000); }),

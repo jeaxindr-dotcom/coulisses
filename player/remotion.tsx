@@ -73,6 +73,7 @@ const stage: any = {
   selectParent: () => active.selectParent?.() ?? false,
   setMode: (m: any) => active.setMode(m),
   freeCamera: (want: boolean) => active.freeCamera(want),
+  resetCamera: () => active.resetCamera?.() ?? false,
   snapshot: () => active.snapshot(),
   screenPos: (id: string) => by(id).screenPos(id),
   edits: () => stage2d.edits(),
@@ -84,6 +85,7 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
 (window as any).StudioPlayer = {
   stage, generic: true,
   objects: () => s3?.objects() ?? [],   // the 3D scene's objects (tests)
+  cameraPos: () => s3?.cameraPos() ?? null,   // where the 3D camera is (tests)
   composition: __COMPOSITION__, fps: FPS, width: W, height: H, durationInFrames, ok: !!comp,
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),

@@ -110,11 +110,13 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 - **M**, ou le bouton « Mise en scène » du rail, passe dans l'aperçu du code et ouvre l'onglet **Scène**.
 - **Choisir un objet** : un clic sur un personnage, un accessoire ou un élément de décor l'encadre et affiche ses poignées. La visée est la même qu'au survol : elle traverse la transparence et ignore les particules.
 - **Le bouger** :
+  - le glisser : il se déplace à sa hauteur (sur le sol, ou de côté quand la caméra est à hauteur d'yeux) ; **Maj** + glisser le monte ou le descend ;
   - tirer les poignées ;
   - **W** déplacer, **E** tourner, **R** échelle ;
   - les flèches et **Pg↑** / **Pg↓** poussent l'objet de 0,05 (**Maj** : 0,25, **Alt** : 0,01) ;
   - ou saisir les valeurs dans l'onglet Scène.
-- **Caméra libre** : glisser pour tourner autour, clic droit pour se déplacer, molette pour avancer. « Revenir à la caméra du plan » la remet en place. Elle ne change jamais le rendu.
+- **Caméra libre** : glisser pour tourner autour (sur le vide ou sur un objet qui n'est pas choisi), clic droit pour se déplacer, molette pour avancer. Elle ne change jamais le rendu.
+- **Réinitialiser la caméra** (onglet Scène, toujours là) : revient à la caméra du plan. La caméra libre reste active, à partir de ce point de vue. En 2D, il enlève le recadrage.
 - **Portée** : la scène en cours, « à partir d'ici jusqu'à la fin de la scène », toute la vidéo, ou une plage d'images.
 - **Ajouter à la file** crée une modif qui contient l'objet, le décalage exact, sa portée et une image « après », prise par la caméra du plan. Tant qu'elle attend dans la file, l'aperçu garde l'objet déplacé.
 - **Rien n'est écrit dans le projet** : ni le moteur ni les images clés ne changent. L'agent reçoit le décalage dans le lot et l'écrit dans la config du décor ou dans la timeline, sans toucher au minutage (`AGENT.md`, « Une modif de mise en scène »).

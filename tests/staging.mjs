@@ -4,8 +4,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
+import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs) of the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_Episodes');
@@ -15,6 +17,11 @@ const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = 0, ko = 0; const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 await requireFrench(`http://localhost:${PORT}/`);
+// what earlier runs left behind (08/10/2026: the ladder's « Mise en scène » note of the previous run, still a draft, put
+// its +0.20 back in the preview before the arrows, so the next run read +0.40): its own notes and open batches only
+const cli = (...a) => execFileSync('node', [path.join(STUDIO, 'studio-cli.mjs'), ...a.slice(0, 1), 'E03', ...a.slice(1), '--episodes', SANDBOX], { encoding: 'utf8' }).trim();
+const TEST_TEXTS = [/^Mise en scène : (ladder \(décor\)|library \(toile de fond\)) — déplacer de x \+0,[24]0 ; portée : la scène « Root Library »/];
+closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
 const p = await launch({ port: 9370 });
 try {
   await p.goto(`http://localhost:${PORT}/`);
