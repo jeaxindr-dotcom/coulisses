@@ -69,6 +69,9 @@ const stage: any = {
   info: (id: string) => by(id).info(id),
   setDelta: (id: string, d: any, from?: number, to?: number) => by(id).setDelta(id, d, from, to),
   reset: (id: string) => by(id).reset(id),
+  // « Médias »: an image dropped on the preview — cardboard in a 3D scene, the image itself on a 2D picture
+  addCutout: (spec: any) => ((spec?.id ? by(spec.id) : active).addCutout?.(spec) ?? Promise.resolve(null)),
+  has: (id: string) => by(id).has?.(id) ?? false,
   select: (id: string | null) => active.select(id),
   selectParent: () => active.selectParent?.() ?? false,
   setMode: (m: any) => active.setMode(m),
@@ -117,9 +120,11 @@ const App: React.FC = () => {
     if (staged) {   // the « after » capture: these offsets, at this frame, then the page says it is ready
       try {
         const list = JSON.parse(decodeURIComponent(escape(atob(staged.replace(/-/g, '+').replace(/_/g, '/')))));
-        for (const e of list) stage.setDelta(e.id, e.delta, e.from, e.to);
-      } catch (e) { console.error('stage', e); }
-      settle().then(() => { stage.applyNow(); return settle(); }).then(() => { (window as any).__stageShotReady = true; });
+        // an image dropped from « Médias » is laid again first, then every offset
+        Promise.all(list.filter((e: any) => e.cutout).map((e: any) => stage.addCutout({ ...e.cutout, id: e.id })))
+          .then(() => { for (const e of list) stage.setDelta(e.id, e.delta, e.from, e.to); })
+          .then(() => settle()).then(() => { stage.applyNow(); return settle(); }).then(() => { (window as any).__stageShotReady = true; });
+      } catch (e) { console.error('stage', e); (window as any).__stageShotReady = true; }
     }
     emit('ready');
     return () => offs.forEach((o) => o());

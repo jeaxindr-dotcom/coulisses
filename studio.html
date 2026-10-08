@@ -230,6 +230,7 @@
   #tabs .n.hot { background: var(--grad-violet); color: #140f2a; }
   #tabs .n:empty { display: none; }
   #viewer.mdrag { outline: 2px dashed var(--lime); outline-offset: -8px; }
+  #viewer.mdrag #code { pointer-events: none !important; }
   #mdDropHint { position: fixed; z-index: 60; transform: translateX(-50%); pointer-events: none;
     padding: 7px 14px; border-radius: 999px; background: rgba(9, 11, 18, 0.85); border: 1px solid rgba(201, 242, 107, 0.4); color: var(--lime); font: 600 12.5px var(--font-d); white-space: nowrap; }
   .tab { display: none; flex: 1; min-height: 0; flex-direction: column; }
@@ -986,6 +987,34 @@
     M.pause();
     const r = await postJson('/api/medias/place', { id, frame });
     if (!r?.ok) { setSave(T('st.md.placeFailed', { why: r?.why ?? '' }), 'err'); return null; }
+    return placeNote(r, pt, frame);
+  }
+  // « Médias » dropped on a live preview (user request, 08/10/2026: « quand je place l'image créée dans le décor, elle se
+  // met automatiquement en carton 3D comme Brambleshire »): in a 3D scene the image becomes a cardboard cutout right where
+  // it falls (player/stage.ts), in a 2D picture the image itself (player/stage2d.ts); the staging opens on it to place it,
+  // and « Ajouter à la file » asks the agent to add it to the project there. Without a live preview of the code (a video
+  // only), or if the preview cannot take it: the pinned note, as before. Ctrl+Z takes the drop back.
+  const cutMedia = new Map();   // a cutout's id → the media of the library (and its copy in revue/images)
+  async function dropMedia(id, pt, frame = curFrame()) {
+    if (!META.features?.code || stageWhy()) return placeMedia(id, pt, frame);
+    if (queueFull()) return null;
+    M.pause();
+    const r = await postJson('/api/medias/place', { id, frame });
+    if (!r?.ok) { setSave(T('st.md.placeFailed', { why: r?.why ?? '' }), 'err'); return null; }
+    if (!staging) await setStaging(true);
+    if (!staging || !SP?.stage?.addCutout) return placeNote(r, pt, frame);
+    setSave(T('st.md.cutMaking', { name: r.media.nom }));
+    const c = await SP.stage.addCutout({ url: '/medias/file/' + encodeURIComponent(id), name: r.media.nom, category: r.media.categorie, at: pt ?? null });
+    if (!c?.cutout) return placeNote(r, pt, frame);
+    cutMedia.set(c.id, r.media);
+    HIST.back.push({ type: 'cutout', id: c.id, spec: cutSpec(c), media: r.media, label: T('st.undo.cutout', { name: r.media.nom }) }); HIST.fwd = [];
+    SP.stage.select(c.id);
+    setSave(T(D2() ? 'st.md.cut2dPlaced' : 'st.md.cutPlaced', { name: r.media.nom }), 'ok');
+    return c;
+  }
+  // what lays a cutout again at its place (a page reloaded, Ctrl+Y): its image, its name, its place before any offset
+  const cutSpec = (i) => ({ id: i.id, url: i.cutout.url, name: i.cutout.name, category: i.cutout.category, ...(i.cutout.box ? { box: i.cutout.box } : { base: i.cutout.base }) });
+  function placeNote(r, pt, frame) {
     const at = pt ?? [Math.floor(CW / 2), Math.floor(CH / 2)];
     const n = addNote(frame, null, false, { text: T(pt ? 'st.md.placeText' : 'st.md.placeTextCenter', { name: r.media.nom }), mark: { kind: 'pin', points: [at] },
       images: [{ file: r.file, at: now(), label: r.media.nom }], media: r.media });
@@ -995,10 +1024,10 @@
   $('#viewer').addEventListener('drop', (e) => {
     const id = e.dataTransfer?.getData('application/x-coulisses-media');
     window.Studio.mediaDragging(false);
-    if (id) placeMedia(id, toComp(e), curFrame());
+    if (id) dropMedia(id, toComp(e), curFrame());
   });
   window.Studio = {
-    esc: (x) => esc(x), ic: (n, c) => ic(n, c), setSave: (a, b) => setSave(a, b), placeMedia: (id, pt) => placeMedia(id, pt),
+    esc: (x) => esc(x), ic: (n, c) => ic(n, c), setSave: (a, b) => setSave(a, b), placeMedia: (id, pt) => dropMedia(id, pt), dropMedia: (id, pt) => dropMedia(id, pt),
     setTabCount: (t, txt) => { const e = $('#n' + t.charAt(0).toUpperCase() + t.slice(1)); if (e) e.textContent = txt; },
     mediaDragging: (on) => {
       const vw = $('#viewer'); vw.classList.toggle('mdrag', !!on); document.querySelector('#mdDropHint')?.remove();
@@ -1052,7 +1081,12 @@
     let step = from.pop();
     while (step && step.type === 'notes' && step.state === HIST.last) step = from.pop();   // a step that changes nothing
     if (!step) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
-    if (step.type === 'stage') {
+    if (step.type === 'cutout') {   // the drop of an image: undo takes it away, redo lays it again at its place
+      if (!SP?.stage) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
+      if (dir === 'undo') { if (SP.stage.has(step.id)) SP.stage.reset(step.id); if (stSel?.id === step.id) stSel = null; renderScene(); }
+      else if (!SP.stage.has(step.id)) SP.stage.addCutout(step.spec).then((c) => { if (c) { cutMedia.set(step.id, step.media); if (staging) SP.stage.select(step.id); } renderScene(); });
+      to.push(step);
+    } else if (step.type === 'stage') {
       if (!SP?.stage) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
       const cur = SP.stage.info(step.id);
       to.push({ type: 'stage', id: step.id, delta: cur.delta, from: cur.from, to: cur.to, label: step.label });
@@ -1069,7 +1103,7 @@
       if (loopId && !byId(loopId)) loopId = null;
       persist(); renderAll(); syncStage();
     }
-    setSave(T(dir === 'undo' ? 'st.undo.done' : 'st.redo.done', { what: step.label }), 'ok');
+    setSave(T(dir === 'undo' ? 'st.undo.done' : 'st.redo.done', { what: step.label, key: window.Shortcuts?.show(dir === 'undo' ? 'redo' : 'undo') ?? '' }), 'ok');
   }
   window.__undo = { state: () => ({ back: HIST.back.length, fwd: HIST.fwd.length, top: HIST.back.at(-1)?.label ?? null }) };   // for tests
   async function flush() {
@@ -1364,6 +1398,8 @@
   const D2 = () => SP?.stage?.kind === '2d';   // a run's 2D staging (player/stage2d.ts), else the Theatre's 3D one
   const K2 = { image: 'image', dessin: 'drawing', 'vidéo': 'video', canvas: 'canvas', texte: 'text', 'élément': 'element', cadre: 'frame' };
   function stageName(id, ev = null) {   // { name, kind } of a staged object, for the panel, the badge and the note
+    const i0 = ev?.cutout ? ev : (String(id).startsWith('@media:') ? SP?.stage?.info?.(id) : null);
+    if (i0?.cutout) return { name: i0.cutout.name, kind: T(i0.dim === '2d' ? 'st.kind.cutout2d' : 'st.kind.cutout') };
     if (D2() || ev?.dim === '2d') {
       if (id === '@camera') return { name: T('st.s2.camera'), kind: T('st.k2.frame') };
       const i = ev ?? SP.stage.info(id);
@@ -1403,11 +1439,19 @@
     renderScene();
   }
   // the offsets of the pending edits (draft notes) stay visible in the preview; sent or deleted ones are dropped
+  const cutLaying = new Set();
   function syncStage() {
     if (!SP?.stage) return;
     const want = new Map(drafts().filter((n) => n.stage).map((n) => [n.stage.id, n.stage]));
     for (const id of stageSynced) if (!want.has(id) && id !== stSel?.id) SP.stage.reset(id);
     for (const [id, st] of want) {   // only what changed (setDelta re-applies from the base)
+      if (st.cutout && !SP.stage.has?.(id)) {   // an image dropped from « Médias », not in this preview yet
+        if (!cutLaying.has(id) && SP.stage.addCutout) {
+          cutLaying.add(id);
+          SP.stage.addCutout({ ...cutSpec({ id, cutout: st.cutout }) }).then(() => { cutLaying.delete(id); SP.stage.setDelta(id, st.delta, st.scope.from, st.scope.to); });
+        }
+        continue;
+      }
       const cur = SP.stage.info(id);
       if (JSON.stringify([cur.delta, cur.from, cur.to]) !== JSON.stringify([st.delta, st.scope.from, st.scope.to])) SP.stage.setDelta(id, st.delta, st.scope.from, st.scope.to);
     }
@@ -1442,10 +1486,10 @@
       $('#sc-on').onclick = () => setStaging(true); bindList(); return;
     }
     if (D2()) return renderScene2d(box);
-    const sel = stSel, t = sel ? humanTarget({ names: [sel.id] }) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, sc = scopeOf();
+    const sel = stSel, t = sel ? stageName(sel.id, sel) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, sc = scopeOf();
     const num = (k, val, step) => `<input type="number" id="sc-${k}" step="${step}" value="${val}">`;
     box.innerHTML = `<div class="box">
-      ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>
+      ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>${sel.cutout ? `<p class="muted" style="margin:2px 0 8px">${T('st.scene.cutHint')}</p>` : ''}
         <div class="modes"><button data-m="translate" class="${stMode === 'translate' ? 'on' : ''}">${T('st.scene.move')}</button><button data-m="rotate" class="${stMode === 'rotate' ? 'on' : ''}">${T('st.scene.rotate')}</button><button data-m="scale" class="${stMode === 'scale' ? 'on' : ''}">${T('st.scene.size')}</button></div>
         <div class="grid3"><span></span><span class="axis">${T('st.scene.axisX')}</span><span class="axis">${T('st.scene.axisY')}</span><span class="axis">${T('st.scene.axisZ')}</span>
           <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(3), 0.05)}${num('y', d.p[1].toFixed(3), 0.05)}${num('z', d.p[2].toFixed(3), 0.05)}
@@ -1458,7 +1502,7 @@
           <option value="all" ${stScope === 'all' ? 'selected' : ''}>${T('st.scene.all')}</option>
           <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
         <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
-        <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
+        <div class="row"><button class="soft danger" id="sc-reset">${ic(sel.cutout ? 'trash' : 'undo')}${T(sel.cutout ? 'st.scene.cutRemove' : 'st.scene.reset')}</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
       : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.scene.pick')}</p>`}
       <div class="row"><button class="soft ${freeCamOn ? 'on' : ''}" id="sc-cam">${ic('camera')}${freeCamOn ? T('st.scene.camOn') : T('st.scene.cam')}</button>
         <button class="soft" id="sc-cam0" title="${esc(T('st.scene.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
@@ -1481,7 +1525,7 @@
     const sel = stSel, t = sel ? stageName(sel.id, sel) : null, d = sel?.delta ?? { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, cam = sel?.id === '@camera';
     const num = (k, val, step) => `<input type="number" id="sc-${k}" step="${step}" value="${val}">`;
     box.innerHTML = `<div class="box">
-      ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>
+      ${sel ? `<div class="ttl">${esc(t.name)}<span class="k">${esc(t.kind)}</span></div>${sel.cutout ? `<p class="muted" style="margin:2px 0 8px">${T('st.scene.cutHint2d')}</p>` : ''}
         <div class="modes"><button data-m="translate" class="${stMode === 'translate' ? 'on' : ''}">${T(cam ? 'st.s2.pan' : 'st.scene.move')}</button><button data-m="rotate" class="${stMode === 'rotate' ? 'on' : ''}">${T('st.scene.rotate')}</button><button data-m="scale" class="${stMode === 'scale' ? 'on' : ''}">${T(cam ? 'st.s2.zoom' : 'st.scene.size')}</button></div>
         <div class="grid3"><span></span><span class="axis">${T('st.s2.axisX')}</span><span class="axis">${T('st.s2.axisY')}</span><span class="axis">${T('st.s2.turn')}</span>
           <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(0), 1)}${num('y', d.p[1].toFixed(0), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
@@ -1493,7 +1537,7 @@
           <option value="all" ${stScope === 'all' ? 'selected' : ''}>${T('st.scene.all')}</option>
           <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
         <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
-        <div class="row"><button class="soft danger" id="sc-reset">${ic('undo')}${T('st.scene.reset')}</button>${cam ? '' : `<button class="soft" id="sc-parent" title="${esc(T('st.s2.parentTitle'))}">${T('st.s2.parent')}</button>`}<span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
+        <div class="row"><button class="soft danger" id="sc-reset">${ic(sel.cutout ? 'trash' : 'undo')}${T(sel.cutout ? 'st.scene.cutRemove' : 'st.scene.reset')}</button>${cam || sel.cutout ? '' : `<button class="soft" id="sc-parent" title="${esc(T('st.s2.parentTitle'))}">${T('st.s2.parent')}</button>`}<span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
       : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.s2.pick')}</p>`}
       <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><button class="soft" id="sc-cam0" title="${esc(T('st.s2.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
     </div>` + listHtml();
@@ -1517,7 +1561,7 @@
     if (!live.length && !queued.length) return '';
     const rows = [
       ...queued.map((n) => `<div class="item" data-note="${n.id}">${ic('send')}<span>${esc(n.stage.name ?? humanTarget({ names: [n.stage.id] }).name)}</span><span class="d">${T('st.scene.queued')}</span></div>`),
-      ...live.filter((x) => !queued.some((n) => n.stage.id === x.id)).map((x) => `<div class="item" data-id="${esc(x.id)}">${ic('move')}<span>${esc(stageName(x.id, x).name)}</span><span class="d">${esc(x.dim === '2d' ? deltaWords2d(x.delta, x.id === '@camera') : deltaWords(x.delta))}</span></div>`),
+      ...live.filter((x) => !queued.some((n) => n.stage.id === x.id)).map((x) => `<div class="item" data-id="${esc(x.id)}">${ic('move')}<span>${esc(stageName(x.id, x).name)}</span><span class="d">${esc(x.cutout ? T('st.scene.cutNew') : x.dim === '2d' ? deltaWords2d(x.delta, x.id === '@camera') : deltaWords(x.delta))}</span></div>`),
     ];
     return `<h3 style="margin:14px 6px 4px;font:600 11px var(--font-d);text-transform:uppercase;letter-spacing:.1em;color:var(--s9)">${T('st.scene.offsets')}</h3>${rows.join('')}`;
   }
@@ -1538,11 +1582,12 @@
         if (r.ok) shot = URL.createObjectURL(await r.blob());
       } catch { /* the edit stays without its image */ }
     } else shot = await SP.stage.snapshot();   // the shot's camera, with the offset, no gizmo
-    const pin = SP.stage.screenPos(id), info = SP.stage.info(id);
+    const pin = SP.stage.screenPos(id), info = SP.stage.info(id), cut = info.cutout ?? null;
     const extra = {
-      text: T(two ? 'st.s2.note' : 'st.stage.note', { name: t.name, kind: t.kind, delta: two ? deltaWords2d(d, id === '@camera') : deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
-      stage: { id, name: t.name, kind: t.kind, delta: d, base: info.base, scope: sc, frame: f, ...(two ? { dim: '2d', size: [CW, CH] } : {}) },
-      target: { frame: f, hits: [{ names: [id], textures: [], type: info.kind }] },
+      text: cut ? T(two ? 'st.stage.noteCut2d' : 'st.stage.noteCut', { name: t.name, scope: sc.label, from: sc.from, to: sc.to })
+        : T(two ? 'st.s2.note' : 'st.stage.note', { name: t.name, kind: t.kind, delta: two ? deltaWords2d(d, id === '@camera') : deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
+      stage: { id, name: t.name, kind: t.kind, delta: d, base: info.base, scope: sc, frame: f, ...(two ? { dim: '2d', size: [CW, CH] } : {}), ...(cut ? { cutout: cut } : {}) },
+      ...(cut ? { media: cutMedia.get(id) ?? null } : { target: { frame: f, hits: [{ names: [id], textures: [], type: info.kind }] } }),
       ...(pin && pin[0] >= 0 && pin[0] < CW && pin[1] >= 0 && pin[1] < CH ? { mark: { kind: 'pin', points: [pin] } } : {}),
     };
     const n = addNote(f, null, false, extra);

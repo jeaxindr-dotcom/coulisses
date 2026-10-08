@@ -168,20 +168,25 @@ try {
   await page.until(`document.querySelector('#mdCard.on #mdNom')`, 8000);
   await sleep(600);
   await page.shot(path.join(SCR, 'medias-tab.png'));
-  // an image dragged onto the video: a pinned edit, the image attached
+  // an image dragged onto the picture of a project with live code: laid there at once in the preview (08/10/2026: « elle
+  // se met automatiquement… »), the staging open on it; « Ajouter à la file » makes the pinned edit, the image attached
   const placed = await page.eval(`
     const id = document.querySelector('#mdGrid .md-it').dataset.id;
     const ov = document.querySelector('#ov') ?? document.querySelector('#viewer'), r = ov.getBoundingClientRect();
     const dt = new DataTransfer(); dt.setData('application/x-coulisses-media', id);
     document.querySelector('#viewer').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, clientX: r.left + r.width * 0.25, clientY: r.top + r.height * 0.5, bubbles: true, cancelable: true }));
     return id`);
-  await sleep(2500);
+  await page.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.stage?.list?.().some((x) => x.cutout)`, 30000); await sleep(600);
+  const cut = await page.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.list().find((x) => x.cutout)`);
+  check(cut && Math.abs(cut.cutout.final.x - 480) < 40 && Math.abs(cut.cutout.final.y - 540) < 40 && await page.eval(`return __studio.state().staging && __studio.state().stage`) === cut.id,
+    `dropped on the picture: laid there in the preview at once, chosen (centre ${cut?.cutout?.final.x?.toFixed(0)}, ${cut?.cutout?.final.y?.toFixed(0)})`);
+  await page.eval(`document.querySelector('#sc-add').click(); return 1`);
+  await page.until(`__studio.state().drafts === 1`, 60000); await sleep(1500);
   const notes = (await get('/api/notes')).notes ?? [];
   const pin = notes.find((n) => n.media?.id === placed);
-  check(pin && pin.draft && pin.mark?.kind === 'pin' && Math.abs(pin.mark.points[0][0] - 480) < 40 && pin.images?.[0]?.file?.startsWith('images/media-') && /^Placer « /.test(pin.text),
-    `dropped on the video: a pinned edit at the drop point (${pin?.mark?.points?.[0]?.join(', ')}), with the image (${pin?.images?.[0]?.file})`);
-  const tab = await page.eval(`return document.querySelector('[data-tab="queue"]').classList.contains('on')`);
-  check(tab, 'the page shows the new edit in « Modifs »');
+  check(pin && pin.draft && pin.mark?.kind === 'pin' && Math.abs(pin.mark.points[0][0] - 480) < 40 && pin.media?.file?.startsWith('images/media-') && pin.stage?.cutout && /^Ajouter l'image « /.test(pin.text),
+    `« Ajouter à la file »: a pinned edit at that place (${pin?.mark?.points?.[0]?.join(', ')}), with the image (${pin?.media?.file})`);
+  check((await page.eval(`return document.querySelector('#nQueue').textContent`)) === '1', 'the page counts the new edit in « Modifs »');
   await page.shot(path.join(SCR, 'medias.png'));
 } catch (e) {
   check(false, `erreur : ${e.stack ?? e.message}`);

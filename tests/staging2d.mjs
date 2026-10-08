@@ -22,6 +22,7 @@ process.env.COULISSES_LANG = 'fr';
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json');
 process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json');
 process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
+fs.writeFileSync(process.env.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));   // an image imported here is not sent to Codex
 const { makeFixture } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const { lotMarkdown } = await import('../lib/lots.mjs');
@@ -120,6 +121,33 @@ try {
   const camMd = lotMarkdown({ kind: 'remotion', target: 'x', title: 'Essai', remotionDir: SCR, remotion: { composition: 'C' }, coulisses: file, EP: SCR, REVUE: imp.revue },
     { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1920, 1080], render: null, edits: [{ k: 1, id: 'c', frame: 45, end: null, time: 1.5, text: '', thread: [], context: null, mark: null, target: null, source: 'code', images: [], captures: {}, stage: { id: '@camera', name: 'Caméra', kind: 'cadre entier', delta: cam.delta, base: null, scope: { label: 'tout', from: 0, to: 299 }, frame: 45, dim: '2d', size: [1920, 1080] } }] });
   check(/Cadrage proposé par l'utilisateur/.test(camMd) && /mouvement de caméra/.test(camMd), 'a reframing goes to the agent as a camera move');
+  // « Médias » on a 2D picture: the image itself, laid where it was dropped, staged, queued with its box
+  await p.eval(`document.querySelector('#sc-cam0').click(); return 1`); await sleep(300);
+  const item = await p.eval(`const c = document.createElement('canvas'); c.width = 300; c.height = 600; const g = c.getContext('2d');
+    g.fillStyle = '#e8402a'; g.beginPath(); g.ellipse(150, 330, 110, 210, 0, 0, Math.PI * 2); g.fill();
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const it = (await (await fetch('/api/medias/import', { method: 'POST', headers: { 'Content-Type': 'image/png', 'x-name': 'lanterne.png' }, body: blob })).json()).item;
+    await fetch('/api/medias/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, nom: 'lanterne', categorie: 'accessoires' }) });
+    return it`);
+  await p.eval(`await window.Studio.dropMedia(${JSON.stringify(item.id)}, [1400, 300]); return 1`); await sleep(600);
+  const c2 = await p.eval(`const s = document.querySelector('#code').contentWindow.StudioPlayer.stage; return s.list().find((x) => x.cutout) ?? null`);
+  const sc2 = await p.eval(`return document.querySelector('#scene').innerText`);
+  check(c2?.id === '[data-coulisses="lanterne"]' && await p.eval(`return __studio.state().stage`) === c2.id && !!(await p.eval(`return document.querySelector('#code').contentDocument.querySelector('#coulisses-camera > img[data-coulisses="lanterne"]') ? 1 : 0`))
+    && /image \(nouvelle\)/.test(sc2) && /Retirer l'image/.test(sc2) && Math.abs(c2.cutout.final.x - 1400) < 1 && Math.abs(c2.cutout.final.y - 300) < 1 && Math.abs(c2.cutout.final.h - 270) < 1,
+    `a library image dropped on the 2D picture is laid there at once, chosen (${c2?.id}, centre ${c2?.cutout?.final.x}, ${c2?.cutout?.final.y}, ${c2?.cutout?.final.w?.toFixed(0)} × ${c2?.cutout?.final.h?.toFixed(0)} px)`);
+  const lp = await p.eval(`const r = document.querySelector('#code').contentDocument.querySelector('img[data-coulisses="lanterne"]').getBoundingClientRect(), f = document.querySelector('#code').getBoundingClientRect(); return [f.left + r.left + r.width / 2, f.top + r.top + r.height / 2]`);
+  await p.wheel(lp[0], lp[1], -120); await sleep(300);
+  await p.eval(`document.querySelector('#sc-add').click(); return 1`);
+  await p.until(`__studio.state().drafts === 2`, 60000); await sleep(3500);
+  const n2 = (await (await fetch(U + '/api/notes')).json()).notes.find((x) => x.stage?.cutout);
+  const after2 = n2?.images?.find((im) => /après|after/i.test(im.label ?? '')), af2 = after2 ? path.join(imp.revue, after2.file) : null;
+  // the « after » image, photographed by the server: the image is there (red around 1400, 300)
+  const rgb = af2 && fs.existsSync(af2) ? [...execFileSync('ffmpeg', ['-v', 'error', '-i', af2, '-vf', 'crop=20:20:1390:290,scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])] : [];
+  check(n2 && /^Ajouter l'image « lanterne » à l'endroit/.test(n2.text) && n2.stage.cutout.final.h > 280 && n2.media?.nom === 'lanterne' && rgb[0] > 180 && rgb[1] < 110,
+    `« Ajouter à la file »: « ${n2?.text?.slice(0, 60)}… », its box (bigger by the wheel: ${n2?.stage?.cutout?.final.h?.toFixed(0)} px high), the « after » image shows it (rgb ${rgb.join(',')})`);
+  const md2 = lotMarkdown({ kind: 'remotion', target: 'x', title: 'Essai', remotionDir: SCR, remotion: { composition: 'C' }, coulisses: file, EP: SCR, REVUE: imp.revue },
+    { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1920, 1080], render: null, edits: [{ k: 1, id: n2.id, frame: n2.frame, end: null, time: 1.5, text: n2.text, thread: [], context: null, mark: n2.mark, target: null, source: 'code', images: [], captures: {}, stage: n2.stage, media: n2.media }] });
+  check(/Nouvelle image à ajouter/.test(md2) && /Boîte voulue, en pixels de l'image \(1920 × 1080\) : centre x 1400, y 300/.test(md2) && /Média de la bibliothèque à placer/.test(md2) && /data-coulisses/.test(md2), 'the batch: « Nouvelle image à ajouter », its box in pixels, the media');
   await p.shot(path.join(SCR, 'staging2d.png'));
   await p.key('m', 'KeyM', 'm'); await sleep(500);
   check(!(await p.eval(`return __studio.state().staging`)), 'M again: staging off');

@@ -7,6 +7,8 @@
 //   - drag it to move it, W / E / R = move / turn / size, the wheel = size (Shift + wheel = turn), the arrow keys = 1 px,
 //     Shift = 10 px; Escape lets it go
 //   - « Caméra » = the whole frame: drag to reframe, the wheel to zoom
+//   - an image of the library dropped on the picture (« Médias »): laid on top of the composition where it fell, then
+//     staged like the others (addCutout)
 // Nothing changes in the project: the offset is shown on top of the engine with the CSS individual transforms
 // (translate / rotate / scale), which compose with the transform the engine animates (GSAP, React styles) without
 // touching it, re-applied every frame inside its scope (the engine may rebuild the element), and the camera is a
@@ -126,9 +128,11 @@ export function createStage2d(D: Deps) {
   function tick() {
     raf = 0;
     const f = D.frame(), seen = new Set<Element>();
+    if (cutouts.size) { const r = root(); if (r) for (const c of cutouts.values()) if (!c.el.isConnected) r.appendChild(c.el); }
     for (const e of edits.values()) {
       const el = find(e.id); if (!el) continue;
       seen.add(el);
+      if (cutouts.has(e.id)) (el as HTMLElement).style.visibility = (f >= e.from && f <= e.to) || (on && selected === e.id) ? '' : 'hidden';
       write(el, f >= e.from && f <= e.to && !isZero(e.delta) ? e.delta : null, e.id === CAMERA);
     }
     for (const el of [...applied.keys()]) if (!seen.has(el)) write(el, null, el === root());
@@ -164,10 +168,52 @@ export function createStage2d(D: Deps) {
     }
     return e;
   }
-  const info = (id: string) => {
-    const e = edits.get(id), el = find(id), d = e ?? (el ? describe(el) : null);
-    return { id, name: d?.name ?? id, kind: d?.kind ?? 'élément', delta: e?.delta ?? ZERO, from: e?.from, to: e?.to, base: e?.base ?? frameBox(id), dim: '2d' };
+  const info = (id: string): any => {
+    const e = edits.get(id), el = find(id), d = e ?? (el ? describe(el) : null), c = cutouts.get(id);
+    const out: any = { id, name: d?.name ?? id, kind: d?.kind ?? 'élément', delta: e?.delta ?? ZERO, from: e?.from, to: e?.to, base: e?.base ?? frameBox(id), dim: '2d' };
+    if (c) {   // where the image ends up: its centre, its size and its turn, in pixels of the frame
+      const b = c.spec.box, dd = e?.delta ?? ZERO;
+      out.cutout = { url: c.spec.url, name: c.spec.name, category: c.spec.category ?? null, box: [...b], final: { x: b[0] + b[2] / 2 + dd.p[0], y: b[1] + b[3] / 2 + dd.p[1], w: b[2] * dd.s, h: b[3] * dd.s, r: dd.r[2] } };
+    }
+    return out;
   };
+
+  // ---------- « Médias »: an image of the library dropped on the picture (preview only) ----------
+  // It is laid on top of the composition, inside the camera's frame (#coulisses-camera, whose pixels are the frame's),
+  // named data-coulisses="<its name>", centred where it was dropped, at a size that suits what it is (a character about
+  // half the frame's height…). It is then an element of the staging like the others, and « Ajouter à la file » sends its
+  // box to the agent, who adds it to the project.
+  type Cut2 = { id?: string; url: string; name: string; category?: string; at?: [number, number] | null; box?: number[] | null };
+  const cutouts = new Map<string, { el: HTMLImageElement; spec: Cut2 & { id: string; box: number[] } }>();
+  const PART: Record<string, number> = { personnages: 0.5, decors: 0.7, accessoires: 0.25, effets: 0.35 };
+  async function addCutout(spec: Cut2) {
+    const r = root(); if (!r) return null;
+    const im = new Image(); im.src = spec.url;
+    try { await im.decode(); } catch { return null; }
+    let label = spec.id ? (/^\[data-coulisses="(.*)"\]$/.exec(spec.id)?.[1] ?? spec.name) : spec.name;
+    if (!spec.id) { const used = new Set([...r.querySelectorAll('[data-coulisses]')].map((x) => (x as HTMLElement).dataset.coulisses)); for (let n = 2; used.has(label); n++) label = `${spec.name} (${n})`; }
+    const id = `[data-coulisses="${label}"]`;
+    if (cutouts.has(id)) return info(id);
+    let box = spec.box ?? null;
+    if (!box) {
+      const [cx, cy] = spec.at ?? [D.W / 2, D.H / 2];
+      let h = D.H * (PART[spec.category ?? ''] ?? 0.35), w = h * im.naturalWidth / im.naturalHeight;
+      if (w > D.W * 0.9) { w = D.W * 0.9; h = w * im.naturalHeight / im.naturalWidth; }
+      box = [cx - w / 2, cy - h / 2, w, h];
+    }
+    Object.assign(im.style, { position: 'absolute', left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`, zIndex: '40', pointerEvents: 'none', userSelect: 'none' });
+    im.draggable = false; im.alt = spec.name; im.dataset.coulisses = label; im.dataset.coulissesType = 'image';
+    r.appendChild(im);
+    cutouts.set(id, { el: im, spec: { ...spec, id, box } });
+    const e = ensure(id); e.name = label; e.kind = 'image'; e.base = box.slice();
+    run(); emit({ type: 'cutout', ...info(id) });
+    return info(id);
+  }
+  function removeCutout(id: string) {
+    const c = cutouts.get(id); if (!c) return;
+    if (selected === id) select(null);
+    c.el.remove(); cutouts.delete(id); edits.delete(id); run();
+  }
   function select(id: string | null) {
     selected = id && find(id) ? id : null;
     if (selected) { const e = ensure(selected); if (isZero(e.delta)) e.base = frameBox(selected); emit({ type: 'select', ...info(selected) }); }
@@ -253,21 +299,23 @@ export function createStage2d(D: Deps) {
     run(); emit({ type: 'change', ...info(id) });
   }
   function reset(id: string) {
+    if (cutouts.has(id)) { removeCutout(id); return; }   // the drop is taken back
     const el = find(id); if (el) write(el, null, id === CAMERA);
     edits.delete(id); if (selected === id) select(null); run();
   }
   return {
     kind: '2d', enable, select, selectParent, setMode, setDelta, reset,
     on: (fn: (ev: any) => void) => { listeners.add(fn); return () => listeners.delete(fn); },
-    list: () => [...edits.values()].filter((e) => !isZero(e.delta)).map((e) => info(e.id)),
+    list: () => [...edits.values()].filter((e) => !isZero(e.delta) || cutouts.has(e.id)).map((e) => info(e.id)),
     info, get selected() { return selected; }, get enabled() { return on; },
+    addCutout, has: (id: string) => cutouts.has(id) || edits.has(id),
     // « Caméra »: the whole frame is the object (drag = reframe, wheel = zoom)
     freeCamera: (want: boolean) => { select(want ? CAMERA : null); return want; },
     resetCamera: () => { const had = edits.has(CAMERA) && !isZero(edits.get(CAMERA)!.delta); reset(CAMERA); return had; },
     snapshot: async () => '',   // the « after » image of a 2D staging is made by the server (/api/stage-shot)
     screenPos: (id: string) => { const b = frameBox(id); return b ? [Math.round(b[0] + b[2] / 2), Math.round(b[1] + b[3] / 2)] : null; },
     // the edits as the server's « after » capture needs them (player.html?stage=…)
-    edits: () => [...edits.values()].map((e) => ({ id: e.id, delta: e.delta, from: e.from, to: e.to })),
+    edits: () => [...edits.values()].map((e) => { const c = cutouts.get(e.id); return { id: e.id, delta: e.delta, from: e.from, to: e.to, ...(c ? { cutout: { url: c.spec.url, name: c.spec.name, category: c.spec.category ?? null, box: c.spec.box } } : {}) }; }),
     applyNow: () => tick(),
   };
 }

@@ -4,6 +4,7 @@
 // Nothing here changes the engine nor the keyframes: an offset is applied ON TOP of what Stage.tsx computes, every frame,
 // inside its scope (a range of frames), in the parent's space of the object (set-local for a set piece).
 //   the object moved: a set flat → its mesh; a prop / float → its keyed <group> (mesh + glow); an actor → its <group>
+//   an image of the library dropped on the preview (« Médias ») → a cardboard cutout made here, « @media:… » (addCutout)
 import * as THREE from 'three';
 import { addEffect, addAfterEffect } from '@react-three/fiber';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -51,6 +52,7 @@ export function createStage(D: Deps) {
   }
   // an object id = the React path of its mesh (« Stage › Piece[key="library-4-set_ladder"] »): stable across renders
   function resolve(id: string): THREE.Object3D | null {
+    if (cutouts.has(id)) return cutouts.get(id)!.group;
     const root = mainRoot(); if (!root) return null;
     D.index(root);
     let found: THREE.Object3D | null = null;
@@ -59,9 +61,110 @@ export function createStage(D: Deps) {
   }
   const meshOf = (o: THREE.Object3D) => { let m: any = null; o.traverse((c: any) => { if (!m && c.isMesh) m = c; }); return m ?? o; };
 
+  // ---- « Médias » (user request, 08/10/2026: « quand je place l'image créée dans le décor, elle se met automatiquement en
+  // carton 3D comme Brambleshire »): an image of the library dropped on the preview becomes a cardboard cutout at once,
+  // made the way the Theatre's engine makes its flats (src/cardboard/cardboard.ts « layered »: the picture in front, cut
+  // by its transparency, then the cardboard's edge layers — #a98159, darker towards the back — and its back #c8a77c;
+  // 0.048 thick for a prop, 0.08 for a set piece; its origin at the bottom centre of what is drawn). It stands where it
+  // was dropped: on the floor under the pointer, else in front of what is there. Its size: in a Theatre scene, the
+  // engine's (a character ≈ 2.0 high), else a part of the view. Preview only: « Ajouter à la file » sends its place to
+  // the agent, who adds it to the project; it is then an object of the staging like the others (moved, turned, sized).
+  type CutBase = { p: V3; r: V3; h: number };
+  type CutSpec = { id?: string; url: string; name: string; category?: string; at?: [number, number] | null; base?: CutBase | null };
+  const cutouts = new Map<string, { group: THREE.Group; spec: CutSpec & { id: string; base: CutBase }; h: number; w: number; t: number; theatre: boolean; dispose: () => void }>();
+  const THEATRE_H: Record<string, number> = { personnages: 2.0, decors: 2.6, accessoires: 0.8, effets: 1.0 };
+  const VIEW_PART: Record<string, number> = { personnages: 0.45, decors: 0.6, accessoires: 0.22, effets: 0.3 };
+  const cutoutOf = (o: THREE.Object3D | null) => { for (let p = o; p; p = p.parent) if (p.userData?.cutoutId && cutouts.has(p.userData.cutoutId)) return p.userData.cutoutId as string; return null; };
+  const theatreLike = () => {
+    const root = mainRoot(); if (!root) return false;
+    D.index(root); let yes = false;
+    root.store.getState().scene.traverse((o: any) => { if (!yes && o.isMesh && D.fiberOf.get(o) && /Stage › (Actor|Piece)\[/.test(D.reactPath(o) ?? '')) yes = true; });
+    return yes;
+  };
+  const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('image')); im.src = url; });
+  function buildCard(img: HTMLImageElement, visH: number, thick: number) {
+    const k = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+    const cw = Math.max(2, Math.round(img.naturalWidth * k)), ch = Math.max(2, Math.round(img.naturalHeight * k));
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const g = cv.getContext('2d', { willReadFrequently: true })!; g.drawImage(img, 0, 0, cw, ch);
+    const px = g.getImageData(0, 0, cw, ch), a = px.data;
+    let top = -1, bottom = -1, left = cw, right = -1;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (a[(y * cw + x) * 4 + 3] >= 64) { if (top < 0) top = y; bottom = y; if (x < left) left = x; if (x > right) right = x; }
+    if (top < 0) { top = 0; bottom = ch - 1; left = 0; right = cw - 1; }
+    const H = visH * ch / (bottom - top + 1), W = H * cw / ch;
+    const front = new THREE.CanvasTexture(cv); front.colorSpace = THREE.SRGBColorSpace; front.anisotropy = 4;
+    for (let i = 0; i < a.length; i += 4) { a[i] = 255; a[i + 1] = 255; a[i + 2] = 255; }
+    const sv = document.createElement('canvas'); sv.width = cw; sv.height = ch; sv.getContext('2d')!.putImageData(px, 0, 0);
+    const sil = new THREE.CanvasTexture(sv);
+    const geo = new THREE.PlaneGeometry(W, H); geo.translate(0, (bottom + 1) / ch * H - H / 2, 0);   // the origin: bottom centre of what is drawn
+    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: sil, alphaTest: 0.5 });
+    const card = new THREE.Group(), mats: THREE.Material[] = [depth];
+    const add = (mat: THREE.Material, z: number, back = false) => {
+      const m = new THREE.Mesh(geo, mat); m.position.z = z; if (back) m.rotation.y = Math.PI;
+      m.castShadow = true; m.receiveShadow = true; m.customDepthMaterial = depth; card.add(m); mats.push(mat);
+    };
+    add(new THREE.MeshStandardMaterial({ map: front, roughness: 0.92, alphaTest: 0.5 }), thick / 2);
+    const K = Math.max(3, Math.round(thick / 0.003) + 1), edge = new THREE.Color('#a98159');
+    for (let i = 1; i < K - 1; i++) {
+      const v = 1 - i / (K - 1);   // 1 at the front, 0 at the back
+      add(new THREE.MeshStandardMaterial({ map: sil, color: edge.clone().multiplyScalar(0.66 + 0.34 * v), roughness: 0.95, alphaTest: 0.72, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), thick / 2 - i * thick / (K - 1));
+    }
+    add(new THREE.MeshStandardMaterial({ map: sil, color: new THREE.Color('#c8a77c'), roughness: 0.95, alphaTest: 0.72 }), -thick / 2, true);
+    const dispose = () => { geo.dispose(); front.dispose(); sil.dispose(); for (const m of mats) m.dispose(); };
+    return { card, visW: W * (right - left + 1) / cw, dispose };   // what is drawn: visH high, visW wide
+  }
+  // where a drop at (fx, fy) of the frame lands: { p (the cutout's foot), face the camera?, its visible height }
+  function landing(at: [number, number] | null, category: string, theatre: boolean) {
+    const root = mainRoot()!, S = root.store.getState(), cam = S.camera as THREE.PerspectiveCamera, c = S.gl.domElement as HTMLCanvasElement;
+    const FW = D.W ?? 1920, FH = D.H ?? 1080, [fx, fy] = at ?? [FW / 2, FH * 0.62];
+    const stageEl = document.getElementById('stage')?.getBoundingClientRect() ?? c.getBoundingClientRect(), k = Math.min(stageEl.width / FW, stageEl.height / FH);
+    const cx = stageEl.left + (stageEl.width - FW * k) / 2 + fx * k, cy = stageEl.top + (stageEl.height - FH * k) / 2 + fy * k, r = c.getBoundingClientRect();
+    const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), cam);
+    D.index(root);
+    const ours = (o: THREE.Object3D) => { for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p === helper || p === box) return true; return false; };
+    const hit = ray.intersectObjects(S.scene.children, true).find((x) => x.object.visible && !ours(x.object) && (cutoutOf(x.object) || D.seen(x))) ?? null;
+    let p: THREE.Vector3 | null = null, floor = false;
+    const n = hit?.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null;
+    if (hit && n && n.y > 0.6) { p = hit.point.clone(); floor = true; }
+    if (!p) {   // the floor of the scene (y = 0), when it is in front of what the pointer is on
+      const t = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+      const dt = t ? t.distanceTo(ray.ray.origin) : Infinity;
+      if (t && dt < 80 && (!hit || dt <= hit.distance + 0.01)) { p = t; floor = true; }
+    }
+    const dist = p ? p.distanceTo(ray.ray.origin) : hit ? Math.max(0.6, hit.distance - 0.3) : 6;
+    const viewH = (cam as any).isPerspectiveCamera ? 2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) : ((cam as any).top - (cam as any).bottom) / ((cam as any).zoom || 1);
+    const h = theatre ? THEATRE_H[category] ?? 1.0 : viewH * (VIEW_PART[category] ?? 0.3);
+    if (!p) { p = ray.ray.at(dist, new THREE.Vector3()); p.y -= h / 2; }   // in front of a wall: centred on the pointer
+    const ry = theatre ? 0 : Math.atan2(ray.ray.origin.x - p.x, ray.ray.origin.z - p.z);   // the Theatre's flats all face the stage
+    return { p, ry, h, floor };
+  }
+  async function addCutout(spec: CutSpec) {
+    const root = mainRoot(); if (!root) return null;
+    const id = spec.id ?? `@media:${Math.random().toString(36).slice(2, 9)}`;
+    if (cutouts.has(id)) return info(id);
+    let img: HTMLImageElement; try { img = await loadImage(spec.url); } catch { return null; }
+    const cat = spec.category ?? '', theatre = theatreLike(), thick = cat === 'decors' ? 0.08 : 0.048;
+    let base = spec.base ?? null;
+    if (!base) { const L = landing(spec.at ?? null, cat, theatre); base = { p: [L.p.x, L.p.y, L.p.z], r: [0, L.ry, 0], h: L.h }; }
+    const made = buildCard(img, base.h, thick);
+    const group = new THREE.Group(); group.name = `Carton « ${spec.name} »`; group.userData.cutoutId = id;
+    group.add(made.card); group.position.set(...base.p); group.rotation.set(...base.r);
+    root.store.getState().scene.add(group); group.updateMatrixWorld(true);
+    cutouts.set(id, { group, spec: { ...spec, id, base }, h: base.h, w: made.visW, t: thick, theatre, dispose: made.dispose });
+    edits.set(id, { id, delta: { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, from: 0, to: 1e9, obj: group, base: { p: group.position.clone(), r: group.rotation.clone(), s: group.scale.clone() }, applied: null });
+    emit({ type: 'cutout', ...info(id) });
+    return info(id);
+  }
+  function removeCutout(id: string) {
+    const c = cutouts.get(id); if (!c) return;
+    if (selected === id) select(null);
+    c.group.parent?.remove(c.group); c.dispose(); cutouts.delete(id); edits.delete(id);
+  }
+
   // ---- every frame, before R3F renders: offsets on top of the engine's transforms, the free camera ----
   addEffect(() => {
     const f = D.frame();
+    if (cutouts.size) { const sc = mainRoot()?.store.getState().scene; if (sc) for (const c of cutouts.values()) if (c.group.parent !== sc) sc.add(c.group); }
     for (const e of edits.values()) {
       let o = e.obj;
       if (!o || !o.parent) { o = e.obj = resolve(e.id); e.base = e.applied = null; }
@@ -70,6 +173,7 @@ export function createStage(D: Deps) {
       // React wrote a new transform since our last frame (or first time): it is the new base
       if (!a || !o.position.equals(a.p) || !o.rotation.equals(a.r) || !o.scale.equals(a.s) || !e.base) e.base = { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() };
       const b = e.base, inScope = f >= e.from && f <= e.to, d = inScope ? e.delta : ZERO;
+      if (cutouts.has(e.id)) o.visible = inScope || (on && selected === e.id);
       o.position.set(b.p.x + d.p[0], b.p.y + d.p[1], b.p.z + d.p[2]);
       o.rotation.set(b.r.x + d.r[0], b.r.y + d.r[1], b.r.z + d.r[2]);
       o.scale.set(b.s.x * d.s, b.s.y * d.s, b.s.z * d.s);
@@ -96,7 +200,14 @@ export function createStage(D: Deps) {
     const o = e.obj, b = e.base; if (!o || !b) return e.delta;
     return { p: [o.position.x - b.p.x, o.position.y - b.p.y, o.position.z - b.p.z], r: [o.rotation.x - b.r.x, o.rotation.y - b.r.y, o.rotation.z - b.r.z], s: b.s.x ? o.scale.x / b.s.x : 1 };
   }
-  const info = (id: string) => {
+  const info = (id: string): any => {
+    const c = cutouts.get(id);
+    if (c) {
+      const e = edits.get(id)!, b = c.spec.base, d = e.delta;
+      const final = { p: b.p.map((v, i) => v + d.p[i]), r: b.r.map((v, i) => v + d.r[i]), h: c.h * d.s, w: c.w * d.s, t: c.t };
+      return { id, kind: 'carton', name: c.spec.name, delta: d, from: e.from, to: e.to, base: { p: [...b.p], r: [...b.r], s: 1 },
+        cutout: { url: c.spec.url, name: c.spec.name, category: c.spec.category ?? null, base: b, final, theatre: c.theatre } };
+    }
     const e = edits.get(id), o = e?.obj ?? resolve(id);
     const d = o ? D.describe(meshOf(o)) : null, b = e?.base;
     return { id, kind: d?.type, delta: e?.delta ?? ZERO, from: e?.from, to: e?.to, base: b ? { p: [b.p.x, b.p.y, b.p.z], r: [b.r.x, b.r.y, b.r.z], s: b.s.x } : o ? { p: [o.position.x, o.position.y, o.position.z], r: [o.rotation.x, o.rotation.y, o.rotation.z], s: o.scale.x } : null };
@@ -128,6 +239,7 @@ export function createStage(D: Deps) {
     const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, st.camera);
     D.index(mainRoot());
     for (const hit of ray.intersectObjects(st.scene.children, true)) {
+      const cut = hit.object.visible ? cutoutOf(hit.object) : null; if (cut) return cut;   // an image dropped from « Médias »
       if (!D.fiberOf.get(hit.object) || !D.seen(hit)) continue;          // gizmo, helpers: no React fiber
       const id = D.reactPath(hit.object);
       if (!id || D.noise.test(id) || !/\[key=/.test(id)) continue;      // floor, motes, light shafts
@@ -261,6 +373,7 @@ export function createStage(D: Deps) {
     emit({ type: 'change', ...info(id) });
   }
   function reset(id: string) {
+    if (cutouts.has(id)) { removeCutout(id); return; }
     const e = edits.get(id); if (!e) return;
     if (e.obj && e.base) { e.obj.position.copy(e.base.p); e.obj.rotation.copy(e.base.r); e.obj.scale.copy(e.base.s); }
     edits.delete(id); if (selected === id) select(null);
@@ -268,8 +381,10 @@ export function createStage(D: Deps) {
   return {
     enable, select, setMode, setDelta, reset,
     on: (fn: (ev: any) => void) => { listeners.add(fn); return () => listeners.delete(fn); },
-    list: () => [...edits.values()].filter((e) => !isZero(e.delta)).map((e) => info(e.id)),
+    list: () => [...edits.values()].filter((e) => !isZero(e.delta) || cutouts.has(e.id)).map((e) => info(e.id)),
     info, get selected() { return selected; }, get enabled() { return on; },
+    // « Médias »: an image as cardboard, where it was dropped (at: a point of the frame), or again at its place (base)
+    addCutout, has: (id: string) => cutouts.has(id) || edits.has(id),
     freeCamera: (want: boolean) => {
       if (!orbit || !st) return false;
       if (want) { freeCam = { p: st.camera.position.clone(), q: st.camera.quaternion.clone() }; const t = new THREE.Vector3(0, 0, -1).applyQuaternion(st.camera.quaternion).multiplyScalar(8).add(st.camera.position); orbit.target.copy(t); orbit.enabled = true; }

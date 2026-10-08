@@ -153,6 +153,14 @@ Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) :
 - **le fichier à utiliser** : sa copie jointe au lot, dans `revue\images\` (l'original de la bibliothèque est cité aussi) ;
 - la punaise de la note : l'endroit où la poser, à l'image de la note.
 
+Le plus souvent, l'utilisateur l'a déjà posée lui-même dans l'aperçu vivant du code : l'image y apparaît tout de suite (en **carton 3D** dans une scène 3D, fait comme les cartons du Théâtre ; telle quelle sur une image 2D), il la place, puis l'ajoute à la file. La modif contient alors aussi un bloc **« Nouvel élément à ajouter »** (en 2D : « Nouvelle image à ajouter ») avec la place exacte voulue :
+
+- en 3D : le **pied du carton** (en bas, au centre de ce qui est dessiné) en x, y, z du monde de la scène, sa rotation, sa **hauteur visible**, sa largeur et son épaisseur (dans le Théâtre, le sol est à y = 0 et un personnage mesure environ 2,0) ;
+- en 2D : sa boîte en pixels de l'image (centre, largeur × hauteur, rotation) ;
+- la portée (les images où elle doit être), et l'image « après » telle que l'utilisateur l'a posée.
+
+L'élément n'existe que dans l'aperçu : c'est à toi de l'ajouter au projet, à cette place et à cette taille.
+
 Pour l'appliquer :
 
 1. **Copier** ce fichier dans le projet, là où il range ses images (le dossier `public` du projet Remotion pour un run ou un épisode), et l'utiliser depuis cette copie. Jamais de chemin vers la bibliothèque : elle peut changer.

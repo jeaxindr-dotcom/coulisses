@@ -19,6 +19,7 @@ process.env.COULISSES_LANG = 'fr';
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json');
 process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json');
 process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
+fs.writeFileSync(process.env.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));   // an image imported here is not sent to Codex
 const P = await import('../lib/projects.mjs');
 const { lotMarkdown } = await import('../lib/lots.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -98,6 +99,55 @@ try {
   const back = await camPos();
   void shotView;
   check(moved && back && Math.hypot(moved[0] - back[0], moved[1] - back[1], moved[2] - back[2]) > 0.05 && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)), `« Réinitialiser la caméra »: the shot's camera again, the free camera still on (${moved?.map((x) => x.toFixed(1)).join(',')} → ${back?.map((x) => x.toFixed(1)).join(',')})`);
+  // « Médias » → 3D cardboard: an image of the library (a lantern drawn here, transparent around it) dropped on the
+  // preview stands there as cardboard at once, is staged like the others, goes to the queue with its place
+  await p.eval(`document.querySelector('#sc-cam').click(); return 1`); await sleep(300);   // the shot's camera again
+  const item = await p.eval(`const c = document.createElement('canvas'); c.width = 300; c.height = 600; const g = c.getContext('2d');
+    g.fillStyle = '#f2c14e'; g.beginPath(); g.ellipse(150, 330, 110, 210, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7a3b10'; g.fillRect(120, 40, 60, 90);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const it = (await (await fetch('/api/medias/import', { method: 'POST', headers: { 'Content-Type': 'image/png', 'x-name': 'lanterne.png' }, body: blob })).json()).item;
+    await fetch('/api/medias/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, nom: 'lanterne', categorie: 'accessoires' }) });
+    return it`);
+  const objs0 = (await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.objects().length`));
+  await p.eval(`await window.Studio.dropMedia(${JSON.stringify(item.id)}, [540, 1450]); return 1`); await sleep(800);
+  const cut = await p.eval(`const s = document.querySelector('#code').contentWindow.StudioPlayer.stage; return s.list().find((x) => x.cutout) ?? null`);
+  const scTxt = await p.eval(`return document.querySelector('#scene').innerText`);
+  check(!!cut && /^@media:/.test(cut.id) && await p.eval(`return __studio.state().stage`) === cut.id && /lanterne/.test(scTxt) && /carton \(nouveau\)/.test(scTxt) && /Retirer l'image/.test(scTxt)
+    && (await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.objects().some((o) => o.name === 'Carton « lanterne »')`)),
+    `a library image dropped on the 3D preview stands there as cardboard at once, chosen (${cut?.id}, foot at ${cut?.cutout?.final.p.map((x) => x.toFixed(2)).join(', ')}, ${cut?.cutout?.final.h.toFixed(2)} high)`);
+  check(cut && Math.abs(cut.cutout.final.h - 0.8) < 1e-6 && Math.abs(cut.cutout.final.p[1]) < 0.05 && Math.abs(cut.cutout.final.r[1]) < 1e-9, 'in a Theatre scene: the engine\'s size (a prop 0.8 high), its foot on the floor (y = 0), facing the stage like the other flats');
+  const cutPx = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.screenPos(${JSON.stringify(cut?.id)})`);
+  check(cutPx && Math.abs(cutPx[0] - 540) < 120 && cutPx[1] < 1450 && cutPx[1] > 1000, `it stands where it was dropped (its centre at ${cutPx?.join(', ')} px on the frame, dropped at 540, 1450)`);
+  await p.shot(path.join(STUDIO, '.cache', 'shots', 'cutout-3d.png'));
+  { // the cardboard as the shot's camera sees it (no handles), and up close from the side (the edge, the back)
+    const shot3 = await p.eval(`return await document.querySelector('#code').contentWindow.StudioPlayer.stage.snapshot()`);
+    if (shot3) fs.writeFileSync(path.join(STUDIO, '.cache', 'shots', 'cutout-3d-after.jpg'), Buffer.from(shot3.split(',')[1], 'base64'));
+  }
+  void objs0;
+  // Ctrl+Z takes the drop back, Ctrl+Y lays it again
+  const hasCut = () => p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.list().some((x) => x.cutout)`);
+  await p.key('z', 'KeyZ', undefined, 2); await sleep(500);
+  const gone = !(await hasCut());
+  await p.key('y', 'KeyY', undefined, 2); await sleep(1200);
+  check(gone && await hasCut(), 'Ctrl+Z takes the image away, Ctrl+Y lays it again');
+  // moved like the others, then « Ajouter à la file »
+  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.select(${JSON.stringify(cut?.id)}); return 1`); await sleep(300);
+  for (let i = 0; i < 2; i++) { await p.eval(`document.querySelector('#code').contentWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return 1`); await sleep(80); }
+  await sleep(500);
+  await p.eval(`document.querySelector('#sc-add').click(); return 1`);
+  await p.until(`__studio.state().drafts === 1`, 20000); await sleep(1500);
+  const note = JSON.parse(fs.readFileSync(path.join(shot.revue, 'notes.json'), 'utf8')).notes.find((n) => n.stage?.cutout);
+  check(note && /^Ajouter l'image « lanterne » en carton 3D/.test(note.text) && Math.abs(note.stage.cutout.final.p[0] - cut.cutout.final.p[0] - 0.1) < 1e-6 && note.media?.nom === 'lanterne' && /^images\/media-lanterne/.test(note.media.file) && (note.images ?? []).some((im) => /après/.test(im.label ?? '')),
+    `« Ajouter à la file »: « ${note?.text?.slice(0, 70)}… », its place (+0.10 in x), the media and the « after » image`);
+  // the batch: the agent is told what to add, where
+  await p.eval(`document.querySelector('#qsend').click(); return 1`);
+  await p.until(`document.querySelector('#modal').style.display === 'flex'`, 120000);
+  const lotMd = fs.readFileSync(path.join(shot.revue, 'lots', '001.md'), 'utf8');
+  check(/Nouvel élément à ajouter/.test(lotMd) && /pied du carton/.test(lotMd) && /hauteur visible 0\.800/.test(lotMd) && /Média de la bibliothèque à placer : "lanterne"/.test(lotMd) && /un carton comme les autres éléments du décor/.test(lotMd) && /le sol est à y = 0, un personnage mesure environ 2,0/.test(lotMd),
+    'the batch: « Nouvel élément à ajouter », the cardboard\'s foot and size, the media and how to add it');
+  console.log(lotMd.split('\n').filter((l) => /Nouvel élément|pied du carton|Média de la bibliothèque/.test(l)).map((l) => '     ' + l.slice(0, 220)).join('\n'));
+  await p.eval(`document.querySelector('#mClose').click(); return 1`); await sleep(800);
+  check(!(await hasCut()), 'once sent, the preview no longer shows it (the agent adds it to the code)');
   const md = lotMarkdown({ kind: 'remotion', target: 'x', title: 'S12', remotionDir: THEATRE, remotion: { composition: 'S12-CH1' }, coulisses: file, EP: SCR, REVUE: shot.revue, uses: P.project(shot.revue).uses },
     { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1080, 1920], render: null, edits: [] });
   check(/Ce plan 3D est utilisé dans « 宇宙を動かす/.test(md) && md.includes('06_remotion\\public\\short12_yottsu_no_chikara\\mg\\chibi1.mp4') && /refaire le rendu de la composition `S12-CH1`/.test(md), 'the batch tells the agent to render the shot again into the Short\'s file');

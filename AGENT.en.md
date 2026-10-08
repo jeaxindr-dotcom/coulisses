@@ -166,6 +166,14 @@ Each channel has a media library (the studio's "Media" tab): its characters, set
 - **the file to use**: its copy attached to the batch, in `revue\images\` (the library's original is named too);
 - the note's pin: where to put it, at the note's frame.
 
+Most often the user has already laid it in the live preview of the code: the image shows there at once (as **3D cardboard** in a 3D scene, made like the Theatre's cardboard; as is on a 2D picture), they place it, then add it to the queue. The edit then also holds a **"New element to add"** block ("New image to add" in 2D) with the exact place wanted:
+
+- in 3D: the **cardboard's foot** (bottom, at the centre of what is drawn) at the scene's world x, y, z, its rotation, its **visible height**, its width and its thickness (in the Theatre the floor is at y = 0 and a character is about 2.0 high);
+- in 2D: its box in pixels of the frame (centre, width × height, rotation);
+- the scope (the frames where it must be), and the "after" image as the user laid it.
+
+The element exists only in the preview: it is for you to add it to the project, at this place and size.
+
 To apply it:
 
 1. **Copy** this file into the project, where it keeps its images (the Remotion project's `public` folder for a run or an episode), and use it from that copy. Never a path into the library: it may change.
