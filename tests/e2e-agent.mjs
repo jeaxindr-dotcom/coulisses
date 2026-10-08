@@ -15,7 +15,7 @@ const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_E
 const PORT = +(process.env.STUDIO_PORT ?? 4174);
 const REVUE = path.join(SANDBOX, 'E03 - The Secret Garden', 'revue');
 const CLI = path.join(STUDIO, 'studio-cli.mjs');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 const cli = (...a) => execFileSync('node', [CLI, a[0], 'E03', ...a.slice(1), '--episodes', SANDBOX], { encoding: 'utf8' }).trim();
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };

@@ -18,7 +18,7 @@ const { importProject, project, tracksOf } = await import('../lib/projects.mjs')
 const RUN = path.join(FIX, 'projects', 'test-slug'), AIT = path.join(FIX, 'AItelier', 'long', '2026-10-07_test-ait');
 const CLI = path.join(STUDIO, 'studio-cli.mjs'), PORT = 4188;
 const SAMPLE = path.join(STUDIO, '.cache', 'coulisses-test', 'remotion-essai');   // tests/coulisses-fixture.mjs
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const cli = (...a) => { const r = spawnSync(process.execPath, [CLI, ...a], { encoding: 'utf8' }); return { code: r.status, out: (r.stdout + r.stderr).trim() }; };

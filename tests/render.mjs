@@ -11,18 +11,19 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
+import { realE03 } from './where.mjs';
 
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs): the CLI below, and the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
 const PORT = +(process.env.STUDIO_PORT ?? 4180);
 const FOLDER = 'E03 - The Secret Garden', EPD = path.join(SANDBOX, FOLDER), REVUE = path.join(EPD, 'revue'), MP4 = path.join(EPD, `${FOLDER}.mp4`);
-const REAL_MP4 = path.join('C:\\Users\\owner\\Desktop\\Youtube\\music\\Brambleshire\\Théatre\\07_Episodes', FOLDER, `${FOLDER}.mp4`);
+const REAL_MP4 = realE03();   // tests/where.mjs (COULISSES_TEST_E03): the real video, linked back by --restore
 const USER_PROXY = path.join(STUDIO, 'sandbox', '07_Episodes', FOLDER, 'revue');   // the sandbox copy of the review copy
 const BACKUP = path.join(CACHE, 'render-test-backup'), shots = path.join(CACHE, 'shots');
 const CLI = path.join(STUDIO, 'studio-cli.mjs');
 if (!/sandbox/i.test(SANDBOX)) { console.error('tests/render.mjs ne tourne que sur un bac à sable'); process.exit(2); }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 
 if (process.argv.includes('--restore')) {   // the server must be stopped: nothing may hold these files
   const relink = (from, to) => { if (!fs.existsSync(from)) return false; fs.rmSync(to, { force: true }); fs.linkSync(from, to); return true; };

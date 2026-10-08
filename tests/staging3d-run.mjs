@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { launch } from './cdp.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const THEATRE = 'C:\\Users\\owner\\Desktop\\Youtube\\宇宙\\relance\\theatre\\06_Remotion';
-const SHORT = 'C:\\Users\\owner\\Desktop\\Youtube\\宇宙\\relance\\shorts\\short12_yottsu_no_chikara\\short12_yottsu_no_chikara.coulisses';
-if (!fs.existsSync(path.join(THEATRE, 'src', 'coulisses.ts')) || !fs.existsSync(SHORT)) { console.log('  (sauté : le théâtre d\'Uchu-chan ou le Short 12 n\'est pas là)\n\n0 ok, 0 ko'); process.exit(0); }
+const { uchuTheatre, short12, skip } = await import('./where.mjs');
+const THEATRE = uchuTheatre(), SHORT = short12();   // tests/where.mjs (COULISSES_TEST_UCHU, COULISSES_TEST_SHORT12)
+if (!THEATRE || !SHORT) skip("le théâtre d'Uchu-chan ou son Short 12", 'COULISSES_TEST_UCHU / COULISSES_TEST_SHORT12');
 const SCR = path.join(STUDIO, '.cache', 'staging3d-run-test');
 fs.rmSync(SCR, { recursive: true, force: true }); fs.mkdirSync(SCR, { recursive: true });
 process.env.COULISSES_LANG = 'fr';
@@ -22,7 +22,7 @@ process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
 fs.writeFileSync(process.env.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));   // an image imported here is not sent to Codex
 const P = await import('../lib/projects.mjs');
 const { lotMarkdown } = await import('../lib/lots.mjs');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const kill = (c) => { if (c) try { execFileSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } };

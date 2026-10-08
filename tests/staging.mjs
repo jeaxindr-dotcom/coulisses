@@ -14,7 +14,7 @@ const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_E
 const PORT = +(process.env.STUDIO_PORT ?? 4174);
 const REVUE = path.join(SANDBOX, 'E03 - The Secret Garden', 'revue');
 const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0; const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 await requireFrench(`http://localhost:${PORT}/`);
 // what earlier runs left behind (08/10/2026: the ladder's « Mise en scène » note of the previous run, still a draft, put

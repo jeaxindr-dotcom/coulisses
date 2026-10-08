@@ -18,7 +18,7 @@ const { makeFixture, RUN } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const { exportAvailable } = await import('../lib/export.mjs');
 const PORT = 4187, U = `http://127.0.0.1:${PORT}`, OUT = path.join(RUN, '07-renders');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(U + u)).json();

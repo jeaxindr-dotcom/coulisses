@@ -6,14 +6,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { remotionModules } from './where.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FIX = path.join(STUDIO, '.cache', 'coulisses-test');
 export const PROJET = path.join(FIX, 'remotion-essai'), RUN = path.join(FIX, 'runs', '2026-10-07_essai');
-const MODULES = 'C:\\Users\\owner\\Desktop\\Youtube\\music\\Brambleshire\\Théatre\\06_Remotion\\node_modules';
+const MODULES = remotionModules();   // tests/where.mjs: a Remotion project's node_modules on this PC (COULISSES_TEST_REMOTION)
 const w = (rel, txt) => { const f = path.join(PROJET, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, txt); };
 
 export function makeFixture() {
+  if (!MODULES) throw new Error("pas de projet Remotion avec ses node_modules sur ce PC (COULISSES_TEST_REMOTION=<son dossier>)");
   // never a recursive delete through the junction: remove it first
   const nm = path.join(PROJET, 'node_modules');
   if (fs.existsSync(nm)) fs.rmSync(nm);   // a junction: unlinks it, never its target

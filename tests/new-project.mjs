@@ -26,7 +26,7 @@ process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
 process.env.COULISSES_PROJECTS_ROOT = ROOT;
 process.env.COULISSES_NPM = path.join(STUDIO, 'tests', 'fake-npm.mjs');
 const PORT = 4201, H = `http://127.0.0.1:${PORT}`, CLI = path.join(STUDIO, 'studio-cli.mjs');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(H + u, { cache: 'no-store' })).json();

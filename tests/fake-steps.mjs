@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const [what, ...a] = process.argv.slice(2);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 const stamp = (f) => { const st = fs.statSync(f); return { name: path.basename(f), size: st.size, mtime: st.mtime.toISOString() }; };
 const writeJson = (f, d) => { const t = `${f}.${process.pid}.tmp`; fs.writeFileSync(t, JSON.stringify(d, null, 1)); fs.renameSync(t, f); };
 

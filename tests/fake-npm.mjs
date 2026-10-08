@@ -3,8 +3,10 @@
 // as npm would. Nothing is installed anywhere.
 import fs from 'node:fs';
 import path from 'node:path';
-const MODULES = 'C:\\Users\\owner\\Desktop\\Youtube\\music\\Brambleshire\\Théatre\\06_Remotion\\node_modules';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+import { remotionModules } from './where.mjs';
+const MODULES = remotionModules();   // tests/where.mjs (COULISSES_TEST_REMOTION)
+if (!MODULES) { console.error('npm ERR! no Remotion project with its node_modules on this PC (COULISSES_TEST_REMOTION)'); process.exit(1); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 console.log('npm http fetch GET 200 https://registry.npmjs.org/remotion');
 await sleep(400);
 console.log('npm http fetch GET 200 https://registry.npmjs.org/three');

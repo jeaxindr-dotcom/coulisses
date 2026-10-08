@@ -12,7 +12,7 @@ process.env.COULISSES_LANG = 'fr';   // the window, the home screen and the stud
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EXE = path.join(STUDIO, 'Coulisses.exe');
 const DT = 9361;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const procs = (needle) => execSync(`powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' -and $_.Name -ne 'cmd.exe' } | Select-Object -ExpandProperty ProcessId"`, { encoding: 'utf8' }).split(/\s+/).filter(Boolean);

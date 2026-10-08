@@ -25,11 +25,13 @@ const { makeFixture } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const I = await import('../lib/i18n.mjs');
 const PORT = 4195, U = `http://127.0.0.1:${PORT}`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 let st = null, p = null;
 const key = (k, mods = {}) => p.eval(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, ctrlKey: ${!!mods.ctrl}, shiftKey: ${!!mods.shift}, bubbles: true, cancelable: true })); return 1`);
+// the state, as soon as it is what is expected (at most 6 s × COULISSES_TEST_SLOW): never a bet on a fixed wait
+const soon = async (f, ms = 6000) => { const t0 = Date.now(), lim = ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1); for (;;) { const v = await f(); if (v || Date.now() - t0 > lim) return v; await new Promise((r) => setTimeout(r, 80)); } };
 const S = () => p.eval(`return { ...__studio.state(), undo: __undo.state(), save: document.querySelector('#save').textContent, n: document.querySelectorAll('#draftList .card').length }`);
 try {
   const file = makeFixture(), imp = importProject(file);
@@ -41,50 +43,51 @@ try {
   await p.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames`, 60000); await sleep(1200);
 
   // a note added, then undone, then redone
-  await key('n'); await sleep(500); await p.eval(`document.activeElement?.blur?.(); return 1`);
+  await key('n'); await soon(async () => (await S()).drafts === 1); await p.eval(`document.activeElement?.blur?.(); return 1`);
   let s = await S();
   check(s.drafts === 1 && s.undo.back === 1, `N adds a note: one step back (« ${s.undo.top} »)`);
-  await key('z', { ctrl: true }); await sleep(500); s = await S();
+  await key('z', { ctrl: true }); s = await soon(async () => { const x = await S(); return x.drafts === 0 && x; }) || await S();
   check(s.drafts === 0 && s.undo.fwd === 1, 'Ctrl+Z: the note is gone');
-  await key('y', { ctrl: true }); await sleep(500); s = await S();
+  await key('y', { ctrl: true }); s = await soon(async () => { const x = await S(); return x.drafts === 1 && x; }) || await S();
   check(s.drafts === 1 && s.undo.back === 1 && s.undo.fwd === 0 && !!(await p.eval('return document.querySelector("#draftList .card.sel") ? 1 : 0')), 'Ctrl+Y: it is back, selected');
   // typing in the note: one step for the burst
   await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.focus(); for (const t of ['L', 'Le', 'Le t', 'Le titre', 'Le titre plus haut']) { ta.value = t; ta.dispatchEvent(new Event('input', { bubbles: true })); } ta.blur(); return 1`);
-  await sleep(600); s = await S();
+  s = await soon(async () => { const x = await S(); return x.undo.back === 2 && x; }, 2500) || await S();
   check(s.undo.back === 2, `typing in the note: one step for the whole burst (${s.undo.back - 1})`);
-  await key('z', { ctrl: true, shift: false }); await sleep(400);
-  const txt = await p.eval(`return document.querySelector('#draftList .card textarea.main').value`);
+  await key('z', { ctrl: true, shift: false });
+  const mainText = () => p.eval(`return document.querySelector('#draftList .card textarea.main')?.value ?? null`);
+  const txt = await soon(async () => ((await mainText()) === '' ? '' : null)) ?? await mainText();
   check(txt === '', `Ctrl+Z takes the words back in one step (« ${txt} »)`);
-  await key('z', { ctrl: true, shift: true }); await sleep(400);
-  check(await p.eval(`return document.querySelector('#draftList .card textarea.main').value`) === 'Le titre plus haut', 'Ctrl+Maj+Z puts them back');
+  await key('z', { ctrl: true, shift: true });
+  check(await soon(async () => (await mainText()) === 'Le titre plus haut'), 'Ctrl+Maj+Z puts them back');
   // Suppr: no question, Ctrl+Z brings the note back
   let asked = false;
   await p.eval(`window.__asked = false; window.confirm = () => { window.__asked = true; return true; }; return 1`);
-  await key('Delete'); await sleep(500); s = await S();
+  await key('Delete'); s = await soon(async () => { const x = await S(); return x.drafts === 0 && x; }) || await S();
   asked = await p.eval(`return window.__asked`);
   check(s.drafts === 0 && !asked, 'Suppr deletes the note without a question');
-  await key('z', { ctrl: true }); await sleep(500); s = await S();
+  await key('z', { ctrl: true }); s = await soon(async () => { const x = await S(); return x.drafts === 1 && x; }) || await S();
   check(s.drafts === 1 && await p.eval(`return document.querySelector('#draftList .card textarea.main').value`) === 'Le titre plus haut', 'Ctrl+Z: the note is back, with its words');
   // a note just made with N by mistake: Ctrl+Z in its (still empty) text takes it away, Ctrl+Y brings it back
-  await key('n'); await sleep(600);
+  await key('n'); await soon(async () => (await S()).drafts === 2 && (await p.eval(`return document.activeElement?.classList?.contains('main') ? 1 : 0`)) === 1);
   const before = (await S()).drafts;
-  const inMain = await p.eval(`const ta = document.activeElement; const ok = ta?.classList?.contains('main') ? 1 : 0; ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })); return ok`); await sleep(500);
-  check(inMain === 1 && before === 2 && (await S()).drafts === 1, 'a note just made with N, its text still empty: Ctrl+Z (the cursor in its text) takes it away');
-  await key('y', { ctrl: true }); await sleep(500);
-  check((await S()).drafts === 2, '… and Ctrl+Y brings it back');
-  await key('z', { ctrl: true }); await sleep(500);
-  check((await S()).drafts === 1, '… and Ctrl+Z again takes it away');
+  const inMain = await p.eval(`const ta = document.activeElement; const ok = ta?.classList?.contains('main') ? 1 : 0; ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })); return ok`);
+  check(inMain === 1 && before === 2 && await soon(async () => (await S()).drafts === 1), 'a note just made with N, its text still empty: Ctrl+Z (the cursor in its text) takes it away');
+  await key('y', { ctrl: true });
+  check(await soon(async () => (await S()).drafts === 2), '… and Ctrl+Y brings it back');
+  await key('z', { ctrl: true });
+  check(await soon(async () => (await S()).drafts === 1), '… and Ctrl+Z again takes it away');
   // the same with the real keys, as the user presses them (N, then Ctrl+Z with the cursor in the new note, then Ctrl+Y)
   await p.eval(`document.activeElement?.blur?.(); return 1`);
   const r0 = (await S()).drafts;
-  await p.key('n', 'KeyN', 'n'); await sleep(600);
+  await p.key('n', 'KeyN', 'n'); await soon(async () => (await S()).drafts === r0 + 1 && (await p.eval(`return document.activeElement?.classList?.contains('main') ? 1 : 0`)) === 1);
   const r1 = (await S()).drafts, focusIn = await p.eval(`return document.activeElement?.classList?.contains('main') && document.activeElement.value === '' ? 1 : 0`);
-  await p.key('z', 'KeyZ', undefined, 2); await sleep(500);
+  await p.key('z', 'KeyZ', undefined, 2); await soon(async () => (await S()).drafts === r0);
   const r2 = (await S()).drafts;
-  await p.key('y', 'KeyY', undefined, 2); await sleep(500);
+  await p.key('y', 'KeyY', undefined, 2); await soon(async () => (await S()).drafts === r0 + 1);
   const r3 = (await S()).drafts;
-  await p.key('z', 'KeyZ', undefined, 2); await sleep(500);
-  check(r1 === r0 + 1 && focusIn === 1 && r2 === r0 && r3 === r0 + 1 && (await S()).drafts === r0, `real keys: N (the cursor in the new note), Ctrl+Z takes it away, Ctrl+Y brings it back (${r0} → ${r1} → ${r2} → ${r3})`);
+  await p.key('z', 'KeyZ', undefined, 2);
+  check(r1 === r0 + 1 && focusIn === 1 && r2 === r0 && r3 === r0 + 1 && await soon(async () => (await S()).drafts === r0), `real keys: N (the cursor in the new note), Ctrl+Z takes it away, Ctrl+Y brings it back (${r0} → ${r1} → ${r2} → ${r3})`);
   // Ctrl+X is the usual « cut » again (08/10/2026: « je me suis trompé, Ctrl+Z je voulais dire »): it deletes nothing
   await p.eval(`document.querySelector('#draftList .card').click(); return 1`); await sleep(200);
   await key('x', { ctrl: true }); await sleep(400);
@@ -97,7 +100,7 @@ try {
   check(left && (await S()).drafts === 1 && u1.back === u0.back && u1.fwd === u0.fwd, 'with words typed in the field, Ctrl+Z is left to the field');
   await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.value = 'Le titre plus haut'; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.blur(); return 1`); await sleep(300);
   // Ctrl+S
-  await key('s', { ctrl: true }); await sleep(700); s = await S();
+  await key('s', { ctrl: true }); s = await soon(async () => { const x = await S(); return /^Enregistré \d/.test(x.save) && x; }) || await S();
   const saved = JSON.parse(fs.readFileSync(path.join(imp.revue, 'notes.json'), 'utf8')).notes;
   check(/^Enregistré \d/.test(s.save) && saved.some((n) => n.text === 'Le titre plus haut'), `Ctrl+S saves now (« ${s.save} »)`);
   // the Édition menu
@@ -112,13 +115,13 @@ try {
   await key('m'); await p.until(`__studio.state().staging`, 20000); await sleep(400);
   await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.select('[data-coulisses="titre s01"]'); return 1`); await sleep(300);
   for (let i = 0; i < 3; i++) { await p.eval(`document.querySelector('#code').contentWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return 1`); await sleep(50); }
-  await sleep(900);
   const dx = () => p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info('[data-coulisses="titre s01"]').delta.p[0]`);
-  const d1 = await dx();
-  await key('z', { ctrl: true }); await sleep(400);
-  const d0 = await dx();
-  await key('y', { ctrl: true }); await sleep(400);
-  check(d1 === 3 && d0 === 0 && (await dx()) === 3, `staging: 3 arrows = one step, Ctrl+Z puts the title back (Δx ${d1} → ${d0}), Ctrl+Y moves it again`);
+  const d1 = await soon(async () => ((await dx()) === 3 ? 3 : null)) ?? await dx();
+  await sleep(800);   // the three arrows make one step only if Ctrl+Z comes after the burst (0.7 s)
+  await key('z', { ctrl: true });
+  const d0 = await soon(async () => ((await dx()) === 0 ? 0 : null)) ?? await dx();
+  await key('y', { ctrl: true });
+  check(d1 === 3 && d0 === 0 && await soon(async () => (await dx()) === 3), `staging: 3 arrows = one step, Ctrl+Z puts the title back (Δx ${d1} → ${d0}), Ctrl+Y moves it again`);
   // inside the preview too, the mode keys are the user's: « Poignées : tourner » set to T (E then does nothing)
   await fetch(U + '/api/shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shortcuts: { modeRotate: ['T'] } }) });
   await p.eval(`await window.Shortcuts.reload(); return 1`);
@@ -144,12 +147,12 @@ try {
   await p.eval(`document.querySelector('.sc-row[data-id=note] .sc-key').click(); return 1`); await sleep(100);
   await p.shot(path.join(STUDIO, '.cache', 'shots', 'shortcuts-press.png'));
   check(/Appuie sur la touche pour « Nouvelle note sur l'image »/.test(await p.eval(`return document.querySelector('.sc-msg').textContent`)), 'a click on its key: « Appuie sur la touche… »');
-  await key('j'); await sleep(500);
+  await key('j'); await soon(async () => JSON.stringify(kept().note) === '["J"]');
   rows0 = await rowsOf();
   check(row('note')?.k.join() === 'J' && JSON.stringify(kept().note) === '["J"]', `J pressed: « Nouvelle note » = J, kept in settings.json (${JSON.stringify(kept())})`);
   // a key of another action: taken from it, said so
   await p.eval(`document.querySelector('.sc-row[data-id=toolComment] .sc-add').click(); return 1`); await sleep(100);
-  await key('j'); await sleep(500);
+  await key('j'); await soon(async () => /servait à/.test(await p.eval(`return document.querySelector('.sc-msg').textContent`)));
   rows0 = await rowsOf();
   const msg = await p.eval(`return document.querySelector('.sc-msg').textContent`);
   check(row('toolComment')?.k.join() === 'C,J' && row('note')?.k.length === 0 && /servait à « Nouvelle note sur l'image »/.test(msg), `J added to « Commentaire »: taken from « Nouvelle note » (« ${msg} »)`);
@@ -159,17 +162,17 @@ try {
   await p.eval(`document.querySelector('.sc-row[data-id=note] .sc-add').click(); return 1`); await sleep(100);
   await key('x', { ctrl: true }); await sleep(200);
   check(/Ctrl\+X reste à Coulisses ou au navigateur/.test(await p.eval(`return document.querySelector('.sc-msg').textContent`)), 'Ctrl+X (cut) is refused: it stays with the browser');
-  await key('k'); await sleep(500);
-  await p.eval(`document.querySelector('.sc-row[data-id=toolComment] .sc-reset').click(); return 1`); await sleep(500);
+  await key('k'); await soon(async () => JSON.stringify(kept().note) === '["K"]');
+  await p.eval(`document.querySelector('.sc-row[data-id=toolComment] .sc-reset').click(); return 1`); await soon(async () => JSON.stringify(kept()) === '{"note":["K"]}');
   rows0 = await rowsOf();
   check(row('note')?.k.join() === 'K' && row('toolComment')?.k.join() === 'C' && JSON.stringify(kept()) === '{"note":["K"]}', `↺ puts « Commentaire » back to C; « Nouvelle note » = K (${JSON.stringify(kept())})`);
   await key('Escape'); await sleep(200);
   // the studio follows: K makes a note, N no longer
   const n0 = (await S()).drafts;
-  await key('n'); await sleep(400);
+  await key('n'); await sleep(400);   // N does nothing now: a short wait, then the count
   const n1 = (await S()).drafts;
   await p.eval(`document.activeElement?.blur?.(); return 1`);
-  await key('k'); await sleep(500); await p.eval(`document.activeElement?.blur?.(); return 1`);
+  await key('k'); await soon(async () => (await S()).drafts === n0 + 1); await p.eval(`document.activeElement?.blur?.(); return 1`);
   check(n1 === n0 && (await S()).drafts === n0 + 1, 'the studio follows at once: K makes a note, N does nothing');
   await key('z', { ctrl: true }); await sleep(400);
   // the home screen reads the same keys (one settings.json for the whole app)
@@ -177,7 +180,7 @@ try {
   check(JSON.stringify(hubKeys.shortcuts) === '{"note":["K"]}', 'GET /api/shortcuts: the same keys for the whole app');
   // everything back
   await key('F1'); await sleep(300);
-  await p.eval(`[...document.querySelectorAll('.sc-dlg .b button')].find((b) => /Tout remettre/.test(b.textContent)).click(); return 1`); await sleep(500);
+  await p.eval(`[...document.querySelectorAll('.sc-dlg .b button')].find((b) => /Tout remettre/.test(b.textContent)).click(); return 1`); await soon(async () => JSON.stringify(kept()) === '{}');
   rows0 = await rowsOf();
   check(row('note')?.k.join() === 'N' && JSON.stringify(kept()) === '{}', '« Tout remettre par défaut »: N again, settings.json empty of shortcuts');
   await key('Escape'); await sleep(200);

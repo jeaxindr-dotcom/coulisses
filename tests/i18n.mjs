@@ -26,7 +26,7 @@ const { lotMarkdown, renderMarkdown, pasteLine, renderLine, connectLine } = awai
 const { importProject } = await import('../lib/projects.mjs');
 const FR = I.DICTS.fr, EN = I.DICTS.en;
 const CLI = path.join(STUDIO, 'studio-cli.mjs'), HUB_PORT = 4183, ST_PORT = 4182, shots = path.join(STUDIO, '.cache', 'shots');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const cli = (...a) => { const r = spawnSync(process.execPath, [CLI, ...a], { encoding: 'utf8', env: process.env }); return { code: r.status, out: (r.stdout + r.stderr).trim() }; };

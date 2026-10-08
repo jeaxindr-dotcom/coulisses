@@ -8,11 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { remotionModules, uchuTheatre } from './where.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = process.argv.indexOf('--project');
-const CANDIDATES = [arg > 0 ? process.argv[arg + 1] : null, process.env.COULISSES_TS_PROJECT,
-  'C:\\Users\\owner\\Desktop\\Youtube\\music\\Brambleshire\\Théatre\\06_Remotion', 'C:\\Users\\owner\\Desktop\\Youtube\\宇宙\\relance\\theatre\\06_Remotion'].filter(Boolean);
+const found = remotionModules(), theatre = uchuTheatre();   // tests/where.mjs (COULISSES_TEST_REMOTION)
+const CANDIDATES = [arg > 0 ? process.argv[arg + 1] : null, process.env.COULISSES_TS_PROJECT, found && path.dirname(found), theatre].filter(Boolean);
 const NEEDED = ['typescript', '@types/react', '@types/three', 'three', '@react-three/fiber', '@remotion/player', 'react'];
 const proj = CANDIDATES.find((d) => NEEDED.every((p) => fs.existsSync(path.join(d, 'node_modules', p, 'package.json'))));
 if (!proj) { console.log(`  (sauté : aucun projet Remotion avec TypeScript et ${NEEDED.join(', ')} — --project <dossier>)\n\n0 ok, 0 ko`); process.exit(0); }

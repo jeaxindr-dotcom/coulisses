@@ -22,7 +22,7 @@ process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json');
 process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json');
 const { makeFixture, PROJET } = await import('./coulisses-fixture.mjs');
 const PORT = 4199, H = `http://127.0.0.1:${PORT}`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(H + u, { cache: 'no-store' })).json();

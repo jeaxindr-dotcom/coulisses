@@ -14,7 +14,7 @@ import { makeFixture, RUN, PROJET } from './coulisses-fixture.mjs';
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HUB_PORT = 4188, CLI = path.join(STUDIO, 'studio-cli.mjs'), shots = path.join(STUDIO, '.cache', 'shots'), REG = path.join(STUDIO, '.cache', 'coulisses-test-projets.json');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const cli = (...a) => execFileSync(process.execPath, [CLI, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();

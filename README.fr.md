@@ -18,6 +18,7 @@ Coulisses est le studio de revue de toutes les chaînes : relire et annoter une 
   - Il refuse d'écraser des fichiers modifiés directement dans le pipeline, sauf si tu confirmes.
   - `/silent` fait la même chose sans fenêtre (journal : `%LOCALAPPDATA%\Coulisses\setup.log`).
 - **Compilation** : `pwsh -File app\build.ps1` utilise le compilateur C# fourni avec Windows (`csc.exe`, .NET Framework 4.8), sans rien installer. Les sources sont dans `app\` : `Launcher.cs`, `Setup.cs`, l'icône (`make-icon.ps1`) et le manifeste.
+- **Tous les tests, en une commande** : `node tests\run-all.mjs` (`--quick` sans les trois plus lents ; `--only a,b`, `--skip a,b`). Il démarre lui-même les studios du bac à sable dont les tests ont besoin, avec leurs propres réglages et bibliothèque (jamais les tiens), affiche une ligne par suite et un bilan, et garde le journal de chacune dans `.cache\run-all\`. Ce qui n'est pas dans le dépôt (les `node_modules` d'un projet Remotion, le théâtre d'Uchu-chan et son Short 12, la vraie vidéo d'E03) est trouvé par `tests\where.mjs` : sur un autre PC, `COULISSES_TEST_REMOTION`, `COULISSES_TEST_UCHU`, `COULISSES_TEST_SHORT12`, `COULISSES_TEST_E03` ; une suite dont la ressource manque se saute. `COULISSES_TEST_SLOW=2` double les attentes fixes sur un PC plus lent.
 - **Test de l'application** : `node tests\app.mjs`. Il ouvre la vraie fenêtre, rendue invisible, sur le bac à sable.
 
 ## Langue : français ou anglais

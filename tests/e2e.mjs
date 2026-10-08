@@ -16,7 +16,7 @@ const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_E
 const PORT = +(process.env.STUDIO_PORT ?? 4174);
 const EP = path.join(SANDBOX, 'E03 - The Secret Garden'), REVUE = path.join(EP, 'revue');
 const URL = `http://localhost:${PORT}/`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 const cli = (...a) => execFileSync('node', [path.join(STUDIO, 'studio-cli.mjs'), ...a.slice(0, 1), 'E03', ...a.slice(1), '--episodes', SANDBOX], { encoding: 'utf8' }).trim();
 const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true });
 let ok = 0, ko = 0;

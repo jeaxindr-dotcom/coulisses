@@ -17,7 +17,7 @@ const FIX = path.join(STUDIO, '.cache', 'projects-test'), REG = path.join(FIX, '
 const RUN = path.join(FIX, 'long', '2026-10-01_test-run'), SHORT = path.join(FIX, 'short', '2026-10-02_test-short'), VIDS = path.join(FIX, 'videos');
 const SANDBOX_EP = path.join(STUDIO, 'sandbox', '07_Episodes', 'E03 - The Secret Garden');
 const HUB_PORT = 4186, CLI = path.join(STUDIO, 'studio-cli.mjs'), shots = path.join(STUDIO, '.cache', 'shots');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const ff = (...a) => { const r = spawnSync('ffmpeg', ['-v', 'error', '-y', ...a], { stdio: 'inherit' }); if (r.status) throw new Error('ffmpeg ' + a.join(' ')); };

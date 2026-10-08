@@ -15,7 +15,7 @@ const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : nu
 const images = args.flatMap((a, i) => (a === '-i' ? [args[i + 1]] : []));
 const HOME = process.env.CODEX_HOME;
 const out = (e) => process.stdout.write(JSON.stringify(e) + '\n');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 
 // a w×h RGBA PNG: a disc of one colour on a transparent background
 function png(file, w, h, [r, g, b]) {
