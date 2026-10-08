@@ -17,6 +17,10 @@
 //   updates  <ep> [--agent claude|codex]   what may need updating on the agent's side (Remotion, skills): checked
 //                                      at every batch sent from the tool; this re-checks now (lib/updates.mjs)
 //   status   <ep>
+//   medias   <chaîne | fichier .coulisses> liste [--categorie c] [--json]      the channel's media library (lib/medias.mjs)
+//   medias   <chaîne | fichier .coulisses> ajouter <image> [--nom n] [--categorie c] [--tags a,b] [--description d]
+//                                      [--prompt p]   an image the agent made for the channel, into its library
+//   medias   <chaîne | fichier .coulisses> dossier                             the library's folder
 // Common flags: --theatre / --episodes / --remotion (the sandbox), as for studio-server.mjs.
 // <ep> = a Brambleshire episode (E03), or the folder of an imported project (or its revue folder, lib/projects.mjs):
 // there, no live preview (frame / sheet use the video), no staging, and no render from the studio.
@@ -36,7 +40,7 @@ import { t, hhmm } from './lib/i18n.mjs';
 // « RENDU NON LANCÉ », « RENDU EN ÉCHEC », « CONTRÔLES PASSÉS », « RENDU FAIT (sans finition) ». English adds a gloss after them.
 
 const argv = process.argv.slice(2);
-const FLAGS_WITH_VALUE = new Set(['--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
+const FLAGS_WITH_VALUE = new Set(['--nom', '--categorie', '--tags', '--description', '--prompt', '--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
 const pos = []; const flags = {};
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -78,6 +82,33 @@ if (cmd === 'projet') {
     process.exit(r.errors.length ? 1 : 0);
   }
   die(t('cli.usageProjet'));
+}
+// « medias »: the media library of a channel (the studio's « Médias » tab), for the agent of a pipeline
+if (cmd === 'medias') {
+  const { library, listMedias, addMedia, ALL_CATS, CATEGORIES } = await import('./lib/medias.mjs');
+  const { isCoulissesFile, readCoulisses } = await import('./lib/coulisses-file.mjs');
+  if (!epArg) die(t('cli.usageMedias'));
+  const chaine = isCoulissesFile(epArg) && fs.existsSync(epArg) ? readCoulisses(path.resolve(epArg)).channel : epArg;
+  const L = library(chaine), what = rest[0] ?? 'liste';
+  if (what === 'dossier') { listMedias(L); console.log(L.dir); process.exit(0); }
+  if (what === 'liste') {
+    const cat = flag('--categorie'), items = listMedias(L).filter((it) => !cat || it.categorie === cat);
+    if (flags['--json']) { console.log(JSON.stringify(items.map((it) => ({ ...it, chemin: path.join(L.dir, ...it.fichier.split('/')) })), null, 1)); process.exit(0); }
+    console.log(t('cli.mdHead', { channel: L.channel, dir: L.dir, n: items.length }));
+    for (const it of items) console.log(t('cli.mdLine', { cat: it.categorie, name: it.nom, file: path.join(L.dir, ...it.fichier.split('/')), tags: it.tags?.length ? ` [${it.tags.join(', ')}]` : '' }));
+    process.exit(0);
+  }
+  if (what === 'ajouter') {
+    const file = rest[1]; if (!file || !fs.existsSync(file)) die(t('cli.usageMedias'));
+    const cat = flag('--categorie', 'a-ranger');
+    if (!ALL_CATS.includes(cat)) die(t('cli.mdBadCat', { cat, cats: ALL_CATS.join(', ') }));
+    try {
+      const it = addMedia(L, path.resolve(file), { nom: flag('--nom'), categorie: cat, tags: flag('--tags', ''), description: flag('--description', ''), prompt: flag('--prompt') ?? null, source: 'agent' });
+      console.log(path.join(L.dir, ...it.fichier.split('/')));
+    } catch (e) { die(e.message); }
+    process.exit(0);
+  }
+  die(t('cli.usageMedias'));
 }
 if (!cmd || !epArg) die(t('cli.usage'));
 const P = resolveTarget(epArg, optionsFrom(argv));

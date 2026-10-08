@@ -135,6 +135,28 @@ To apply it:
 3. Change no timing.
 4. Check with `CLI frame E03 <frame> --source code`: the image must look like the attached "after" image. As for any edit, take a `snapshot` before touching the files, then `reply` and `done`.
 
+## A library image to place
+
+Each channel has a media library (the studio's "Media" tab): its characters, sets, props and effects, sorted by category in `Documents\Coulisses\Media\<channel>\` (`Médias` when Coulisses was first used in French). The user creates images there with the image workshop (Codex and its image_gen tool), or drops their own. When they drag an image onto the video, the edit holds a **"Library image to place"** block:
+
+- the image, its name, its category, its size and whether its background is transparent;
+- **the file to use**: its copy attached to the batch, in `revue\images\` (the library's original is named too);
+- the note's pin: where to put it, at the note's frame.
+
+To apply it:
+
+1. **Copy** this file into the project, where it keeps its images (the Remotion project's `public` folder for a run or an episode), and use it from that copy. Never a path into the library: it may change.
+2. Put it at the point shown, at a size that fits the scene, at the note's frame (or over its whole range). In the Theatre, make it a **thick cardboard piece** like the other props and sets, with the same cardboard engine, at its height in the set and in the right layer.
+3. Change no timing, then check with `CLI frame <ep> <frame> --source code`. As always: `snapshot`, then `reply` and `done`.
+
+The agent of a pipeline can use its channel's library too:
+
+- `CLI medias "<channel>" liste [--categorie personnages] [--json]`: the images, with their paths;
+- `CLI medias "<channel>" ajouter <image> --nom "…" --categorie decors --tags "a,b" [--description "…"] [--prompt "…"]`: an image made for the channel, which the user will find in the Media tab;
+- `CLI medias "<channel>" dossier`: the library's folder.
+
+Instead of the channel's name, the run's `.coulisses` file may be given. The categories are `personnages` (characters), `decors` (sets), `accessoires` (props), `effets` (effects), `divers` (other) and `a-ranger` (to sort). `bibliotheque.json` is written by Coulisses only: do not edit it.
+
 ## Rules
 
 - `revue\notes.json` belongs to the page: **never write it**. The agent writes only `revue\replies.json`, through `studio-cli.mjs` or through `review\reply.py`, which stays compatible.

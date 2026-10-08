@@ -84,7 +84,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 |---|---|
 | **À gauche** | Les outils : Sélection (V), Dessin (D), Commentaire (C), Note (N), Plage (R), MP4 ⇄ code (P), Mise en scène (M). |
 | **Au centre** | L'image, ajustée à la place disponible : le MP4 rendu ou l'aperçu vivant du code. |
-| **À droite** | Des onglets. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Notes** : les notes déjà envoyées et les anciennes. **Envois** : les lots, leur état, et « Annuler cette correction ». **Scène** : la mise en scène (objet choisi, décalage, portée, caméra libre). **Inspecteur** : à l'image affichée, la scène, les répliques, la caméra, la lumière, la musique, les bruitages, les émotes et qui marche, puis le détail de la note choisie avec l'objet 3D visé. |
+| **À droite** | Des onglets. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Notes** : les notes déjà envoyées et les anciennes. **Envois** : les lots, leur état, et « Annuler cette correction ». **Scène** : la mise en scène (objet choisi, décalage, portée, caméra libre). **Médias** : la bibliothèque de la chaîne et l'atelier d'images. **Inspecteur** : à l'image affichée, la scène, les répliques, la caméra, la lumière, la musique, les bruitages, les émotes et qui marche, puis le détail de la note choisie avec l'objet 3D visé. |
 | **En bas** | La timeline multipiste. Pistes : Décors (avec le rideau fermé), Caméra (images clés), Lumière, une piste par personnage (répliques avec forme d'onde, marches, émotes), Musique, Ambiance, Bruitages, Mix (son du MP4), et la bande Notes. Un double-clic sur une réplique crée une note sur toute la réplique. |
 
 ## Ce qui est nouveau
@@ -98,6 +98,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 | **Aperçu vivant** | **P**, ou « MP4 rendu / Code actuel » : le Remotion Player montre le code actuel au même instant, sans re-rendu. Il se recompile à chaque enregistrement, en environ 0,15 s, et se recharge sur la même image. |
 | **Les yeux de l'agent** | `studio-cli.mjs frame` / `sheet` donnent une image ou une bande avant/après, prise dans le MP4 ou dans le code (`renderStill` / `renderFrames`, Chrome `--gl=angle`). |
 | **Annuler une correction** | Panneau « Envois » : **Annuler cette correction** remet les fichiers du lot dans leur état d'avant (instantanés de `revue\runs\NNN\`). L'annulation est refusée si un fichier a changé depuis. **Rétablir** refait la correction. |
+| **Bibliothèque de médias et atelier d'images** | Onglet **Médias** : une bibliothèque par chaîne (personnages, décors, accessoires, effets), dans `Documents\Coulisses\Médias\<chaîne>\`. Tu décris une image dans l'atelier : **Codex CLI** la crée avec son outil image_gen (ton compte ChatGPT, sans clé d'API), elle arrive dans la bibliothèque, et tu l'ajustes en répondant (« plus grand », « de dos »). Les images déposées sont rangées par l'agent. Une image glissée sur la vidéo devient une modif épinglée : l'agent la copie dans le projet (en carton épais dans le Théâtre). |
 
 ## Mise en scène : déplacer les objets toi-même
 

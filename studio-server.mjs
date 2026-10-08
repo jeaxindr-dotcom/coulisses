@@ -40,6 +40,8 @@ import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { spawnSync } from 'node:child_process';
+import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
+import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -235,6 +237,11 @@ async function updatesFor(chosen, fresh = false) {
 process.on('unhandledRejection', (e) => console.error(`  ${time()}  ${t('srv.ignored', { msg: e?.message ?? e })}`));
 
 const FRAME_CACHE = path.join(CACHE, 'frames', ep);
+// the « Médias » tab: the library of the project's channel (lib/medias.mjs), made on first use
+const CHANNEL = P.channel ?? (B ? 'Brambleshire Theatre' : P.kind === 'aitelier' ? "L'AItelier" : null);
+let LIB = null;
+const lib = () => (LIB ??= library(CHANNEL));
+const projTitle = () => (B ? folder.replace(/^Ed+ - /, '') : P.title);
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const pn = decodeURIComponent(url.pathname);
@@ -279,6 +286,63 @@ const server = http.createServer(async (req, res) => {
       return json(res, { ok: r.code === 0, code: r.code, out: r.out.trim(), file });
     }
     if (pn === '/favicon.png') return sendFile(req, res, path.join(HERE, 'favicon.png'), 'image/png');
+    // ---- « Médias »: the channel's library and its image chat (lib/medias.mjs, lib/image-chat.mjs) ----
+    if (pn === '/medias.js') return sendFile(req, res, path.join(HERE, 'medias.js'), 'text/javascript; charset=utf-8');
+    if (pn === '/api/medias') {
+      const L = lib();
+      return json(res, { ...librarySummary(L), chat: readChat(L).messages.slice(-80), job: jobOf(L), available: chatAvailable(), model: imageModel() });
+    }
+    if (pn.startsWith('/medias/file/') || pn.startsWith('/medias/mini/')) {
+      const L = lib(), it = peekMedia(L, pn.split('/')[3] ?? '');
+      if (!it) { res.writeHead(404); return res.end('not found'); }
+      return sendFile(req, res, pn.startsWith('/medias/mini/') ? await miniature(L, it) : mediaFile(L, it));
+    }
+    if (pn === '/api/medias/import' && req.method === 'POST') {   // an image dropped or pasted in the tab: « à ranger », then sorted
+      const L = lib();
+      let buf; try { buf = await body(req, 60e6); } catch (e) { return json(res, { ok: false, why: e.message }, 413); }
+      let name = 'image'; try { name = decodeURIComponent(String(req.headers['x-name'] ?? 'image')); } catch { /* raw */ }
+      try {
+        const item = importBytes(L, buf, { type: (req.headers['content-type'] || '').split(';')[0].trim(), name });
+        log(t('srv.mdImported', { name: item.fichier, channel: L.channel }));
+        let sorting = false;
+        if (autoSort()) { try { sorting = sortInbox(L, { log }).ok; } catch { /* sorted later (the ✓ button) */ } }
+        return json(res, { ok: true, item, sorting });
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn.startsWith('/api/medias/') && req.method === 'POST') {
+      const L = lib(), what = pn.slice('/api/medias/'.length);
+      let b = {}; try { b = JSON.parse((await body(req)).toString('utf8') || '{}'); } catch { /* empty */ }
+      try {
+        if (what === 'update') return json(res, { ok: true, item: updateMedia(L, b.id, { nom: b.nom, categorie: b.categorie, tags: b.tags, description: b.description }) });
+        if (what === 'delete') { const r = removeMedia(L, b.id); log(t('srv.mdDeleted', { file: r.trash })); return json(res, { ok: true, ...r }); }
+        if (what === 'reveal') {
+          const it = b.id ? findMedia(L, b.id) : null;
+          if (!it) listMedias(L);   // the folders exist before the Explorer opens them
+          reveal(it ? mediaFile(L, it) : L.dir, { select: !!it });
+          return json(res, { ok: true });
+        }
+        if (what === 'chat') {
+          const m = meta();
+          const job = sendChat(L, { text: b.text, refs: Array.isArray(b.refs) ? b.refs : [], transparent: !!b.transparent,
+            project: { title: projTitle(), format: P.formatName ?? (m.size ? `${m.size[0]}×${m.size[1]}` : null) } }, { log });
+          return json(res, { ok: true, job });
+        }
+        if (what === 'stop') return json(res, stopJob(L));
+        if (what === 'sort') return json(res, sortInbox(L, { log, ids: Array.isArray(b.ids) ? b.ids : null }));
+        if (what === 'new-chat') { if (busy(L)) throw new Error(t('md.err.busy')); newChat(L); return json(res, { ok: true }); }
+        if (what === 'place') {   // « Placer » / dropped on the picture: a copy goes with the edit (revue/images), the library notes where
+          const it = findMedia(L, b.id);
+          if (!it) throw new Error(t('md.err.gone'));
+          const src = mediaFile(L, it), name = `media-${slug(it.nom) || 'image'}-${Date.now().toString(36)}${path.extname(src).toLowerCase()}`;
+          fs.copyFileSync(src, path.join(IMAGES, name));
+          recordUse(L, it.id, { titre: projTitle(), projet: coulissesOf(P) ?? P.EP, image: Number.isFinite(+b.frame) ? Math.round(+b.frame) : null });
+          log(t('srv.mdPlaced', { name: it.nom, frame: b.frame ?? '?' }));
+          return json(res, { ok: true, file: `images/${name}`, media: { id: it.id, nom: it.nom, categorie: it.categorie, transparent: !!it.transparent, largeur: it.largeur ?? null,
+            hauteur: it.hauteur ?? null, description: it.description ?? '', bibliotheque: src, chaine: L.channel, file: `images/${name}` } });
+        }
+        return json(res, { ok: false, why: what }, 404);
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
     if (pn === '/video' || pn === '/video/original') return sendVideo(req, res, 'original');
     if (pn === '/video/revue') return sendVideo(req, res, 'revue');
     if (pn === '/api/meta') return json(res, meta());

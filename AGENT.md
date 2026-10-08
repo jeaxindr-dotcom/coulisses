@@ -122,6 +122,28 @@ Pour l'appliquer :
 3. Ne rien changer au minutage.
 4. Vérifier avec `CLI frame E03 <image> --source code` : l'image doit ressembler à l'image « après » jointe. Comme pour toute modif, faire un `snapshot` avant de toucher aux fichiers, puis `reply` et `done`.
 
+## Une image de la bibliothèque à placer
+
+Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) : ses personnages, décors, accessoires et effets, rangés par catégorie dans `Documents\Coulisses\Médias\<chaîne>\`. L'utilisateur y crée des images avec l'atelier d'images (Codex et son outil image_gen), ou y dépose les siennes. Quand il glisse une image sur la vidéo, la modif contient un bloc **« Média de la bibliothèque à placer »** :
+
+- l'image, son nom, sa catégorie, sa taille et si son fond est transparent ;
+- **le fichier à utiliser** : sa copie jointe au lot, dans `revue\images\` (l'original de la bibliothèque est cité aussi) ;
+- la punaise de la note : l'endroit où la poser, à l'image de la note.
+
+Pour l'appliquer :
+
+1. **Copier** ce fichier dans le projet, là où il range ses images (le dossier `public` du projet Remotion pour un run ou un épisode), et l'utiliser depuis cette copie. Jamais de chemin vers la bibliothèque : elle peut changer.
+2. La poser au point indiqué, à une taille cohérente avec la scène, au moment de la note (ou sur toute sa plage). Dans le Théâtre, en faire un **carton épais** comme les autres accessoires et décors, avec le même moteur de carton, à sa hauteur dans le décor et dans le bon plan.
+3. Ne rien changer au minutage, puis vérifier avec `CLI frame <ep> <image> --source code`. Comme toujours : `snapshot`, puis `reply` et `done`.
+
+L'agent d'un pipeline peut aussi se servir de la bibliothèque de sa chaîne :
+
+- `CLI medias "<chaîne>" liste [--categorie personnages] [--json]` : les images, avec leur chemin ;
+- `CLI medias "<chaîne>" ajouter <image> --nom "…" --categorie decors --tags "a,b" [--description "…"] [--prompt "…"]` : une image faite pour la chaîne, que l'utilisateur retrouvera dans l'onglet Médias ;
+- `CLI medias "<chaîne>" dossier` : le dossier de la bibliothèque.
+
+À la place du nom de la chaîne, on peut donner le fichier `.coulisses` du run. Les catégories sont `personnages`, `decors`, `accessoires`, `effets`, `divers` et `a-ranger`. `bibliotheque.json` est écrit par Coulisses seul : ne pas le modifier.
+
 ## Règles
 
 - `revue\notes.json` appartient à la page : **ne jamais l'écrire**. L'agent écrit seulement `revue\replies.json`, par `studio-cli.mjs` ou par `review\reply.py`, qui reste compatible.

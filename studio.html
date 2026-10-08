@@ -197,6 +197,10 @@
   #tabs .n { min-width: 19px; height: 18px; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font: 600 10.5px/18px var(--font-d); color: var(--s11); text-align: center; }
   #tabs button.on .n { background: rgba(0, 0, 0, 0.08); color: #11131c; }
   #tabs .n.hot { background: var(--grad-violet); color: #140f2a; }
+  #tabs .n:empty { display: none; }
+  #viewer.mdrag { outline: 2px dashed var(--lime); outline-offset: -8px; }
+  #mdDropHint { position: fixed; z-index: 60; transform: translateX(-50%); pointer-events: none;
+    padding: 7px 14px; border-radius: 999px; background: rgba(9, 11, 18, 0.85); border: 1px solid rgba(201, 242, 107, 0.4); color: var(--lime); font: 600 12.5px var(--font-d); white-space: nowrap; }
   .tab { display: none; flex: 1; min-height: 0; flex-direction: column; }
   .tab.on { display: flex; }
   .tab .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 40px; display: flex; flex-direction: column; gap: 10px; }
@@ -468,6 +472,7 @@
       <button data-tab="notes">{{st.tab.notes}}<span class="n" id="nNotes">0</span></button>
       <button data-tab="lots">{{st.tab.lots}}<span class="n" id="nLots">0</span></button>
       <button data-tab="insp">{{st.tab.insp}}</button>
+      <button data-tab="medias">{{st.tab.medias}}<span class="n" id="nMedias"></span></button>
       <button data-tab="scene" class="b-only">{{st.tab.scene}}</button>
     </div>
     <div class="tab" id="tab-queue">
@@ -492,6 +497,7 @@
       <div class="bar"><b>{{st.stage.badge}}</b><span class="grow"></span><span class="muted" id="sceneState">{{st.scene.off}}</span></div>
       <div class="scroll" id="scene"></div>
     </div>
+    <div class="tab" id="tab-medias"></div>
     <div class="tab" id="tab-insp">
       <div class="bar"><b>{{st.tab.insp}}</b><span class="grow"></span><span class="muted">{{st.insp.sub}}</span></div>
       <div class="scroll" id="insp"></div>
@@ -579,6 +585,7 @@
 
   // ---------- line icons (after Lucide, ISC licence) ----------
   const ICONS = {
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
     pointer: '<path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z"/>',
     pen: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/>',
     comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
@@ -646,6 +653,7 @@
     if (t === 'insp') renderInspector(true);
     if (t === 'lots') renderLots();
     if (t === 'scene') renderScene();
+    if (t === 'medias') window.CoulissesMedias?.show(); else window.CoulissesMedias?.hide();
   }
   document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   $('#helpBtn').onclick = () => $('#help').classList.toggle('open');
@@ -921,6 +929,38 @@
     el.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('drop'); attach(imagesOf(e), target()); });
   };
   dropZone($('#viewer'), () => ({ kind: 'new' }));
+
+  // ---------- an image of the library (« Médias » tab, medias.js) placed on the picture ----------
+  // A pinned edit for the agent, at the frame shown, with the image attached (a copy in revue/images) and what the
+  // library knows of it (note.media): the agent copies it into the project and writes it in the code (lib/lots.mjs).
+  // Nothing changes in the project here (user's choice, 08/10/2026: « L'agent » writes the placement).
+  async function placeMedia(id, pt, frame = curFrame()) {
+    if (queueFull()) return null;
+    M.pause();
+    const r = await postJson('/api/medias/place', { id, frame });
+    if (!r?.ok) { setSave(T('st.md.placeFailed', { why: r?.why ?? '' }), 'err'); return null; }
+    const at = pt ?? [Math.floor(CW / 2), Math.floor(CH / 2)];
+    const n = addNote(frame, null, false, { text: T(pt ? 'st.md.placeText' : 'st.md.placeTextCenter', { name: r.media.nom }), mark: { kind: 'pin', points: [at] },
+      images: [{ file: r.file, at: now(), label: r.media.nom }], media: r.media });
+    if (n) { setSave(T('st.md.placed', { name: r.media.nom }), 'ok'); showCard(n.id); }
+    return n;
+  }
+  $('#viewer').addEventListener('drop', (e) => {
+    const id = e.dataTransfer?.getData('application/x-coulisses-media');
+    window.Studio.mediaDragging(false);
+    if (id) placeMedia(id, toComp(e), curFrame());
+  });
+  window.Studio = {
+    esc: (x) => esc(x), ic: (n, c) => ic(n, c), setSave: (a, b) => setSave(a, b), placeMedia: (id, pt) => placeMedia(id, pt),
+    setTabCount: (t, txt) => { const e = $('#n' + t.charAt(0).toUpperCase() + t.slice(1)); if (e) e.textContent = txt; },
+    mediaDragging: (on) => {
+      const vw = $('#viewer'); vw.classList.toggle('mdrag', !!on); document.querySelector('#mdDropHint')?.remove();
+      if (!on) return;
+      const r = vw.getBoundingClientRect(), h = document.createElement('div');
+      h.id = 'mdDropHint'; h.textContent = T('st.md.dropHint'); h.style.left = (r.left + r.width / 2) + 'px'; h.style.top = (r.top + 18) + 'px';
+      document.body.appendChild(h);
+    },
+  };
 
   // ---------- saving ----------
   let saveT = null, saving = false, dirty = false;
@@ -2608,5 +2648,6 @@
   window.addEventListener('resize', () => { fitMedia(); resize(); });
 })();
 </script>
+<script src="/medias.js"></script>
 </body>
 </html>
