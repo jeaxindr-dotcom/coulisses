@@ -283,10 +283,15 @@
       { id: 'close', label: T('menu.closeStudio'), disabled: inStudio },
     ] },
     { id: 'edit', label: T('menu.edit'), items: [
-      { id: 'undo', label: T('menu.undo'), disabled: inStudio },
-      { id: 'redo', label: T('menu.redo'), disabled: inStudio },
+      // the same entries as the studio's Edit menu
+      { id: 'undo', label: T('menu.undoAction'), key: 'Ctrl+Z', disabled: inStudio },
+      { id: 'redo', label: T('menu.redoAction'), key: 'Ctrl+Y', disabled: inStudio },
+      '-',
+      { id: 'undoLot', label: T('menu.undo'), disabled: inStudio },
+      { id: 'redoLot', label: T('menu.redo'), disabled: inStudio },
       '-',
       { id: 'copyLine', label: T('menu.copyLine'), disabled: inStudio },
+      { id: 'copyConnect', label: T('menu.copyConnect'), disabled: inStudio },
       '-',
       { id: 'prefs', label: T('menu.prefs'), run: showPrefs },
     ] },

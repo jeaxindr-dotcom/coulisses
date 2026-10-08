@@ -532,6 +532,8 @@
 <div id="help">
   <h3>Langue · Language</h3>
   <div class="langs" id="langs"><button data-l="fr">Français</button><button data-l="en">English</button></div>
+  <h3>{{st.help.h.common}}</h3>
+  {{st.help.common}}
   <h3>{{st.help.h.image}}</h3>
   {{st.help.image}}
   <h3>{{st.stage.badge}}</h3>
@@ -986,7 +988,64 @@
   let saveT = null, saving = false, dirty = false;
   const setSave = (txt, cls) => { const s = $('#save'); s.textContent = txt; s.className = cls || ''; };
   const payload = () => JSON.stringify({ episode: META.episode, title: META.title, fps: FPS, render: META.render, updated: now(), notes: sorted() });
-  function save() { dirty = true; setSave(T('st.save.saving')); clearTimeout(saveT); saveT = setTimeout(flush, 400); }
+  // Ctrl+Z / Ctrl+Y (user request, 08/10/2026: « les raccourcis habituels »): the user's own actions in the page — a note
+  // added, deleted, moved or written, a mark, an edit in the queue, a staging offset — 60 steps back, kept in memory. The
+  // words typed in a field keep the browser's own undo while it has the focus, and typing in a note makes one step per
+  // burst. Sending the queue starts a new history (a batch sent is not taken back here: « Annuler la correction du lot »).
+  // The agent's fixes have their own undo (Édition › Annuler la correction du lot N).
+  const HIST = { back: [], fwd: [], last: null, lastAt: 0, max: 60 };
+  const noText = (j) => { try { return JSON.stringify(JSON.parse(j).map(({ text, updated, context, ...r }) => r)); } catch { return j; } };
+  function stepLabel(before, after) {
+    let a = [], b = []; try { a = JSON.parse(before); b = JSON.parse(after); } catch { /* */ }
+    if (b.length > a.length) return T('st.undo.add');
+    if (b.length < a.length) return T('st.undo.del');
+    return T('st.undo.edit');
+  }
+  function remember() {   // called by save(): the state before this change becomes one step back
+    const cur = JSON.stringify(notes);
+    if (HIST.last === null) { HIST.last = cur; return; }
+    if (cur === HIST.last) return;
+    const now = Date.now(), top = HIST.back.at(-1);
+    // one step per burst: still typing in a note (1.5 s), or dragging a note along the timeline (0.4 s)
+    const ids = (j) => { try { return JSON.parse(j).map((n) => n.id).join(); } catch { return j; } };
+    const typingOn = noText(cur) === noText(HIST.last);
+    const burst = top?.type === 'notes' && ids(cur) === ids(HIST.last) && now - HIST.lastAt < (typingOn && top.text ? 1500 : 400);
+    if (!burst) { HIST.back.push({ type: 'notes', state: HIST.last, label: stepLabel(HIST.last, cur), text: noText(cur) === noText(HIST.last) }); if (HIST.back.length > HIST.max) HIST.back.shift(); }
+    HIST.fwd = []; HIST.last = cur; HIST.lastAt = now;
+  }
+  function persist() { dirty = true; setSave(T('st.save.saving')); clearTimeout(saveT); saveT = setTimeout(flush, 400); }
+  function save() { remember(); persist(); }
+  let stQuiet = false; const stPrev = new Map(), stAt = new Map();
+  function rememberStage(ev) {   // a staging offset: one step per gesture (a drag, a burst of arrows or of the wheel)
+    if (stQuiet) return;
+    const now = Date.now(), prev = stPrev.get(ev.id) ?? { delta: { p: [0, 0, 0], r: [0, 0, 0], s: 1 }, from: ev.from, to: ev.to };
+    if (now - (stAt.get(ev.id) ?? 0) > 700) { HIST.back.push({ type: 'stage', id: ev.id, ...prev, label: T('st.undo.stage', { name: stageName(ev.id, ev).name }) }); if (HIST.back.length > HIST.max) HIST.back.shift(); HIST.fwd = []; }
+    stAt.set(ev.id, now); stPrev.set(ev.id, { delta: JSON.parse(JSON.stringify(ev.delta)), from: ev.from, to: ev.to });
+  }
+  function undoStep(dir) {   // 'undo' | 'redo'
+    const from = dir === 'undo' ? HIST.back : HIST.fwd, to = dir === 'undo' ? HIST.fwd : HIST.back;
+    const step = from.pop();
+    if (!step) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
+    if (step.type === 'stage') {
+      if (!SP?.stage) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
+      const cur = SP.stage.info(step.id);
+      to.push({ type: 'stage', id: step.id, delta: cur.delta, from: cur.from, to: cur.to, label: step.label });
+      stQuiet = true; SP.stage.setDelta(step.id, step.delta, step.from, step.to); stQuiet = false;
+      stPrev.set(step.id, { delta: step.delta, from: step.from, to: step.to }); stAt.set(step.id, 0);
+      if (stSel?.id === step.id) stSel = { ...stSel, ...SP.stage.info(step.id) };
+      renderScene.force = true; renderScene(); renderScene.force = false;
+    } else {
+      to.push({ type: 'notes', state: HIST.last, label: step.label });
+      const had = new Set(notes.map((n) => n.id));
+      notes = JSON.parse(step.state); HIST.last = step.state; HIST.lastAt = 0;
+      const back = notes.find((n) => !had.has(n.id));   // a note that comes back is the one selected
+      if (back) sel = back.id; else if (sel && !byId(sel)) sel = null;
+      if (loopId && !byId(loopId)) loopId = null;
+      persist(); renderAll(); syncStage();
+    }
+    setSave(T(dir === 'undo' ? 'st.undo.done' : 'st.redo.done', { what: step.label }), 'ok');
+  }
+  window.__undo = { state: () => ({ back: HIST.back.length, fwd: HIST.fwd.length, top: HIST.back.at(-1)?.label ?? null }) };   // for tests
   async function flush() {
     if (saving) { saveT = setTimeout(flush, 300); return; }
     saving = true; dirty = false;
@@ -1310,6 +1369,8 @@
   let stUnsub = null;
   function onStageEvent(ev) {
     if (ev.type === 'change' && ev.id !== stSel?.id) return;   // an offset of the queue being re-applied
+    if (ev.type === 'select' && !stPrev.has(ev.id)) stPrev.set(ev.id, { delta: JSON.parse(JSON.stringify(ev.delta)), from: ev.from, to: ev.to });
+    if (ev.type === 'change') rememberStage(ev);
     if (ev.type === 'select' || ev.type === 'change') { stSel = ev; const t = stageName(ev.id, ev); $('#stageBadgeK').textContent = `${t.name} · ${t.kind}`; }
     if (ev.type === 'deselect') { stSel = null; $('#stageBadgeK').textContent = T('st.stage.clickObj'); }
     if (ev.type === 'mode') stMode = ev.mode;
@@ -1492,6 +1553,7 @@
       const res = r.ok ? await r.json() : null;
       if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
       for (const n of d) { n.draft = false; n.lot = res.lot; n.sentAt = now(); }
+      HIST.back = []; HIST.fwd = []; HIST.last = null;   // a batch sent is not taken back with Ctrl+Z
       if (d.some((n) => n.stage)) setTimeout(() => setSave(T('st.send.offsets'), 'ok'), 1600);
       $('#qwords').value = ''; save();
       showModal(T('st.send.title', { lot: res.lot, n: res.count }),
@@ -2512,10 +2574,22 @@
     if (e.key === 'Escape' && $('#modal').style.display === 'flex') { $('#modal').style.display = 'none'; return; }
     if (e.key === 'Escape' && $('#help').classList.contains('open')) { $('#help').classList.remove('open'); return; }
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'range';
-    if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
+    const ctl = (e.ctrlKey || e.metaKey) && !e.altKey, k1 = e.key.toLowerCase();
+    // the usual shortcuts: Ctrl+S saves now (never the browser's « save the page »), Ctrl+Entrée sends the queue
+    if (ctl && k1 === 's') { e.preventDefault(); flushNow().then((ok) => setSave(ok ? T('st.key.saved', { t: hm5(new Date()) }) : T('st.save.failed'), ok ? 'ok' : 'err')); return; }
+    if (ctl && e.key === 'Enter' && (!typing || e.target.id === 'qwords')) { e.preventDefault(); if (drafts().length) sendQueue(); else setSave(T('menu.why.noDraft'), ''); return; }
+    if (typing) { if (e.key === 'Escape') e.target.blur(); return; }   // in a field: the browser's own Ctrl+Z, Ctrl+C, Ctrl+V…
+    if (ctl && k1 === 'z' && !e.shiftKey) { e.preventDefault(); undoStep('undo'); return; }
+    if (ctl && (k1 === 'y' || (k1 === 'z' && e.shiftKey))) { e.preventDefault(); undoStep('redo'); return; }
     // staging, focus outside the preview (panel, list…): the same keys as inside it
     if (staging && SP?.stage && !e.ctrlKey && !e.metaKey) {
       const NUDGE = { ArrowLeft: [-1, 0, 0], ArrowRight: [1, 0, 0], ArrowUp: [0, 1, 0], ArrowDown: [0, -1, 0], PageUp: [0, 0, -1], PageDown: [0, 0, 1] }[e.key];
+      if (NUDGE && stSel && D2()) {   // 2D: pixels of the frame, y downwards (as inside the preview)
+        e.preventDefault();
+        const n2 = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!n2) return;
+        const st2 = e.shiftKey ? 10 : 1, dd = SP.stage.info(stSel.id).delta;
+        SP.stage.setDelta(stSel.id, { ...dd, p: [dd.p[0] + n2[0] * st2, dd.p[1] + n2[1] * st2, 0] }); return;
+      }
       if (NUDGE && stSel) {
         e.preventDefault();
         const st = e.shiftKey ? 0.25 : e.altKey ? 0.01 : 0.05, dd = SP.stage.info(stSel.id).delta;
@@ -2553,7 +2627,7 @@
     else if (k === 'i' && sel) { const n = byId(sel); setFrames(n, curFrame(), n.end); save(); renderAll(); }
     else if (k === 'o' && sel) { const n = byId(sel); setFrames(n, n.frame, curFrame()); save(); renderAll(); }
     else if (k === 'l' && sel) { const n = byId(sel); if (n.end !== null) { loopId = loopId === n.id ? null : n.id; if (loopId) { seekFrame(n.frame); M.play(); } renderAll(); } }
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); if (confirm(T('st.key.deleteConfirm'))) delNote(sel); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); delNote(sel); setSave(T('st.key.deleted'), 'ok'); }   // Ctrl+Z brings it back
     else if (e.key === '+' || e.key === '=') { const c = (view.a + view.b) / 2, s = Math.max(40 / FPS, (view.b - view.a) / 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
     else if (e.key === '-') { const c = (view.a + view.b) / 2, s = Math.min(DUR, (view.b - view.a) * 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
   });
@@ -2627,8 +2701,11 @@
         { id: 'close', label: T('menu.closeStudio'), disabled: noHub, run: () => toHub() },
       ] },
       { id: 'edit', label: T('menu.edit'), items: [
-        { id: 'undo', label: () => (lastUndo() ? T('menu.undoLot', { lot: lastUndo().lot }) : T('menu.undo')), disabled: () => (lastUndo() ? false : T('menu.why.noUndo')), run: () => stepLot(lastUndo(), 'undo') },
-        { id: 'redo', label: () => (lastRedo() ? T('menu.redoLot', { lot: lastRedo().lot }) : T('menu.redo')), disabled: () => (lastRedo() ? false : T('menu.why.noRedo')), run: () => stepLot(lastRedo(), 'redo') },
+        { id: 'undo', label: () => (HIST.back.length ? T('menu.undoStep', { what: HIST.back.at(-1).label }) : T('menu.undoAction')), key: 'Ctrl+Z', disabled: () => (HIST.back.length ? false : T('menu.why.noStep')), run: () => undoStep('undo') },
+        { id: 'redo', label: () => (HIST.fwd.length ? T('menu.redoStep', { what: HIST.fwd.at(-1).label }) : T('menu.redoAction')), key: 'Ctrl+Y', disabled: () => (HIST.fwd.length ? false : T('menu.why.noStepRedo')), run: () => undoStep('redo') },
+        '-',
+        { id: 'undoLot', label: () => (lastUndo() ? T('menu.undoLot', { lot: lastUndo().lot }) : T('menu.undo')), disabled: () => (lastUndo() ? false : T('menu.why.noUndo')), run: () => stepLot(lastUndo(), 'undo') },
+        { id: 'redoLot', label: () => (lastRedo() ? T('menu.redoLot', { lot: lastRedo().lot }) : T('menu.redo')), disabled: () => (lastRedo() ? false : T('menu.why.noRedo')), run: () => stepLot(lastRedo(), 'redo') },
         '-',
         { id: 'copyLine', label: T('menu.copyLine'), disabled: () => (lastLot() ? false : T('menu.why.noLot')), run: () => copy(lastLot().line) },
         { id: 'copyConnect', label: T('menu.copyConnect'), run: () => copy(META.connectLine) },
@@ -2637,7 +2714,7 @@
       ] },
       { id: 'tools', label: T('menu.tools'), items: [
         { id: 'connect', label: T('menu.connect'), run: openConnect },
-        { id: 'send', label: T('menu.send'), disabled: sendWhy, run: sendQueue },
+        { id: 'send', label: T('menu.send'), key: T('menu.keySend'), disabled: sendWhy, run: sendQueue },
         '-',
         { id: 'staging', label: T('menu.staging'), key: 'M', disabled: () => stageWhy() ?? false, run: () => setStaging(!staging) },
         { id: 'source', label: T('menu.source'), key: 'P', disabled: () => srcWhy() ?? false, run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
@@ -2692,6 +2769,7 @@
       else if (!META.snapshotMatches) { $('#warn').style.display = 'block'; $('#warn').textContent = T('st.start.stalePlan'); }
       const data = await (await fetch('/api/notes')).json();
       notes = (data.notes || []).map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
+      HIST.last = JSON.stringify(notes);
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
       STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
       buildLanes(); setTab(tab); fitMedia(); resize(); renderAll(); updateHud();

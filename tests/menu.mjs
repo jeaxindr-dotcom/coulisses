@@ -111,7 +111,7 @@ try {
   check(has(sf, 'home', (r) => !r.off) && has(sf, 'revealFolder', (r) => !r.off) && has(sf, 'revealCoulisses', (r) => !r.off) && has(sf, 'close', (r) => !r.off), 'Fichier: Accueil, Ouvrir le dossier du projet, Afficher le fichier .coulisses, Fermer le studio — all usable here');
   await p.mouse('mouseMoved', ...(await btnAt('edit'))); await sleep(150);
   const se = await rows();
-  check(has(se, 'undo', (r) => r.off && /Aucune correction à annuler/.test(r.why)) && has(se, 'copyLine', (r) => r.off && /Aucun lot/.test(r.why)) && has(se, 'copyConnect', (r) => !r.off), 'Édition: Annuler greyed (« Aucune correction à annuler… »), Copier la ligne greyed (no batch yet), Copier la ligne de connexion');
+  check(has(se, 'undo', (r) => r.off && /Rien à annuler/.test(r.why) && r.key === 'Ctrl+Z') && has(se, 'undoLot', (r) => r.off && /Aucune correction à annuler/.test(r.why)) && has(se, 'copyLine', (r) => r.off && /Aucun lot/.test(r.why)) && has(se, 'copyConnect', (r) => !r.off), 'Édition: Annuler greyed (« Aucune correction à annuler… »), Copier la ligne greyed (no batch yet), Copier la ligne de connexion');
   await p.mouse('mouseMoved', ...(await btnAt('tools'))); await sleep(150);
   const st = await rows();
   check(has(st, 'connect') && has(st, 'send', (r) => r.off && /Aucune modif en attente/.test(r.why)) && has(st, 'staging', (r) => !r.off) && !has(st, 'render') && has(st, 'source', (r) => r.off) && has(st, 'export', (r) => r.sub && !r.off) && has(st, 'stopExport', (r) => r.off && /Aucun export en cours/.test(r.why)),
