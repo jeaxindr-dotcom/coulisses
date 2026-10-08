@@ -1,202 +1,147 @@
-# Coulisses (anciennement « Brambleshire Studio »)
+# Coulisses
 
-Coulisses est le studio de revue de toutes les chaînes : relire et annoter une vidéo, **avant ou après son export**, et envoyer les notes à l'agent. Il est né de l'outil de revue de Brambleshire (`06_Remotion\review\`), enrichi de ce qui est bien fait dans HyperFrames Studio. Il fonctionne sous Windows et s'appuie sur Remotion. Tout ce que faisait l'outil actuel est conservé ; seul changement de comportement, un clic sur l'image ne lance plus la lecture : on joue avec **Espace** ou le bouton Lecture. Les corrections sont faites par **ton agent** (aujourd'hui une session Claude Code, demain Codex/GPT si tu veux), celui qui a fabriqué la vidéo et qui en a tout le contexte. Le studio dit « l'agent », jamais « Claude ».
+*A video review studio for AI-assisted editing: annotate a video, before or after its export, and send the notes to the coding agent that made it.*
 
-## L'application (`.exe`)
+*[Version française](README.fr.md)*
 
-- **`Coulisses.exe`** est l'application, installée dans `C:\Users\owner\AppData\Local\Programs\Coulisses\`. Raccourcis « Coulisses » sur le Bureau et dans le menu Démarrer. **Un double-clic sur un fichier `.coulisses`** l'ouvre sur ce projet (association de fichier pour ton compte, sans droits administrateur).
-  - Pas de console noire : elle démarre l'accueil en arrière-plan (`hub-server.mjs`, port 4170) et l'ouvre dans sa propre fenêtre, sans onglets ni barre d'adresse (Chrome en mode application, Edge à défaut).
-  - L'accueil liste les épisodes : miniature, durée, date du rendu, notes à corriger, lots. **Ouvrir le studio** lance le studio de l'épisode dans la même fenêtre, et le logo « B » ramène à l'accueil.
-  - `Coulisses.exe E03` (c'est ce que font `Revoir et annoter.cmd` et `The Secret Garden.coulisses`) ouvre directement l'E03.
-  - `Coulisses.exe "<dossier, vidéo ou .coulisses>"`, ce qui se passe quand on glisse un dossier sur l'icône ou qu'on double-clique un `.coulisses`, importe ce projet et l'ouvre (voir « Projets importés »).
-  - Fermer la fenêtre arrête tout : l'accueil, le studio, ses copies et sa capture d'images.
-  - Pendant un re-rendu, `finish-render.sh` met le studio en pause, puis le relance. La fenêtre reste ouverte et recharge seule la nouvelle vidéo.
-- **`Coulisses Setup.exe`** (dans cet atelier) installe ou met à jour l'application, crée les raccourcis (et retire les anciens « Brambleshire Studio ») et enregistre l'ouverture des fichiers `.coulisses`. La première fois, il a déménagé Coulisses hors du pipeline Brambleshire : l'ancien dossier `06_Remotion\review\studio\` ne garde qu'un `studio-cli.mjs` de renvoi.
-  - Si le studio est ouvert, il propose de le fermer.
-  - Il refuse d'écraser des fichiers modifiés directement dans le pipeline, sauf si tu confirmes.
-  - `/silent` fait la même chose sans fenêtre (journal : `%LOCALAPPDATA%\Coulisses\setup.log`).
-- **Compilation** : `pwsh -File app\build.ps1` utilise le compilateur C# fourni avec Windows (`csc.exe`, .NET Framework 4.8), sans rien installer. Les sources sont dans `app\` : `Launcher.cs`, `Setup.cs`, l'icône (`make-icon.ps1`) et le manifeste.
-- **Test de l'application** : `node tests\app.mjs`. Il ouvre la vraie fenêtre, rendue invisible, sur le bac à sable.
+Coulisses ("backstage" in French) is a local review studio for videos made with code — mainly [Remotion](https://www.remotion.dev) projects. You watch the video (or the live code), point at what is wrong, draw on the frame, leave notes on a frame or a range, and send them as a **batch** to **your agent**: the coding agent session that made the video (Claude Code today, Codex or any agent that can run commands tomorrow). The agent reads a precise request — frames, pixels, the 3D object under your gesture, the clips of the edit — fixes the code, answers on each note, and you see the fix at once in the live preview. Every fix can be undone.
 
-## Deux copies
+It runs on Windows, as a small desktop app (an app window of Chrome or Edge, with no tabs and no address bar), and everything stays on your machine (`127.0.0.1`).
 
-- **L'application installée** vit dans `C:\Users\owner\AppData\Local\Programs\Coulisses\` (port 4173 pour le studio, 4170 pour l'accueil : les mêmes que l'ancien outil).
-  - Le `Revoir et annoter.cmd` de chaque épisode l'ouvre.
-  - `scripts/new-episode.mjs` crée ce lanceur pour les nouveaux épisodes.
-  - `scripts/finish-render.sh` refuse de remplacer la vidéo tant qu'un studio la lit (ports 4173 à 4176, les bacs à sable exceptés).
-  - L'étape 7 du skill `brambleshire-theatre` décrit le déroulé.
-  - L'ancien outil (`review-server.mjs`) reste à côté, en secours.
-- **Cet atelier** est l'endroit où l'on développe (port 4174), avec le bac à sable (`Studio de revue - bac a sable E03.cmd`, une copie des notes de l'E03) et les tests.
-- **Pour mettre à jour le pipeline** : `node install.mjs` (`--dry` pour voir ce qui changerait). Le script refuse d'écraser un fichier modifié directement dans le pipeline depuis la dernière installation (`installed.json`). Un studio déjà lancé doit être relancé.
-- **Le cache** : celui de Coulisses installé vit hors de tout projet, dans `%LOCALAPPDATA%\Coulisses\`. Il contient une jonction vers `06_Remotion\public` : on le supprime par l'Explorateur ou `rmdir /s /q`, jamais par `Remove-Item -Recurse`.
+It was born as the review tool of the *Brambleshire Theatre* channel (a 3D paper theatre made in Remotion) and grew, with ideas taken from [HyperFrames Studio](https://github.com/heygen-com/hyperframes), into the review studio of several channels.
 
-## Design
+## Features
 
-- **Style « glass », sombre et coloré** : fond bleu nuit avec des halos de couleur (violet, bleu, menthe, rose), panneaux flottants en verre dépoli, grands arrondis, onglets et boutons en pilules.
-- **Dégradés** : citron vert → menthe pour l'action principale (Envoyer à l'agent), violet et ciel pour les outils actifs.
-- **Polices** : Outfit pour les titres et les chiffres, Inter pour le texte (Google Fonts, avec repli sur Segoe UI hors ligne).
-- **Timeline** : une couleur vive par personnage, tête de lecture blanche lumineuse.
-- **Icônes** : au trait, dessins d'après [Lucide](https://lucide.dev) (licence ISC), aucun émoji. Les actions rares d'une carte sont rangées dans le menu « … ».
-- **Étiquettes au bord** : près d'un bord de l'image, l'étiquette de survol et le bouton « Demander une modif » passent de l'autre côté de la souris, au lieu de sortir du cadre.
-
-## Timeline : raccourcis façon DaVinci Resolve
-
-| Geste | Effet |
+| | |
 |---|---|
-| molette | pistes vers le haut / le bas |
-| Ctrl + molette | défiler dans le temps |
-| Alt + molette | zoom horizontal |
-| Maj + molette | hauteur des pistes |
+| **Gestures on the image** | **V** Select: hover to see the object you are aiming at, click, then **A** "Request an edit". **D** Draw: several strokes make one drawing. **C** a pinned comment. **N** a note on the frame, **R** a range. |
+| **Pixel-exact 3D picking** | Under your gesture, a ray cast in the live preview's Three.js scene names the object hit ("Hazel · character", "flower arch · set"), reading the texture's transparency like the render does. A Remotion run names its elements through `data-coulisses="…"`. |
+| **Pending edits, sent as a batch** | Up to 10 edits wait in the queue, editable, then **Send to the agent** turns them into a batch: a `.md` request with absolute paths and images (the frame, your drawing, a zoom, the end of a range). |
+| **The link with the agent** | Each batch shows a line to paste in the agent's session. Or **Connect to the agent** once: the agent watches the tool in the background and each batch wakes it up. |
+| **Live preview of the code** | **P** switches between the rendered MP4 and the current code (Remotion Player), rebuilt in about 0.15 s on every save, on the same frame. |
+| **The agent's eyes** | `studio-cli.mjs frame` / `sheet` give a frame or a before/after strip, from the MP4 or from the code, so the agent checks its fix without a render. |
+| **Undo a fix** | The agent snapshots the files before fixing; "Undo this fix" puts them back (refused if a file changed since). "Redo" applies it again. |
+| **Staging** | **M**: move a 3D object yourself in the preview (handles, arrow keys, free camera). Nothing is written: the exact offset goes to the agent, who writes it in the code. |
+| **Render or export from the studio** | For an episode, "Start the render" asks the agent for the full render (checks, render, finish) and shows its progress. For a Remotion run, "Export" runs the project's own export script, with its variants. The new video loads by itself, and **Compare before / after** wipes between the old and the new frame of every fixed note. |
+| **Imported projects** | Besides the episodes: an AItelier run (its Resolve tracks as the timeline), any folder of videos, a single video, or a `.coulisses` file. |
+| **The `.coulisses` file** | Like a DaVinci Resolve project file: created at the start of a run, it points to the run's Remotion composition, which Coulisses plays **live, before any export**. |
+| **Updates, checked with every batch** | Remotion's version and the agent's skills: the agent offers the updates as a multiple-choice question, and installs nothing without your consent. |
+| **French or English** | Everything you see, and what the agent reads, follows one setting (see below). |
+| **A menu bar** | File · Edit · Tools · Help, like any desktop app (see below). |
 
-## Visée au pixel près
+## Requirements
 
-- **Au survol** : avec l'outil Sélection, une étiquette nomme l'objet sous le curseur avant le clic, par exemple « ladder · décor » ou « Penelope · personnage ».
-- **Transparence** : le rayon lit la transparence de la texture au pixel touché, comme le fait le rendu. Il traverse donc les zones transparentes autour d'un personnage ou entre deux barreaux.
-- **Éléments ignorés** : les particules, les rayons de lumière et les halos ne sont jamais visés.
+- Windows 10 or 11.
+- [Node.js](https://nodejs.org) 22 or later on the `PATH`.
+- Google Chrome (or Microsoft Edge) — the app window, the frames rendered from the code, and the tests.
+- `ffmpeg` and `ffprobe` on the `PATH`.
+- For the live preview: a Remotion project with `remotion` and `@remotion/player` installed (Coulisses uses the project's own `esbuild` and Remotion; it installs nothing).
+- To build the `.exe` files: nothing beyond Windows (`csc.exe` of the .NET Framework 4.8).
 
-## Mise en page
+## Install
 
-Les bords entre les panneaux se tirent à la souris, et les tailles sont mémorisées.
+1. **Build the app** (optional — the `.exe` files are in the repository): `pwsh -File app\build.ps1` writes `Coulisses.exe` and `Coulisses Setup.exe` into this folder.
+2. **Install**: run `Coulisses Setup.exe` (or `node install.mjs`; `--dry` shows what would change, `--to <dir>` installs elsewhere). It copies the app to `%LOCALAPPDATA%\Programs\Coulisses\`, creates the "Coulisses" shortcuts (Desktop and Start menu) and makes a double-click on a `.coulisses` file open Coulisses (for your account, no admin rights). It refuses to overwrite files changed in the installed copy unless you confirm.
+3. **Or run it from this folder**: `node hub-server.mjs` (the home screen), or `node studio-server.mjs E03 --episodes <folder>` / `node studio-server.mjs --project "<project folder>"` (one studio), then open the printed address.
 
-| Zone | Contenu |
+> **This is one creator's setup.** A few defaults point to the author's own folders (the Brambleshire project in `lib/episode.mjs`, a Python path in `lib/render.mjs`, Chrome's path in `lib/frames.mjs` and `lib/render.mjs`, the start folder of the file dialog in `hub-server.mjs`). The imported projects, the `.coulisses` runs and the studio itself do not depend on them; the Brambleshire episodes and their render do.
+
+## Using it
+
+- **The home screen** lists the episodes and the imported projects: thumbnail, duration, date of the render, notes to fix, batches. **Open the studio** opens one; the "C" logo comes back. **Import a project** takes a folder, a video or a `.coulisses` file (the Windows dialog, a pasted path, or drag and drop on the app's icon). **Remove** takes a project off the list and deletes nothing.
+- **The studio**: the tools on the left, the image in the middle, the tabs on the right (**Edits**, **Notes**, **Batches**, **Inspector**, **Scene**), the multi-track timeline at the bottom. The borders between the panels can be dragged.
+- **Keyboard**: `Space` play · `←` `→` frame by frame (hold = scrub ×2) · `Shift`+`←` `→` one second · `V` `D` `C` tools · `A` request an edit at the pointed spot · `N` note · `R` range · `I` `O` start / end of the selected note · `L` loop · `P` MP4 ⇄ code · `M` staging · `Del` delete · `Ctrl`+`V` paste an image · `F1` help.
+- **Timeline, DaVinci Resolve style**: wheel = tracks up / down · `Ctrl`+wheel = move through time · `Alt`+wheel = horizontal zoom · `Shift`+wheel = track height · double-click a line or a clip = a note on all of it · drag in the Notes band = a new range.
+- **Send**: the **Edits** tab › **Send to the agent**. Paste the line shown in your agent's session, or connect the agent once (the button at the top).
+
+### The menu bar
+
+At the top of both the home screen and the studio, a menu bar like any desktop app: **File · Edit · Tools · Help**.
+
+- **File**: Home (projects), Open a project… (`Ctrl+O`: a `.coulisses` file or a video), Import a folder… / a video…, Open the project folder, Show the `.coulisses` file in Explorer, Close the studio.
+- **Edit**: Undo / Redo the last fix (the "Batches" panel's undo), Copy the line to paste, Copy the connect line, Preferences… (language, agent).
+- **Tools**: Connect to the agent, Send the edits, Staging (`M`), Rendered MP4 ⇄ current code (`P`), Export ▸ (one entry per variant of the export script) and Stop the export for a Remotion run, Start / Stop the render for an episode, Compare before / after, Check for updates, Check the project (`projet verifier --rapide`), Log.
+- **Help**: Keyboard shortcuts (`F1`), The agent's protocol, Pipeline contract, Online documentation, About Coulisses.
+- **Keyboard**: `Alt` alone or `F10` gives the bar the focus, `←` `→` move between menus, `↓` or `Enter` opens, `↑` `↓` in a menu, `→` opens a submenu, `Escape` closes. A click outside closes the menu.
+- What makes no sense where you are is greyed out, and its tooltip says why. Every item calls the feature that already exists in the page (`menubar.js`, served by both servers).
+
+### Language: French or English
+
+- **One setting for everything you see**: the home screen, the studio, the dialogs of `Coulisses.exe` and `Coulisses Setup.exe`, the line to paste, the batch files the agent reads and the messages of `studio-cli.mjs`. In English the agent is pointed to `AGENT.en.md` (`AGENT.md` in French) and the pipelines to `docs/COULISSES-REMOTION-CONTRACT.md` (`docs/FICHE-COULISSES-REMOTION.md` in French).
+- **By default**: the Windows display language — French gives French, any other language gives English.
+- **To change it**: the "FR · EN" buttons of the home screen, "Langue · Language" at the top of the studio's help ("?"), or **Edit › Preferences…**. The choice is kept in `%LOCALAPPDATA%\Coulisses\settings.json` (`{ "lang": "en" }`) and applies to the whole app.
+- **`COULISSES_LANG=fr|en`** forces the language (the tests use it, so they never touch your setting); `COULISSES_SETTINGS` points to another settings file.
+- **The texts** live in `lib/i18n-fr.mjs` (the original French) and `lib/i18n-en.mjs`, same keys; `lib/i18n.mjs` is the engine (`{name}` values, `{n|one|other}` plurals). The pages receive their texts from the server that serves them (`{{key}}` in the HTML, `window.T(key, values)` in their script).
+- **Machine markers never change** with the language, so agents and pipelines that parse them keep working: `COULISSES PROGRES` / `FIN` / `REMPLACE` (export scripts), `PROJET CONFORME` / `PROJET NON CONFORME`, `LOT N REÇU`, `DEMANDE DE RENDU (lot N) REÇUE`, the `RENDU …` verdicts of `studio-cli.mjs render`, `HUB_READY`. In English a short gloss follows them, e.g. `PROJET CONFORME (compliant): …`. The command names and flags (`projet creer`, `--depuis`, `--rapide`…) and the JSON fields (`titre`, `pistes`, `de`, `a`…) are French in both languages: they are an API.
+
+## The agent's side
+
+The full protocol is [`AGENT.en.md`](AGENT.en.md) (French: [`AGENT.md`](AGENT.md)). In short, with `CLI` = `node "<Coulisses folder>\studio-cli.mjs"`:
+
+| Command | What it does |
 |---|---|
-| **À gauche** | Les outils : Sélection (V), Dessin (D), Commentaire (C), Note (N), Plage (R), MP4 ⇄ code (P), Mise en scène (M). |
-| **Au centre** | L'image, ajustée à la place disponible : le MP4 rendu ou l'aperçu vivant du code. |
-| **À droite** | Des onglets. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Notes** : les notes déjà envoyées et les anciennes. **Envois** : les lots, leur état, et « Annuler cette correction ». **Scène** : la mise en scène (objet choisi, décalage, portée, caméra libre). **Inspecteur** : à l'image affichée, la scène, les répliques, la caméra, la lumière, la musique, les bruitages, les émotes et qui marche, puis le détail de la note choisie avec l'objet 3D visé. |
-| **En bas** | La timeline multipiste. Pistes : Décors (avec le rideau fermé), Caméra (images clés), Lumière, une piste par personnage (répliques avec forme d'onde, marches, émotes), Musique, Ambiance, Bruitages, Mix (son du MP4), et la bande Notes. Un double-clic sur une réplique crée une note sur toute la réplique. |
+| `CLI wait E03` | waits for a batch sent from the tool, prints it and exits (run in the background: its end wakes the session) |
+| `CLI take E03 <batch>` | the tool shows "The agent is fixing" on the batch's notes |
+| `CLI snapshot E03 <batch> <files…>` | saves the files before changing them (this is what makes "Undo this fix" possible) |
+| `CLI frame E03 <frame> [--source code\|video]` | one frame, from the current code or from the MP4 |
+| `CLI sheet E03 <note id>` | before / after strips around a note |
+| `CLI reply E03 <note id> "<text>" --status done\|open` | the answer on a note (the strips are attached) |
+| `CLI done E03 <batch> "<summary>"` | closes the batch and records the "after" state of the files |
+| `CLI render E03 <batch>` | the full re-render asked from the studio (checks, render, finish) |
+| `CLI undo E03 <batch> [--redo]` · `CLI status E03` · `CLI updates E03` | undo / redo, a summary, the update check |
 
-## Ce qui est nouveau
+An imported project is named by its path instead of `E03` (`CLI take "<project>\revue" 3`). Each batch `.md` holds the exact commands to run.
 
-| Fonction | Comment |
+## The `.coulisses` contract (Remotion pipelines)
+
+A pipeline whose edit is a Remotion composition becomes reviewable **before any export**. In short ([the full contract](docs/COULISSES-REMOTION-CONTRACT.md)):
+
+1. One Remotion project per channel, one composition per run, the run's data in the project.
+2. `src/coulisses.ts` — the list of compositions (the browser side, for the live preview); the `Root` builds its `<Composition>` from it.
+3. `src/coulisses-timeline.ts` — the run's timeline in frames, data only (the Node side): `{ fps, durationInFrames, pistes: [{ id, nom, type: 'video'|'audio'|'band', clips: [{ de, a, label, fichier, … }] }] }`.
+4. `data-coulisses="<name>"` on the visible elements that matter.
+5. The run's `.coulisses` file, created at the start of the run: `node studio-cli.mjs projet creer --depuis spec.json`.
+6. `node studio-cli.mjs projet verifier "<file>.coulisses"` until it says `PROJET CONFORME`, and look at the check image it renders.
+7. Optionally `scripts/coulisses-rendu.mjs`, the export script Coulisses runs on your order (it prints `COULISSES PROGRES <pct> <step>` and ends with `COULISSES FIN "<file>"`; `--options` lists its variants).
+
+`node tests\coulisses-fixture.mjs` generates a small complete example project that follows the contract.
+
+## Files and who writes them
+
+| File (in the episode's or project's `revue\`) | Written by |
 |---|---|
-| **Outils sur l'image** | **V** Sélection : pointer un endroit, puis **A** « Demander une modif ». **D** Dessin : plusieurs traits forment un seul dessin, **Entrée** pour l'ajouter. **C** Commentaire épinglé à un endroit et à une image. |
-| **Objet 3D visé** | Sous le geste, un lancer de rayon dans la scène Three.js de l'aperçu nomme l'objet touché, par exemple « Hazel · personnage » ou « flower arch · décor », avec son chemin complet dans l'Inspecteur (`Stage › Actor[key="hazel"]`). Aucun changement dans le code Remotion. |
-| **Modifs en attente** | Chaque nouvelle note entre dans la file, 10 au plus, modifiable ou supprimable. **Envoyer à l'agent** envoie toute la file en un **lot**. |
-| **Lien avec l'agent** | L'envoi affiche une ligne à coller dans la session de ton agent. Autre possibilité, le bouton **« Connecter à l'agent »** en haut : la ligne de connexion se colle une fois, puis chaque envoi réveille l'agent automatiquement. Une fois connecté, le bouton dit « Agent connecté · Claude Code » (ou Codex…). |
-| **Aperçu vivant** | **P**, ou « MP4 rendu / Code actuel » : le Remotion Player montre le code actuel au même instant, sans re-rendu. Il se recompile à chaque enregistrement, en environ 0,15 s, et se recharge sur la même image. |
-| **Les yeux de l'agent** | `studio-cli.mjs frame` / `sheet` donnent une image ou une bande avant/après, prise dans le MP4 ou dans le code (`renderStill` / `renderFrames`, Chrome `--gl=angle`). |
-| **Annuler une correction** | Panneau « Envois » : **Annuler cette correction** remet les fichiers du lot dans leur état d'avant (instantanés de `revue\runs\NNN\`). L'annulation est refusée si un fichier a changé depuis. **Rétablir** refait la correction. |
+| `notes.json` | the page only (never the agent) |
+| `replies.json` | the agent only (`studio-cli.mjs`) |
+| `lots\NNN.json`, `NNN.md`, `NNN\` | the server, when you send (the request and its images) |
+| `runs\NNN\` | `studio-cli.mjs snapshot` and `done`, then the tool to undo |
+| `studio-agent.json` | `studio-cli.mjs wait` (the heartbeat of the watching session) |
+| `render.json`, `render.log`, `export.json`, `export.log` | `studio-cli.mjs render`, the export (progress and full output) |
 
-## Mise en scène : déplacer les objets toi-même
+## Architecture
 
-- **M**, ou le bouton « Mise en scène » du rail, passe dans l'aperçu du code et ouvre l'onglet **Scène**.
-- **Choisir un objet** : un clic sur un personnage, un accessoire ou un élément de décor l'encadre et affiche ses poignées. La visée est la même qu'au survol : elle traverse la transparence et ignore les particules.
-- **Le bouger** :
-  - tirer les poignées ;
-  - **W** déplacer, **E** tourner, **R** échelle ;
-  - les flèches et **Pg↑** / **Pg↓** poussent l'objet de 0,05 (**Maj** : 0,25, **Alt** : 0,01) ;
-  - ou saisir les valeurs dans l'onglet Scène.
-- **Caméra libre** : glisser pour tourner autour, clic droit pour se déplacer, molette pour avancer. « Revenir à la caméra du plan » la remet en place. Elle ne change jamais le rendu.
-- **Portée** : la scène en cours, « à partir d'ici jusqu'à la fin de la scène », toute la vidéo, ou une plage d'images.
-- **Ajouter à la file** crée une modif qui contient l'objet, le décalage exact, sa portée et une image « après », prise par la caméra du plan. Tant qu'elle attend dans la file, l'aperçu garde l'objet déplacé.
-- **Rien n'est écrit dans le projet** : ni le moteur ni les images clés ne changent. L'agent reçoit le décalage dans le lot et l'écrit dans la config du décor ou dans la timeline, sans toucher au minutage (`AGENT.md`, « Une modif de mise en scène »).
-- Pendant un plan 3D cinématique, la mise en scène ne s'applique pas.
-- Test : `node tests\staging.mjs`.
-
-## Le fichier `.coulisses` : relire avant l'export
-
-- **Chaque run crée un fichier projet**, à la façon d'un `.drp` de DaVinci : `<titre>.coulisses`, dans son dossier. Un double-clic l'ouvre dans Coulisses.
-  - **Brambleshire** : chaque épisode a le sien (`"moteur": "brambleshire"`), créé par `new-episode.mjs`. Il s'ouvre avec tout le moteur intégré : 3D, mise en scène, rendu.
-  - **Un run qui n'est pas en Remotion** (`"moteur": "video"`, `projet creer --moteur video`) : Coulisses l'ouvre sur sa vidéo dès qu'un rendu arrive (jamais un fichier en cours d'écriture), avec la timeline que le pipeline écrit (`--plan`). Aucun plugin ne s'en sert (décision du 07/10/2026 : L'AItelier, Vidéo du monde et 宇宙ちゃん passent sous Remotion). Test : `node tests\coulisses-video.mjs`.
-  - **Les autres chaînes**, une fois passées sous Remotion : le fichier pointe vers la composition du run, que Coulisses joue **en direct, sans export**. La timeline montre les pistes décrites par le projet, chaque note nomme l'élément visé (`data-coulisses`) et le clip (fichier, image du clip), et Claude lit le code. Quand l'export arrive dans le dossier prévu, Coulisses le charge seul.
-- **Le contrat** (ce que le projet Remotion doit fournir) : `docs\FICHE-COULISSES-REMOTION.md`, à donner aux sessions des pipelines. Il compte deux modules, `src/coulisses.ts` et `src/coulisses-timeline.ts`.
-- **Les commandes** : `studio-cli.mjs projet creer --depuis spec.json` (au début du run) et `studio-cli.mjs projet verifier "<fichier.coulisses>"` (jusqu'à « PROJET CONFORME », `--images 1700,8000` pour choisir les images de vérification).
-- **Exporter** (onglet « Envois ») : quand la relecture est finie, le bouton « Exporter la vidéo » lance le script d'export du projet de la chaîne (`scripts\coulisses-rendu.mjs`, contrat dans la fiche). L'avancement s'affiche dans la carte, avec « Arrêter l'export » et le journal (`revue\export.log`). L'export continue même si Coulisses est fermé, et la nouvelle vidéo est chargée seule à la fin. Test : `node tests\coulisses-export.mjs`.
-- **Un exemple complet** : `node tests\coulisses-fixture.mjs` (le projet d'essai). Test : `node tests\coulisses.mjs`.
-
-## Projets importés (L'AItelier, n'importe quelle vidéo)
-
-- **Importer un projet**, sur l'accueil, à la manière du gestionnaire de projets de DaVinci Resolve. Trois façons :
-  - **Un dossier…** ou **Une vidéo…** ouvrent la fenêtre Windows de choix (`Coulisses.exe --pick`) ;
-  - **ou colle un chemin** ;
-  - glisser un dossier ou une vidéo **sur l'icône** Coulisses l'importe et l'ouvre directement.
-- **Ce qui est reconnu** :
-  - **un run de L'AItelier** (`run.json`, `08-montage\plan-montage.json`) : son titre vient de `02-script.md`, et sa vidéo est le dernier export de `07-renders\` (ou la vidéo livrée). Un export en cours d'écriture est ignoré tant qu'il bouge ;
-  - **un dossier** : sa vidéo la plus récente ;
-  - **une vidéo seule**.
-
-  Un épisode Brambleshire est refusé, car il est déjà dans la liste.
-- **Les notes vont dans le projet**, sous `revue\` (ton choix), avec `revue\projet.json`. La liste des projets importés est dans `%LOCALAPPDATA%\Coulisses\projets.json`. **Retirer** enlève un projet de la liste sans rien supprimer.
-- **Dans le studio** :
-  - l'image garde la taille de la vidéo (un Short 9:16 s'affiche debout) ;
-  - pas d'aperçu du code, pas de mise en scène, pas de « Lancer le rendu » ;
-  - la timeline montre les pistes du montage Resolve (chapitres, V1 plans, V2 présentateur, V3 calques, A1 voix, A2 musique, A3 bruitages ; un clip désactivé en pointillés) et le son de la vidéo ;
-  - un double-clic sur un clip crée une note sur tout le clip ;
-  - l'Inspecteur et chaque lot disent quels clips sont sous la note, avec le fichier et l'image exacte du clip.
-- **Quand tu exportes une nouvelle version**, le studio la charge tout seul, et « Comparer avant / après » oppose l'ancien et le nouvel export.
-- **Côté agent** : les commandes prennent le chemin du projet à la place de `E03` (`AGENT.md`, « Un projet importé »). Pour L'AItelier, ses propres règles s'appliquent, et l'agent n'exporte jamais.
-- Test : `node tests\projects.mjs`. Il porte sur de faux projets générés dans `.cache\projects-test\`, avec son propre accueil.
-
-## Rendu depuis le studio
-
-- **Lancer le rendu** : en haut de l'onglet **Envois**. La carte « Rendu » dit ce que le rendu emportera (les lots corrigés depuis la vidéo actuelle). Le clic envoie une demande à ton agent : une ligne à coller, ou rien à coller s'il surveille l'outil. C'est toujours lui qui rend, comme tu l'avais choisi (« rendu sur ton ordre »).
-- **Avancement**, dans la carte et dans une pastille en haut de l'écran, visible depuis tous les onglets :
-  1. les cinq contrôles automatiques, un par un ;
-  2. le rendu : image en cours, pourcentage, temps restant ;
-  3. la finition : mixage final, plan du rendu, notes recalées, chapitres ;
-  4. la vérification par l'agent, qui regarde la vidéo entière.
-
-  L'accueil de l'application l'affiche aussi sur la carte de l'épisode.
-- **Remplacement de la vidéo** : pendant la finition, le studio lâche la vidéo (« Le nouveau rendu remplace la vidéo »), puis recharge seul la nouvelle, sur la même image et avec les notes recalées.
-- **Arrêter le rendu** : possible tant que la finition n'a pas commencé. La vidéo actuelle ne change pas.
-- **Contrôle non passé** : le rendu ne démarre pas. La carte montre le contrôle en rouge, et l'agent corrige avant de relancer.
-- **Comparer avant / après** : dans la carte, ou dans le menu « … » d'une note corrigée.
-  - Chaque note corrigée lors d'un rendu précédent s'affiche en volet. À gauche de la barre, l'image du lot (avant) ; à droite, la même image dans la nouvelle vidéo (après).
-  - Glisser la barre pour comparer. **B** ou **Espace** passe tout en avant ou tout en après ; **←** **→** passent d'une note à l'autre ; « Aller à la note » ouvre la note.
-- Côté agent : `studio-cli.mjs render` (voir `AGENT.md`, « Une demande de rendu »). Fichiers : `revue\render.json` (l'avancement) et `revue\render.log` (la sortie complète), écrits par cette commande.
-- Test : `node tests\render.mjs`. Il utilise des étapes simulées (`tests\fake-render.mjs`) sur le bac à sable de test : aucun vrai rendu, rien dans le pipeline. Ensuite, arrêter le serveur de test et lancer `node tests\render.mjs --restore`.
-
-## Les fichiers et qui les écrit
-
-| Fichier (dans `07_Episodes\<épisode>\revue\`) | Écrit par | Compatibilité |
-|---|---|---|
-| `notes.json` | la page seule | Les champs existants sont inchangés. Nouveaux champs **optionnels** : `draft` (en attente d'envoi), `lot`, `sentAt`, `mark` (`{kind: pin|circle, points, strokes}` en pixels 1920×1080), `target` (objet 3D), `source` (`video` ou `code`). |
-| `replies.json` | l'agent seul | Même format `{ notes: { <id>: { status, statusAt, messages, remap } } }`. Ajouts : `status: "working"` et une clé `lots`. `reply.py` et `remap-notes.mjs` marchent toujours. |
-| `lots\NNN.json`, `NNN.md`, `NNN\` | le serveur, à l'envoi | Nouveau. Le `.md` est la demande que lit l'agent, avec des chemins absolus. Il commence par les mises à jour vérifiées à l'envoi. |
-| `runs\NNN\` | `studio-cli.mjs snapshot` et `done`, puis l'outil pour annuler | Nouveau. |
-| `studio-agent.json` | `studio-cli.mjs wait` | Signal de vie de la session qui surveille l'outil. |
-| `render.json`, `render.log` | `studio-cli.mjs render` | Nouveau. L'avancement d'un rendu demandé depuis le studio, et sa sortie complète. `render-stop` est créé par le studio pour demander l'arrêt. |
-
-## L'agent : Claude Code aujourd'hui, Codex (GPT) demain
-
-- **« Connecter à l'agent »** : le bouton en haut du studio donne la ligne à coller une fois dans la session de ton agent. Tant qu'elle n'est pas collée, la fenêtre propose de choisir ton agent (Claude Code ou Codex/GPT). Ce choix sert à vérifier ses skills.
-- **Une fois connecté**, l'agent se nomme lui-même : sa commande lit la variable `AI_AGENT` (Claude Code, Codex…), ou `STUDIO_AGENT=claude|codex` pour la forcer. Le bouton dit alors « Agent connecté · Claude Code », et ses réponses dans les notes sont signées de son nom.
-- **Rien n'est propre à Claude** dans les échanges : les lots, `AGENT.md` et les commandes de `studio-cli.mjs` marchent pour tout agent capable de lancer des commandes.
-
-## Mises à jour, vérifiées à chaque envoi
-
-À chaque lot (et à chaque demande de rendu), le studio vérifie, en une seconde environ (puis instantanément pendant 6 h) :
-
-| Quoi | Comparé à |
+| Path | Role |
 |---|---|
-| **Remotion** du projet (un épisode) | la dernière version sur npm |
-| **Les skills de ton agent** installés par l'outil `skills` (`~/.agents/.skill-lock.json`, par exemple les skills HyperFrames) | leur source sur GitHub |
-| **Le skill `brambleshire-theatre`** chez cet agent | celui de Claude Code, la référence (il manque aujourd'hui chez Codex) |
-| **Les skills officiels de Remotion** (`remotion-dev/skills`, dont `remotion-upgrade`) | installés ou non |
+| `app\` | `Launcher.cs` (`Coulisses.exe`: starts the home screen hidden, opens the app window, stops everything when it closes; the Windows file dialog), `Setup.cs` (`Coulisses Setup.exe`), `Lang.cs` (the dialogs' language), `build.ps1` |
+| `hub-server.mjs` + `hub.html` | the home screen (port 4170, or 4171 in the workshop): the list, imports, one studio process per episode or project |
+| `studio-server.mjs` + `studio.html` | a studio (port 4173 installed, 4174 in the workshop): the video, notes, batches, the live preview, render, export |
+| `menubar.js` | the menu bar of both pages, and their small dialogs |
+| `studio-cli.mjs` | the agent's command line |
+| `install.mjs` | copies the workshop into the installed app |
+| `lib\` | `i18n*.mjs` (the texts), `lots.mjs` (batches, the line to paste), `frames.mjs` (frames from the MP4 or the code), `player-build.mjs` / `timeline-live.mjs` / `remotion-module.mjs` (the live preview and the timelines), `runs.mjs` (undo), `render.mjs`, `export.mjs`, `projects.mjs`, `coulisses-file.mjs` / `coulisses-check.mjs` (the `.coulisses` file and `projet verifier`), `updates.mjs`, `agent.mjs`, `menu.mjs`, `describe.mjs`, `peaks.mjs`, `episode.mjs`, `place.mjs` |
+| `player\` | the Remotion Player of the live preview (`entry.tsx`, `remotion.tsx`) and the staging (`stage.ts`), compiled by the project's esbuild into `.cache\` |
+| `tests\` | end-to-end tests: headless Chrome driven through the DevTools protocol (`cdp.mjs`), no dependency |
+| `docs\` | the pipeline contract (`COULISSES-REMOTION-CONTRACT.md`, `FICHE-COULISSES-REMOTION.md`) and an internal planning note (French) |
 
-- Le résumé s'affiche dans la fenêtre d'envoi, en ambre s'il y a quelque chose à mettre à jour.
-- Le détail ouvre la demande de l'agent (section « Mises à jour »). **L'agent te propose ces mises à jour en QCM avant de corriger, et n'installe rien sans ton accord.**
-- Après une montée de version de Remotion, il lance les trois tests de non-régression.
-- Revérifier à la main : `studio-cli.mjs updates E03`. Le code est dans `lib\updates.mjs` et `lib\agent.mjs`.
+## Tests
 
-## Côté agent
+Every suite runs in French (`COULISSES_LANG=fr`, set by the tests themselves); `tests\i18n.mjs` runs in English.
 
-Le protocole complet est dans `AGENT.md` : `wait`, `take`, `snapshot`, correction, `frame` / `sheet`, `reply`, `done`, `render`, `undo`, `status`.
+- **On their own**: `node tests\coulisses.mjs` (a Remotion run reviewed before any export), `node tests\coulisses-video.mjs` (the "video" `.coulisses`), `node tests\coulisses-export.mjs` (export from the studio), `node tests\projects.mjs` (imported projects), `node tests\app.mjs` (the Windows app, its window made invisible), `node tests\i18n.mjs` (English: home screen, studio, a batch and its line to paste, the command line, the menu bar, and no French text left on screen; then the language switch), `node tests\menu.mjs` (the menu bar, in French).
+- **With a sandbox studio running first**, `node studio-server.mjs E03 --no-open --episodes "<workshop>\sandbox\07_Episodes" --port 4174` (and `COULISSES_LANG=fr`): `node tests\e2e.mjs`, `node tests\e2e-agent.mjs`, `node tests\staging.mjs`.
+- **The render** (stand-in steps, no real render): on the test sandbox `.cache\sandbox-test\07_Episodes`, start a studio on port 4180 with `STUDIO_PORT=4180` and `STUDIO_SANDBOX=<that folder>`, run `node tests\render.mjs`, stop the server, then `node tests\render.mjs --restore`.
 
-## Fichiers
+## License
 
-- `studio-server.mjs` : le serveur local, sur 127.0.0.1, port 4174 par défaut.
-- `studio.html` : la page.
-- `studio-cli.mjs` : la ligne de commande de l'agent.
-- `lib\` : chemins, captures, lots, instantanés, compilation de l'aperçu, rendu complet (`render.mjs`).
-- `player\` : le Remotion Player de l'aperçu vivant (`entry.tsx`, et la mise en scène dans `stage.ts`), compilé par l'esbuild du projet Remotion dans `.cache\`.
-- `tests\` : tests de bout en bout (Chrome headless piloté par le protocole DevTools, aucune dépendance). Ils se lancent avec le serveur du bac à sable démarré : `node tests\e2e.mjs`, `node tests\e2e-agent.mjs`, `node tests\staging.mjs` et `node tests\render.mjs` (puis `--restore`, serveur arrêté). `node tests\app.mjs` teste l'application, `node tests\projects.mjs` les projets importés (il lance son propre accueil).
-- `sandbox\` : copie des notes et des réponses de l'E03, avec un lien physique vers le MP4 (pas de copie de 576 Mo).
-- `.cache\` : aperçu compilé et bundle Remotion. `public\` y est une **jonction** vers `06_Remotion\public`, pas une copie de 2,9 Go. On peut supprimer `.cache\` à tout moment.
+[MIT](LICENSE).
 
-## Pistes pour la suite
-
-- Comparer deux rendus sur toute la vidéo, et pas seulement note par note (garder le rendu précédent : environ 576 Mo de plus par épisode).
-- Créer un nouvel épisode depuis l'accueil et suivre son avancement.
-
-Inspiré de [HyperFrames Studio](https://github.com/heygen-com/hyperframes) (HeyGen, Apache 2.0). Aucun code ni binaire n'en est copié : seul le principe de fonctionnement est repris.
+Coulisses takes ideas from [HyperFrames Studio](https://github.com/heygen-com/hyperframes) (HeyGen, Apache 2.0); no code nor binary is copied from it. The icons are drawn after [Lucide](https://lucide.dev) (ISC).
