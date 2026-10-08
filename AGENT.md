@@ -133,7 +133,7 @@ L'écrire là où le projet place cet élément (sa position, sa taille, son ani
 
 **Dans un run dont l'image est une scène 3D** (React Three Fiber : un plan du théâtre d'Uchu-chan, un décor 3D de Vidéo du monde), la mise en scène est la 3D du Théâtre, avec les mêmes blocs que ci-dessus. Le décalage est alors en unités du monde 3D de la scène.
 
-**Un plan 3D monté ailleurs en vidéo** : son lot commence par « Ce plan 3D est utilisé dans … ». Après la correction, refaire le rendu de la composition du plan et remplacer le fichier indiqué dans l'autre run, avec le même nom, le même format et la même durée. Le studio de cet autre run recharge la vidéo tout seul.
+**Un plan 3D monté ailleurs en vidéo** : son lot commence par « Ce plan 3D est utilisé dans … ». Après la correction, refaire le rendu de la composition du plan et remplacer le fichier indiqué dans l'autre run, avec la commande donnée dans le lot (`node "<Coulisses>\lib\shot-render-run.mjs" "<revue du plan>" <n>`) : c'est le même rendu que le bouton **« Rendre ce plan »** du studio du plan, que l'utilisateur peut aussi lancer lui-même. Il fait le clip au format de l'ancien (taille, images par seconde, son seulement s'il en avait), garde l'ancien dans `revue\shot-backups\`, ne remplace le fichier qu'une fois le nouveau vérifié, et rafraîchit le studio de l'autre run.
 
 ## Une demande de l'onglet Agent (un projet construit en direct)
 

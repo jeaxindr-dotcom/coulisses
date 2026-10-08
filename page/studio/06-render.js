@@ -36,13 +36,14 @@
   $('#renderPill').onclick = () => setTab('lots');
   let rcKey = '';
   function exportCard(box) {
-    const cur = STATUS.video ?? META.render, X = STATUS.export, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape]);
+    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape,
+      S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
     if (key === rcKey) return; rcKey = key;
     if (META.kind === 'remotion' && !cur) {
       box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>${T('st.ex.noExport')}</b><span class="muted">${esc(kindLabel())}</span></div>
         <div class="sub2">${T('st.ex.liveCode', { comp: esc(META.composition ?? ''), w: CW, h: CH, fps: dec(FPS) })}</div>
-        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${exportBlock()}</div>`;
-      wireExport();
+        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${shotBlock()}${exportBlock()}</div>`;
+      wireExport(); wireShot();
       return;
     }
     const where = META.kind === 'run' ? T('st.ex.whereRun', { dir: META.exportDir ? T('st.ex.inDir', { dir: esc(META.exportDir) }) : '' })
@@ -51,10 +52,56 @@
     box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>${T('st.ex.reviewed')}</b><span class="muted">${esc(kindLabel())}</span></div>
       <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>
       <div class="sub2 muted">${where} ${META.kind === 'run' ? T('st.ex.fixRun') : T('st.ex.fixYou')}</div>
-      ${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}</div>`;
+      ${shotBlock()}${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
     $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
-    wireExport();
+    wireExport(); wireShot();
+  }
+  // « Rendre ce plan » (user request, 09/10/2026): a 3D shot shown in a Short as a clip (its .coulisses « utilise »): its
+  // video made again from the current code and put back in the Short, without the agent (lib/shot-render.mjs). The old
+  // clip is kept: « Remettre la version d'avant ».
+  function shotBlock() {
+    const uses = STATUS.shotTargets ?? META.shotTargets ?? []; if (!uses.length) return '';
+    const S = STATUS.shot, run = S?.state === 'running';
+    return uses.map((u) => {
+      const mine = S && S.use === u.i;
+      let body = `<div class="sub2">${T('st.shot.what', { title: esc(u.title), file: esc(u.fichier.split('/').pop()) })}</div>`;
+      if (!u.target) body += `<div class="err">${T('st.shot.noHost', { file: esc(u.coulisses) })}</div>`;
+      else if (mine && run) body += `<div class="rbar"><i style="width:${Math.round(S.pct ?? 0)}%"></i></div>
+        <div class="num2"><span>${S.pct != null ? T('st.ex.pct', { pct: Math.round(S.pct) }) : T('st.ex.preparing')}</span><span class="muted">${esc(S.etape ?? '')}</span></div>`;
+      else if (mine && S.state === 'done') body += `<div class="ok2">${T('st.shot.done', { date: dayTime(S.ended), title: esc(u.title) })}</div>`;
+      else if (mine && S.state === 'undone') body += `<div class="sub2">${T('st.shot.undone', { date: dayTime(S.ended) })}</div>`;
+      else if (mine && S.state === 'failed') body += `<div class="err">${T('st.shot.failed', { why: esc(S.error ?? '') })}</div>`;
+      else if (mine && S.state === 'stopped') body += `<div class="sub2 muted">${T('st.shot.stopped', { date: dayTime(S.ended) })}</div>`;
+      else body += `<div class="sub2 muted">${T('st.shot.how')}</div>`;
+      const btns = !u.target ? '' : mine && run
+        ? `<button class="soft danger" id="shStop">${ic('x')}${T('st.shot.stop')}</button><button class="soft shLog">${T('st.rc.log')}</button>`
+        : `<button class="primary shGo" data-use="${u.i}" ${run ? 'disabled' : ''}>${ic('film')}${T(mine && ['failed', 'stopped'].includes(S.state) ? 'st.shot.again' : 'st.shot.go')}</button>`
+          + (u.exists ? `<button class="soft shReveal" data-use="${u.i}" title="${esc(u.target)}">${ic('folder')}${T('st.rc.reveal')}</button>` : '')
+          + (u.previous ? `<button class="soft shUndo" data-use="${u.i}">${ic('undo')}${T('st.shot.undo')}</button>` : '')
+          + (S ? `<button class="soft shLog">${T('st.rc.log')}</button>` : '');
+      return `<div class="shot" data-use="${u.i}"><div class="rh" style="margin-top:12px">${ic('film')}<b>${T('st.shot.title')}</b><span class="muted">${esc(u.title)}</span></div>${body}<div class="acts">${btns}</div></div>`;
+    }).join('');
+  }
+  function wireShot() {
+    const uses = STATUS.shotTargets ?? META.shotTargets ?? [];
+    for (const b of document.querySelectorAll('#renderCard .shGo')) b.addEventListener('click', async () => {
+      const u = uses.find((x) => String(x.i) === b.dataset.use); if (!u) return;
+      if (!confirm(T('st.shot.confirm', { title: u.title, file: u.target, comp: META.composition ?? '' }))) return;
+      const r = await postJson('/api/shot/render', { use: u.i });
+      setSave(r?.ok ? T('st.shot.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
+    });
+    $('#shStop')?.addEventListener('click', async () => { if (!confirm(T('st.shot.stopConfirm'))) return; const r = await postJson('/api/shot/stop'); setSave(r?.ok ? T('st.shot.stoppedNow') : T('st.cannotStop', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err'); });
+    for (const b of document.querySelectorAll('#renderCard .shUndo')) b.addEventListener('click', async () => {
+      if (!confirm(T('st.shot.undoConfirm'))) return;
+      const r = await postJson('/api/shot/undo', { use: +b.dataset.use });
+      setSave(r?.ok ? T('st.shot.undoneNow') : T('st.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
+    });
+    for (const b of document.querySelectorAll('#renderCard .shReveal')) b.addEventListener('click', async () => { const r = await postJson('/api/shot/reveal', { use: +b.dataset.use }); if (!r?.ok) setSave(T('menu.reveal.failed', { why: r?.why ?? T('st.noAnswer') }), 'err'); });
+    for (const b of document.querySelectorAll('#renderCard .shLog')) b.addEventListener('click', async () => {
+      let t = ''; try { t = await (await fetch('/api/shot/log', { cache: 'no-store' })).text(); } catch { /* */ }
+      showModal(T('st.shot.logTitle'), T('st.shot.logWhat'), t || T('st.empty'), T('st.shot.logFile'));
+    });
   }
   // « Exporter » a run of a Remotion pipeline (lib/export.mjs): the project's own export script, on the user's order only
   const isDefaultExport = (l) => !l || l === T('common.exportVideo') || l === 'Exporter la vidéo' || l === 'Export the video';

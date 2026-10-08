@@ -21,7 +21,7 @@ const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.j
 const SUITES = [
   ['typecheck', 'self'], ['guard', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
-  ['e2e', 'sandbox'], ['staging', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['app', 'self'], ['render', 'render'],
+  ['e2e', 'sandbox'], ['staging', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
 ].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run'].includes(n))));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC

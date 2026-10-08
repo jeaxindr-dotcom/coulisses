@@ -27,6 +27,7 @@ import { videoFrame, codeFrame } from './lib/frames.mjs';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
+import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from './lib/shot-render.mjs';
 import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
@@ -160,6 +161,8 @@ function meta() {
     lang: lang(), langSource: langSource(), coulissesFile: coulissesOf(P),
     // the 3D shots this run shows as media (« Ouvrir la scène 3D » on their clip), and where this run's render is used
     shots3d: G && P.coulisses ? shotsUsedIn(P.coulisses) : [], usedIn: G ? (P.uses ?? []) : [],
+    // « Rendre ce plan »: where this shot's render goes (the Short, the file), for its card
+    shotTargets: G && P.uses?.length ? shotTargets(P) : [],
     newProject: G && P.coulisses ? readJson(P.coulisses, null)?.origine === 'coulisses' : false,   // « Nouveau projet »: opens on the Agent tab
   };
 }
@@ -193,7 +196,7 @@ if (G) watchExport();
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, export: G ? exportState(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
+    render: B ? renderState(P) : null, export: G ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -509,6 +512,22 @@ const server = http.createServer(async (req, res) => {
     }
     if (pn === '/api/compare') { const v = pickVideo(P); return json(res, { video: v ? stamp(v) : null, items: compareItems(P) }); }
     if (pn === '/api/hold' && req.method === 'POST') { await hold(); return json(res, { ok: true }); }
+    // « Rendre ce plan » (lib/shot-render.mjs): the video of this 3D shot made again and put back in the Short that shows it
+    if (pn.startsWith('/api/shot/') && req.method === 'POST') {
+      if (!G || !P.uses?.length) return json(res, { ok: false, why: t('shot.noUse') }, 400);
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}'), what = pn.slice('/api/shot/'.length);
+      try {
+        if (what === 'render') return json(res, { ok: true, state: startShot(P, +(b.use ?? 0), { log }) });
+        if (what === 'stop') return json(res, { ok: true, state: stopShot(P, { log }) });
+        if (what === 'undo') return json(res, { ok: true, ...(await undoShot(P, +(b.use ?? 0), { log })) });
+        if (what === 'reveal') { const u = shotTargets(P)[+(b.use ?? 0)]; reveal(u?.target, { select: true }); return json(res, { ok: true }); }
+        return json(res, { ok: false, why: what }, 404);
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/shot/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(G ? shotLog(P) : ''); }
+    // a clip this project shows was made again elsewhere (a 3D shot rendered by « Rendre ce plan »): the live preview is
+    // built again, and the page takes the new version as after a code change
+    if (pn === '/api/rebuild' && req.method === 'POST') { if (CODE) player.build(); log(t('shot.rebuilt')); return json(res, { ok: true }); }
     if (pn === '/api/unhold' && req.method === 'POST') { unhold(); return json(res, { ok: true }); }
     if (pn === '/api/undo' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8'));

@@ -124,6 +124,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 - **Ajouter à la file** crée une modif qui contient l'objet, le décalage exact, sa portée et une image « après », prise par la caméra du plan. Tant qu'elle attend dans la file, l'aperçu garde l'objet déplacé.
 - **Rien n'est écrit dans le projet** : ni le moteur ni les images clés ne changent. L'agent reçoit le décalage dans le lot et l'écrit dans la config du décor ou dans la timeline, sans toucher au minutage (`AGENT.md`, « Une modif de mise en scène »).
 - Pendant un plan 3D cinématique, la mise en scène ne s'applique pas.
+- **Rendre ce plan** : un plan 3D monté dans un Short comme un clip (son `.coulisses` le dit : « utilise ») a, dans son studio (onglet Envois), le bouton « Rendre ce plan ». Il refait la vidéo du plan avec le code actuel, au format du clip qu'elle remplace (sa taille, ses images par seconde, du son seulement s'il en avait), la vérifie, garde l'ancien clip dans `revue\shot-backups\` (« Remettre la version d'avant ») et la pose à sa place dans le Short, dont le studio ouvert se rafraîchit. Il tourne en arrière-plan, s'arrête à tout moment, et l'ancien clip reste tant que le nouveau n'est pas prêt.
 - Test : `node tests\staging.mjs`.
 
 ## Le fichier `.coulisses` : relire avant l'export

@@ -146,7 +146,7 @@ Write it where the project places this element (its position, its size, its anim
 
 **In a run whose picture is a 3D scene** (React Three Fiber: a shot of Uchu-chan's theatre, a 3D set of Vidéo du monde), the staging is the Theatre's 3D one, with the same blocks as above. The offset is then in the scene's 3D world units.
 
-**A 3D shot edited elsewhere as a video**: its batch starts with "This 3D shot is used in …". After the fix, render the shot's composition again and replace the file named in the other run, with the same name, format and length. The studio of that other run reloads the video by itself.
+**A 3D shot edited elsewhere as a video**: its batch starts with "This 3D shot is used in …". After the fix, render the shot's composition again and replace the file named in the other run, with the command given in the batch (`node "<Coulisses>\lib\shot-render-run.mjs" "<the shot's revue>" <n>`): the same render as the **"Render this shot"** button of the shot's studio, which the user may also start themselves. It makes the clip in the old one's format (size, frame rate, sound only if it had some), keeps the old one in `revue\shot-backups\`, replaces the file only once the new one is checked, and refreshes the other run's studio.
 
 ## A request of the Agent tab (a project built live)
 
