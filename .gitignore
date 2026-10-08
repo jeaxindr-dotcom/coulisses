@@ -3,3 +3,9 @@
 sandbox/
 node_modules/
 *.log
+
+# not published: the Windows programs go to the GitHub release; the author's own notes and launcher
+*.exe
+RAPPORT-hyperframes-studio.md
+Studio de revue - bac a sable E03.cmd
+docs/PLAN-PASSAGE-REMOTION.md
