@@ -40,11 +40,11 @@ try {
   const list = await (await fetch(H + '/api/episodes')).json();
   const pr = list.projects.find((x) => x.id === imp.project.id);
   check(pr && !pr.video, 'listed, with no video yet');
-  await p.goto(H + '/'); await until(`document.querySelector('#pgrid .card[data-id="${pr.id}"] button.open:not([disabled])')`, 20000);
+  await p.goto(H + '/'); await until(`document.querySelector('.card[data-id="${pr.id}"] button.open:not([disabled])')`, 20000);
   check(true, 'home screen: « Ouvrir le studio » is offered before any export');
 
   // 2) the studio on the code
-  await p.eval(`document.querySelector('#pgrid .card[data-id="${pr.id}"]').click(); return 1`);
+  await p.eval(`document.querySelector('.card[data-id="${pr.id}"]').click(); return 1`);
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(500);
   const st = await ev(`return __studio.state()`);

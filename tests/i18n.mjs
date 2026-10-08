@@ -158,14 +158,14 @@ try {
   await p.goto(`http://127.0.0.1:${HUB_PORT}/`);
   await until(`document.querySelectorAll('.card[data-id]').length >= 2`, 20000); await sleep(800);
   const home = await ev(`return document.body.innerText`);
-  check(/Video review · annotate, send to the agent, fix/.test(home) && /Imported projects/.test(home) && /Import a project/.test(home) && /Open the studio/.test(home) && /not exported yet · code review/.test(home),
-    'home screen: « Imported projects », « Import a project », « Open the studio », the run « not exported yet · code review »');
+  check(/Video review · annotate, send to the agent, fix/.test(home) && /Add a project/.test(home) && /Import a project/.test(home) && /Open the studio/.test(home) && /not exported yet · code review/.test(home),
+    'home screen: « Add a project », « Import a project », « Open the studio », the run « not exported yet · code review »');
   check((await ev(`return document.documentElement.lang`)) === 'en' && (await ev(`return [...document.querySelectorAll('#menubar > button')].map((b) => b.textContent).join('|')`)) === 'File|Edit|Tools|Help', 'the page is lang="en", the menu bar « File · Edit · Tools · Help »');
   await scan('home screen');
   await menus('home screen');
   await p.shot(path.join(shots, 'i18n-1-home.png'));
   // the sample run's studio, from the home screen
-  await p.eval(`document.querySelector('#pgrid .card[data-id="${imp.id}"]').click(); return 1`);
+  await p.eval(`document.querySelector('.card[data-id="${imp.id}"]').click(); return 1`);
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(600);
   const studioUrl = await ev('return location.origin');
@@ -255,11 +255,11 @@ try {
   hubOut = ''; hub.stdout.on('data', (d) => { hubOut += d; });
   for (let i = 0; i < 60 && !/HUB_READY/.test(hubOut); i++) await sleep(250);
   await p.goto(`http://127.0.0.1:${HUB_PORT}/`); await until(`document.querySelector('#langs button.on')`, 10000);
-  check((await ev(`return document.querySelector('#langs button.on').dataset.l`)) === 'en' && /Imported projects/.test(await ev(`return document.body.innerText`)), 'with « en » in the settings file: the home screen in English, « EN » lit');
+  check((await ev(`return document.querySelector('#langs button.on').dataset.l`)) === 'en' && /Add a project/.test(await ev(`return document.body.innerText`)), 'with « en » in the settings file: the home screen in English, « EN » lit');
   await p.eval(`document.querySelector('#langs button[data-l=fr]').click(); return 1`);
-  await until(`document.documentElement.lang === 'fr' && /Projets importés/.test(document.body.innerText)`, 15000).catch(() => {});
+  await until(`document.documentElement.lang === 'fr' && /Ajouter un projet/.test(document.body.innerText)`, 15000).catch(() => {});
   const saved = JSON.parse(fs.readFileSync(process.env.COULISSES_SETTINGS, 'utf8'));
-  check(saved.lang === 'fr' && saved.other === 1 && (await ev(`return document.documentElement.lang`)) === 'fr' && /Projets importés/.test(await ev(`return document.body.innerText`)), '« FR »: the page comes back in French, the choice kept in the settings file (the other settings kept)');
+  check(saved.lang === 'fr' && saved.other === 1 && (await ev(`return document.documentElement.lang`)) === 'fr' && /Ajouter un projet/.test(await ev(`return document.body.innerText`)), '« FR »: the page comes back in French, the choice kept in the settings file (the other settings kept)');
   check((await ev(`return [...document.querySelectorAll('#menubar > button')].map((b) => b.textContent).join('|')`)) === 'Fichier|Édition|Outils|Aide', '… the menu bar too: « Fichier · Édition · Outils · Aide »');
   void studioUrl;
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {

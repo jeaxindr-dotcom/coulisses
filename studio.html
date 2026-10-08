@@ -2717,6 +2717,7 @@
         { id: 'open', label: T('menu.open'), key: 'Ctrl+O', disabled: noHub, run: () => toHub('?menu=open') },
         { id: 'importFolder', label: T('menu.importFolder'), disabled: noHub, run: () => toHub('?menu=folder') },
         { id: 'importVideo', label: T('menu.importVideo'), disabled: noHub, run: () => toHub('?menu=video') },
+        { id: 'scan', label: T('menu.scan'), disabled: noHub, run: () => toHub('?menu=scan') },
         '-',
         { id: 'revealFolder', label: T('menu.revealFolder'), run: () => revealMenu('folder') },
         { id: 'revealCoulisses', label: T('menu.revealCoulisses'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: () => revealMenu('coulisses') },

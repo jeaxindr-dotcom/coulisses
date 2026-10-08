@@ -137,6 +137,11 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
   - **Un dossier…** ou **Une vidéo…** ouvrent la fenêtre Windows de choix (`Coulisses.exe --pick`) ;
   - **ou colle un chemin** ;
   - glisser un dossier ou une vidéo **sur l'icône** Coulisses l'importe et l'ouvre directement.
+- **Chercher les .coulisses…** (en haut de l'accueil, ou Fichier) trouve tous les fichiers de projet du PC entier, ou d'un dossier choisi. Il ne lit rien d'autre et ne modifie rien. Il ne descend pas dans Windows, Program Files, AppData, `node_modules`, `.git` ni les dossiers cachés, et ne suit pas les jonctions. Les fichiers trouvés sont rangés par chaîne ; ceux déjà dans la liste, ou à corriger, sont marqués. On coche, puis **Importer**.
+- **Les dossiers** : l'accueil range les projets et les épisodes par dossier, par défaut celui de leur chaîne (Brambleshire Theatre, L'AItelier, 宇宙ちゃん, Vidéo du monde…).
+  - **Ranger**, sur une carte, la met dans un autre dossier, dans un nouveau, sans dossier, ou de nouveau dans celui de sa chaîne. On peut aussi glisser la carte sur un dossier.
+  - **Renommer** un dossier : les prochains projets de la chaîne y vont aussi.
+  - Le petit triangle replie un dossier, et il reste replié sur ce PC.
 - **Ce qui est reconnu** :
   - **un run de L'AItelier** (`run.json`, `08-montage\plan-montage.json`) : son titre vient de `02-script.md`, et sa vidéo est le dernier export de `07-renders\` (ou la vidéo livrée). Un export en cours d'écriture est ignoré tant qu'il bouge ;
   - **un dossier** : sa vidéo la plus récente ;

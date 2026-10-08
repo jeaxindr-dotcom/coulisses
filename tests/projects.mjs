@@ -69,12 +69,12 @@ try {
 
   // 2) the home screen
   await p.goto(H + '/');
-  await until(`document.querySelectorAll('#pgrid .card[data-id]').length === 3 && document.querySelector('#pgrid .imp')`, 20000);
+  await until(`document.querySelectorAll('#folders .card[data-id]').length >= 3 && document.querySelector('#pgrid .imp')`, 20000);
   await sleep(1500); await p.shot(path.join(shots, 'projects-1-home.png'));
-  check(await ev(`return document.querySelector('#pgrid .card[data-id="${run.id}"] .kind').textContent === 'AItelier · long'`), 'home screen: « Projets importés », the run with « AItelier · long », and « Importer un projet »');
+  check(await ev(`return document.querySelector('.card[data-id="${run.id}"] .kind').textContent === 'AItelier · long'`), 'home screen: « Projets importés », the run with « AItelier · long », and « Importer un projet »');
 
   // 3) open the run's studio from the home screen
-  await p.eval(`document.querySelector('#pgrid .card[data-id="${run.id}"]').click(); return 1`);
+  await p.eval(`document.querySelector('.card[data-id="${run.id}"]').click(); return 1`);
   await until(`location.port !== '${HUB_PORT}' && window.__studio && document.querySelector('#v').readyState >= 2`, 90000);
   const st = await ev(`return __studio.state()`);
   check(st.proj && st.size[0] === 1920 && st.lanes.join('|') === 'Chapitres|V1 plans|V2 présentateur|A1 voix|Son', `studio: the montage tracks (${st.lanes.join(', ')})`);

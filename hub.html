@@ -87,6 +87,48 @@
   .langs button.on { background: #f4f5fa; color: #11131c; }
   .langs button:disabled { opacity: .5; }
   body > #menubar { position: sticky; top: 0; }
+  /* the folders (user request, 08/10/2026: « ranger les .coulisses par dossier »): one section each, folded or not */
+  .topbar { display: flex; align-items: center; gap: 10px; margin: 0 4px; }
+  .topbar h2 { margin: 8px 0; }
+  .topbar .grow { flex: 1; }
+  button.soft { background: rgba(255,255,255,.08); color: var(--s12); box-shadow: none; border: 1px solid var(--stroke-2); }
+  .folder { margin-top: 18px; }
+  .folder > h2.fh { margin: 8px 4px 14px; user-select: none; }
+  .fh .caret { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 9px; background: transparent; box-shadow: none; color: var(--s11); font-size: 12px; }
+  .fh .caret:hover { background: rgba(255,255,255,.08); filter: none; }
+  .fh .fname { color: var(--s12); font: 600 17px var(--font-d); }
+  .fh .grow { flex: 1; }
+  .fh .fbtn { height: 28px; padding: 0 12px; font: 500 12px var(--font-d); background: transparent; color: var(--s9); box-shadow: none; border: 1px solid transparent; opacity: 0; transition: opacity .15s; }
+  .folder:hover .fbtn, .fh .fbtn:focus { opacity: 1; }
+  .fh .fbtn:hover { color: var(--s12); border-color: var(--stroke-2); filter: none; }
+  .folder.closed > .grid { display: none; }
+  .folder.drop > h2 { outline: 2px dashed rgba(201,242,107,.6); outline-offset: 6px; border-radius: 12px; }
+  .folder.drop > .grid { outline: 2px dashed rgba(201,242,107,.35); outline-offset: 8px; border-radius: 26px; }
+  .card .fold { height: 32px; padding: 0 13px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--s11); box-shadow: none; font: 500 12px var(--font-d); border: 1px solid var(--stroke); }
+  .card .fold:hover { color: var(--s12); border-color: var(--stroke-2); filter: none; }
+  .fmenu { position: fixed; z-index: 90; min-width: 230px; max-height: 60vh; overflow: auto; padding: 6px; border-radius: 14px; background: rgba(20,22,33,.97); border: 1px solid var(--stroke-2); box-shadow: 0 18px 50px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+  .fmenu button { height: 32px; justify-content: flex-start; background: transparent; color: var(--s12); box-shadow: none; border-radius: 9px; font: 500 12.5px var(--font); padding: 0 12px; }
+  .fmenu button:hover { background: rgba(255,255,255,.08); filter: none; }
+  .fmenu button.on { color: var(--lime); }
+  .fmenu .sep { height: 1px; background: var(--stroke-2); margin: 4px 6px; }
+  /* « Chercher les .coulisses » */
+  .scan p { margin: 0 0 6px; }
+  .scan .row2 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .scan .row2 .grow { flex: 1; }
+  .scan .prog { color: var(--s11); font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+  .scan .prog .spin { border-color: rgba(255,255,255,.2); border-top-color: var(--lime); }
+  .scan .cur { color: var(--s9); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .scan .list { max-height: 44vh; overflow: auto; margin-top: 6px; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+  .scan .grp { font: 600 12.5px var(--font-d); color: var(--s12); margin: 10px 0 2px; }
+  .scan label.it { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 10px; cursor: pointer; }
+  .scan label.it:hover { background: rgba(255,255,255,.05); }
+  .scan label.it.off { cursor: default; opacity: .62; }
+  .scan label.it input { margin-top: 3px; }
+  .scan .tt { color: var(--s12); font-size: 13px; }
+  .scan .ff { color: var(--s9); font-size: 11px; word-break: break-all; }
+  .scan .bb { font: 600 10.5px var(--font-d); color: var(--sky); margin-left: 6px; }
+  .scan .bb.bad { color: var(--coral); }
+  .scan .res { color: var(--mint); font-size: 12.5px; }
 </style>
 <!--I18N-->
 </head>
@@ -100,9 +142,10 @@
   <span class="pill" id="where"><span class="dot"></span>{{hub.where}}</span>
 </header>
 <main>
-  <section id="theatreSec"><h2 id="theatreName">{{hub.theatre}}</h2>
-  <div class="grid" id="grid"><div class="empty">{{hub.loading}}</div></div></section>
-  <section><h2>{{hub.imported}} <span class="n" id="nproj"></span></h2>
+  <div class="topbar"><h2>{{hub.projects}} <span class="n" id="nproj"></span></h2><span class="grow"></span>
+    <button class="soft" id="scanBtn" title="{{hub.scan.buttonTitle}}">{{hub.scan.button}}</button></div>
+  <div id="folders"><div class="empty">{{hub.loading}}</div></div>
+  <section id="addSec"><h2>{{hub.add}}</h2>
   <div class="grid" id="pgrid"></div></section>
 </main>
 <footer id="foot"></footer>
@@ -140,9 +183,12 @@
         <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? T('hub.reviewed', { day: esc(day(e.reviewed)) }) : ''].filter(Boolean).join(' · ')}</div>
         ${e.project ? `<div class="meta" title="${esc(e.root ?? e.revue)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.root ?? e.why ?? '')}</div>` : ''}
         <div class="chips">${chipsOf(e)}</div>
-        <div class="row">${e.project ? `<button class="more" title="${esc(T('hub.removeTitle'))}">${T('hub.remove')}</button>` : ''}<span class="grow"></span><button class="open" ${openable(e) ? '' : 'disabled'}>${T('hub.openStudio')}</button></div>
+        <div class="row"><button class="fold" title="${esc(T('hub.folder.moveTitle'))}">${T('hub.folder.move')}</button>${e.project ? `<button class="more" title="${esc(T('hub.removeTitle'))}">${T('hub.remove')}</button>` : ''}<span class="grow"></span><button class="open" ${openable(e) ? '' : 'disabled'}>${T('hub.openStudio')}</button></div>
         <div class="err"></div></div>`;
-    c.addEventListener('click', (ev) => { if (!ev.target.closest('.more')) openEp(e, c); });
+    c.addEventListener('click', (ev) => { if (!ev.target.closest('.more') && !ev.target.closest('.fold')) openEp(e, c); });
+    c.querySelector('.fold').addEventListener('click', (ev) => { ev.stopPropagation(); folderMenu(e, ev.currentTarget); });
+    c.draggable = true;
+    c.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/coulisses-id', e.id); ev.dataTransfer.effectAllowed = 'move'; });
     c.querySelector('.more')?.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       if (!confirm(T('hub.removeConfirm', { title: e.title, revue: e.revue }))) return;
@@ -193,6 +239,127 @@
       location.href = r.url;
     } catch (err) { busy = null; b.disabled = false; b.textContent = T('hub.retry'); card.querySelector('.err').textContent = err.message; }
   }
+  // ---------- the folders: by channel unless the user moved a project; folded ones stay folded (this PC) ----------
+  const NOF = '\u0000';   // « Sans dossier »
+  let FOLDERS = [];
+  const store = { get(k, d) { try { const v = localStorage.getItem('hub.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('hub.' + k, JSON.stringify(v)); } catch { /* private window */ } } };
+  const collapsed = new Set(store.get('closed', []));
+  function renderFolders(all) {
+    const box = $('#folders'), groups = new Map();
+    for (const e of all) { const k = e.folder ?? NOF; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+    FOLDERS = [...groups.keys()].filter((k) => k !== NOF).sort((a, b) => a.localeCompare(b, LANG));
+    const names = [...FOLDERS, ...(groups.has(NOF) ? [NOF] : [])];
+    box.innerHTML = '';
+    if (!names.length) { box.innerHTML = `<div class="empty">${T('hub.nothing')}</div>`; return; }
+    for (const k of names) {
+      const list = groups.get(k).sort((a, b) => (a.project ? 1 : 0) - (b.project ? 1 : 0) || (a.project ? String(a.title).localeCompare(String(b.title), LANG) : a.id.localeCompare(b.id)));
+      const sec = document.createElement('section'); sec.className = 'folder' + (collapsed.has(k) ? ' closed' : ''); sec.dataset.folder = k === NOF ? '' : k;
+      sec.innerHTML = `<h2 class="fh"><button class="caret" title="${esc(T('hub.folder.fold'))}">${collapsed.has(k) ? '▸' : '▾'}</button><span class="fname">${esc(k === NOF ? T('hub.noFolder') : k)}</span><span class="n">${list.length}</span><span class="grow"></span>${k === NOF ? '' : `<button class="fbtn" data-act="rename">${T('hub.folder.rename')}</button>`}</h2><div class="grid"></div>`;
+      const grid = sec.querySelector('.grid'); for (const e of list) grid.appendChild(card(e));
+      const fold = () => { const c = sec.classList.toggle('closed'); if (c) collapsed.add(k); else collapsed.delete(k); store.set('closed', [...collapsed]); sec.querySelector('.caret').textContent = c ? '▸' : '▾'; };
+      sec.querySelector('.caret').onclick = fold;
+      sec.querySelector('.fname').ondblclick = fold;
+      sec.querySelector('[data-act="rename"]')?.addEventListener('click', async () => {
+        const to = prompt(T('hub.folder.renamePrompt', { name: k }), k)?.trim();
+        if (!to || to === k) return;
+        await postJSON('/api/folder/rename', { from: k, to });
+        if (collapsed.delete(k)) { collapsed.add(to); store.set('closed', [...collapsed]); }
+        last = ''; load(true);
+      });
+      const has = (ev) => [...(ev.dataTransfer?.types ?? [])].includes('text/coulisses-id');
+      sec.addEventListener('dragover', (ev) => { if (!has(ev)) return; ev.preventDefault(); sec.classList.add('drop'); });
+      sec.addEventListener('dragleave', (ev) => { if (!sec.contains(ev.relatedTarget)) sec.classList.remove('drop'); });
+      sec.addEventListener('drop', (ev) => { if (!has(ev)) return; ev.preventDefault(); sec.classList.remove('drop'); moveTo([ev.dataTransfer.getData('text/coulisses-id')], k === NOF ? '' : k); });
+      box.appendChild(sec);
+    }
+  }
+  async function moveTo(ids, folder) { await postJSON('/api/folder', { ids, folder }); last = ''; await load(true); }
+  const closeFmenu = () => document.querySelector('.fmenu')?.remove();
+  // « Ranger »: an existing folder, a new one, none, or back to the channel's
+  function folderMenu(e, btn) {
+    closeFmenu();
+    const m = document.createElement('div'); m.className = 'fmenu';
+    const cur = e.folder ?? null, NEW = '\u0001';
+    const item = (label, folder, on = false) => `<button data-f="${esc(JSON.stringify(folder))}" class="${on ? 'on' : ''}">${on ? '✓ ' : ''}${label}</button>`;
+    m.innerHTML = FOLDERS.map((f) => item(esc(f), f, f === cur)).join('') + (FOLDERS.length ? '<div class="sep"></div>' : '')
+      + item(T('hub.folder.new'), NEW) + item(T('hub.folder.none'), '', cur === null) + (e.channel ? item(esc(T('hub.folder.auto', { channel: e.channel })), null) : '');
+    document.body.appendChild(m);
+    const r = btn.getBoundingClientRect(), h = m.offsetHeight;
+    m.style.left = Math.min(innerWidth - m.offsetWidth - 8, r.left) + 'px';
+    m.style.top = (r.bottom + 6 + h < innerHeight ? r.bottom + 6 : Math.max(8, r.top - 6 - h)) + 'px';
+    m.querySelectorAll('button').forEach((b) => b.onclick = async () => {
+      let f = JSON.parse(b.dataset.f);
+      if (f === NEW) { f = prompt(T('hub.folder.newPrompt'))?.trim(); if (!f) { closeFmenu(); return; } }
+      closeFmenu(); await moveTo([e.id], f);
+    });
+  }
+  document.addEventListener('mousedown', (ev) => { if (!ev.target.closest?.('.fmenu') && !ev.target.closest?.('.fold')) closeFmenu(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeFmenu(); });
+
+  // ---------- « Chercher les .coulisses » : the whole PC or one folder, then import what is ticked ----------
+  let scanD = null, scanSig = '', scanData = null, scanTimer = null;
+  const ticked = new Set();
+  function openScan() {
+    scanD = dlg({ title: T('hub.scan.title'), html: '<div class="scan"></div>', buttons: [{ label: T('menu.dlg.close'), primary: true }], onClose: () => { scanD = null; clearTimeout(scanTimer); } });
+    scanSig = ''; renderScan();
+  }
+  async function startScanUI(where) {
+    let p = null;
+    if (where === 'folder') {
+      const r = await postJSON('/api/import/pick', { what: 'folder' });
+      if (!r?.ok) { if (!r?.cancelled) scanMsg(r?.why ?? T('hub.import.noDialog'), true); return; }
+      p = r.path;
+    }
+    const s = await postJSON('/api/scan', { where, path: p });
+    if (!s?.ok) { scanMsg(s?.why ?? T('hub.error'), true); return; }
+    ticked.clear(); scanData = null; scanSig = ''; renderScan();
+  }
+  const scanMsg = (m, bad = false) => { const e = scanD?.querySelector('.res'); if (e) { e.textContent = m; e.style.color = bad ? 'var(--coral)' : ''; } };
+  async function renderScan() {
+    clearTimeout(scanTimer);
+    if (!scanD) return;
+    const st = await (await fetch('/api/scan', { cache: 'no-store' })).json().catch(() => ({ state: 'idle' }));
+    const box = scanD.querySelector('.scan'); if (!box) return;
+    const running = st.state === 'running';
+    const sig = JSON.stringify([st.state, running ? [st.dirs, st.found?.length, st.current] : st.found?.map((f) => [f.file, f.imported])]);
+    if (sig !== scanSig) {
+      scanSig = sig;
+      const head = `<p>${T('hub.scan.intro')}</p><div class="row2"><button id="scPc" ${running ? 'disabled' : ''}>${T('hub.scan.pc')}</button><button class="soft" id="scDir" ${running ? 'disabled' : ''}>${T('hub.scan.folder')}</button>${running ? `<button class="soft" id="scStop">${T('hub.scan.stop')}</button>` : ''}</div>`;
+      let body = '';
+      if (running) body = `<div class="prog"><span class="spin"></span>${T('hub.scan.running', { dirs: st.dirs.toLocaleString(LOC), n: st.found.length })}</div><div class="cur">${esc(st.current)}</div>`;
+      else if (st.state && st.state !== 'idle') {
+        scanData = st;
+        const found = st.found ?? [];
+        if (!ticked.size) for (const f of found) if (f.importable !== false && !f.imported && !f.problems) ticked.add(f.file);
+        const groups = new Map(); for (const f of found) { const k = f.channel ?? T('hub.noFolder'); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+        const badge = (f) => (f.imported ? `<span class="bb">${T(f.episode ? 'hub.scan.episode' : 'hub.scan.imported')}</span>` : f.episode ? `<span class="bb bad">${T('hub.scan.otherEpisode')}</span>` : f.problems ? `<span class="bb bad">${esc(T('hub.scan.problem', { why: f.why ?? '' }))}</span>` : '');
+        body = `<div class="prog">${T(st.state === 'stopped' ? 'hub.scan.stopped' : 'hub.scan.done', { n: found.length, dirs: st.dirs.toLocaleString(LOC) })}</div>`
+          + (found.length ? `<div class="list">${[...groups].map(([g, list]) => `<div class="grp">${esc(g)}</div>` + list.map((f) => { const off = f.imported || f.importable === false || !!f.problems;
+            return `<label class="it${off ? ' off' : ''}"><input type="checkbox" data-file="${esc(f.file)}" ${off ? 'disabled' : ''} ${!off && ticked.has(f.file) ? 'checked' : ''}><span><span class="tt">${esc(f.title)}</span>${badge(f)}<br><span class="ff">${esc(f.file)}</span></span></label>`; }).join('')).join('')}</div>
+            <div class="row2"><button class="soft" id="scAll">${T('hub.scan.all')}</button><span class="grow"></span><button id="scImport">${T('hub.scan.import', { n: ticked.size })}</button></div>` : `<p>${T('hub.scan.none')}</p>`);
+      }
+      box.innerHTML = head + body + '<div class="res"></div>';
+      box.querySelector('#scPc').onclick = () => startScanUI('pc');
+      box.querySelector('#scDir').onclick = () => startScanUI('folder');
+      box.querySelector('#scStop')?.addEventListener('click', () => postJSON('/api/scan/stop'));
+      const count = () => { const b = box.querySelector('#scImport'); if (b) { b.textContent = T('hub.scan.import', { n: ticked.size }); b.disabled = !ticked.size; } };
+      box.querySelectorAll('input[data-file]').forEach((i) => i.onchange = () => { if (i.checked) ticked.add(i.dataset.file); else ticked.delete(i.dataset.file); count(); });
+      box.querySelector('#scAll')?.addEventListener('click', () => { box.querySelectorAll('input[data-file]:not(:disabled)').forEach((i) => { i.checked = true; ticked.add(i.dataset.file); }); count(); });
+      box.querySelector('#scImport')?.addEventListener('click', async (ev) => {
+        const b = ev.currentTarget, files = [...ticked]; if (!files.length) return;
+        b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.scan.importing', { n: files.length })}`;
+        const r = await postJSON('/api/import/many', { files });
+        const ok = r?.results?.filter((x) => x.ok) ?? [], ko = r?.results?.filter((x) => !x.ok) ?? [];
+        for (const x of ok) { const f = scanData?.found?.find((y) => y.file === x.file); if (f) f.imported = true; ticked.delete(x.file); }
+        last = ''; await load(true);
+        scanSig = ''; await renderScan();
+        scanMsg(T('hub.scan.result', { ok: ok.length, ko: ko.length ? T('hub.scan.failedSome', { n: ko.length, why: ko[0].why }) : '' }), !!ko.length);
+      });
+      count();
+    }
+    if (running) scanTimer = setTimeout(renderScan, 500);
+  }
+  $('#scanBtn').onclick = openScan;
   let timer = null, impCard = null;
   async function load(once) {
     try {
@@ -204,18 +371,11 @@
         $('#foot').textContent = r.episodesDir;
         const pg = $('#pgrid'), keep = document.activeElement?.closest?.('.imp');
         impCard ??= importCard();
-        [...pg.children].forEach((x) => { if (x !== impCard) x.remove(); });
         if (!pg.contains(impCard)) pg.appendChild(impCard);
-        for (const p of r.projects ?? []) pg.insertBefore(card(p), impCard);
-        $('#nproj').textContent = r.projects?.length ? String(r.projects.length) : '';
         if (keep) keep.querySelector('input')?.focus();
-        const grid = $('#grid'); grid.innerHTML = '';
-        $('#theatreSec').style.display = r.theatre?.exists === false && !r.episodes.length ? 'none' : '';   // no theatre on this PC: no section
-        if (r.theatre?.name) $('#theatreName').textContent = r.theatre.name;
-        if (!r.episodes.length) grid.innerHTML = `<div class="empty">${T('hub.noEpisode')}</div>`;
-        for (const e of r.episodes) {
-          grid.appendChild(card(e));
-        }
+        const all = [...(r.episodes ?? []), ...(r.projects ?? [])];
+        $('#nproj').textContent = all.length ? String(all.length) : '';
+        renderFolders(all);
       }
     } catch { /* the hub restarts: retried */ }
     if (!once) { clearTimeout(timer); timer = setTimeout(load, 5000); }
@@ -277,6 +437,7 @@
       { id: 'open', label: T('menu.open'), key: 'Ctrl+O', run: () => menuPick('project', true) },
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
       { id: 'importVideo', label: T('menu.importVideo'), run: () => menuPick('video', false) },
+      { id: 'scan', label: T('menu.scan'), run: openScan },
       { id: 'pastePath', label: T('menu.pastePath'), run: () => { const c = document.querySelector('.imp'); if (!c) return; c.classList.add('pasting'); c.scrollIntoView({ block: 'center' }); c.querySelector('#impPath').focus(); } },
       '-',
       { id: 'revealFolder', label: T('menu.revealFolder'), disabled: inStudio },
@@ -328,7 +489,7 @@
   });
   // File › Open a project… / Import… chosen in a studio: it comes back here (?menu=open|folder|video) to use the dialog
   const asked = new URLSearchParams(location.search).get('menu');
-  if (asked) { history.replaceState(null, '', '/'); setTimeout(() => menuPick(asked === 'open' ? 'project' : asked === 'video' ? 'video' : 'folder', asked === 'open'), 400); }
+  if (asked) { history.replaceState(null, '', '/'); setTimeout(() => (asked === 'scan' ? openScan() : menuPick(asked === 'open' ? 'project' : asked === 'video' ? 'video' : 'folder', asked === 'open')), 400); }
   load();
 })();
 </script>
