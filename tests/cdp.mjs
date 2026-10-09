@@ -56,7 +56,13 @@ export async function launch({ port = 9333, headless = true } = {}) {
     wheel: (x, y, deltaY, modifiers = 0) => s('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY, modifiers }),
     // the window's size (the layout on a smaller or a larger screen); the page gets its « resize »
     size: (width, height) => s('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }),
-    close: async () => { try { ws.close(); } catch { /* */ } chrome.kill(); },
+    // Chrome stopped, then its profile deleted (09/10/2026: 608 profiles of earlier runs had piled up in %TEMP%, 124 GB)
+    close: async () => {
+      try { ws.close(); } catch { /* */ }
+      chrome.kill();
+      await new Promise((r) => { if (chrome.exitCode !== null) return r(); chrome.once('exit', r); setTimeout(r, 3000); });
+      for (let i = 0; i < 15; i++) { try { fs.rmSync(dir, { recursive: true, force: true }); break; } catch { await new Promise((r) => setTimeout(r, 300)); } }
+    },
   };
   return page;
 }
