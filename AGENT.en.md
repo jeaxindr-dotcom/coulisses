@@ -170,7 +170,7 @@ A project created with **File › New project** starts from an empty 3D scene: R
 
 ## A color grade
 
-The studio's **Color** page (key G, next to "Review" at the top) sets the color scene by scene, like DaVinci Resolve's Color page: looks sorted by emotion (31 to start with, with an amount), the four Lift / Gamma / Gain / Offset wheels, exposure, contrast, saturation, temperature, tint, vignette, grain, glow, tinted shadows and highlights, with a waveform and an RGB parade. Nothing is written in the project: "Add to queue" makes one edit per scene, over the scene's whole range, with a **"Color grade"** block:
+The studio's **Color** page (key G, next to "Review" at the top) sets the color scene by scene, like DaVinci Resolve's Color page: looks sorted by emotion (31 to start with, with an amount), the four Lift / Gamma / Gain / Offset wheels between two bars of settings as in DaVinci (Expo, Temp, Tint, Contrast, Pivot, Mid/Detail; Color Boost, Shadows, Highlights, Saturation, Hue, Lum Mix), then vignette, grain, glow, tinted shadows and highlights, with a waveform and an RGB parade. Nothing is written in the project: "Add to queue" makes one edit per scene, over the scene's whole range, with a **"Color grade"** block:
 
 - **the look** chosen and its amount, and whether the user added their own adjustments;
 - **the exact filter**, a `k-etalonnage.svg` file in the batch's folder: an SVG `<filter>` (per-channel tables, saturation, tinted shadows and highlights, glow), computed for the composition's size. This filter, applied to the image, is what the user saw in the preview;

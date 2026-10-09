@@ -157,7 +157,7 @@ Un projet créé par **Fichier › Nouveau projet** part d'une scène 3D vide : 
 
 ## Un étalonnage
 
-La page **Étalonnage** du studio (touche G, à côté de « Revue » en haut) sert à régler la couleur scène par scène, comme la page Couleur de DaVinci Resolve : des looks rangés par émotion (31 au départ, avec un dosage), les quatre roues Lift / Gamma / Gain / Offset, exposition, contraste, saturation, température, teinte, vignettage, grain, halo, ombres et lumières teintées, avec forme d'onde et parade RVB. Rien n'est écrit dans le projet : « Ajouter à la file » fait une modif par scène, sur toute la plage de la scène, avec un bloc **« Étalonnage »** :
+La page **Étalonnage** du studio (touche G, à côté de « Revue » en haut) sert à régler la couleur scène par scène, comme la page Couleur de DaVinci Resolve : des looks rangés par émotion (31 au départ, avec un dosage), les quatre roues Lift / Gamma / Gain / Offset entre deux barres de réglages comme dans DaVinci (Expo, Temp, Tint, Contraste, Pivot, Mid/Detail ; Color Boost, Ombres, Hautes lumières, Saturation, Hue, Lum Mix), puis vignettage, grain, halo, ombres et lumières teintées, avec forme d'onde et parade RVB. Rien n'est écrit dans le projet : « Ajouter à la file » fait une modif par scène, sur toute la plage de la scène, avec un bloc **« Étalonnage »** :
 
 - **le look** choisi et son dosage, et si l'utilisateur a ajouté ses propres réglages ;
 - **le filtre exact**, un fichier `k-etalonnage.svg` dans le dossier du lot : un `<filter>` SVG (tables par canal, saturation, ombres et lumières teintées, halo), calculé pour la taille de la composition. C'est ce filtre, appliqué à l'image, que l'utilisateur a vu dans l'aperçu ;

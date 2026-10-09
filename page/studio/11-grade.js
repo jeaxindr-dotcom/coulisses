@@ -17,8 +17,14 @@
   const CG_WHEELS = ['lift', 'gamma', 'gain', 'offset'];
   // a wheel: h = hue (degrees, 0 red · 120 green · 240 blue), s = strength (0…1), m = master (−1…1: darker / brighter)
   const cgWheel0 = () => ({ h: 0, s: 0, m: 0 });
+  // the bars above and under the wheels, as in DaVinci Resolve's Primaries (user request, 09/10/2026): exposure,
+  // temperature, tint, contrast, pivot, mid/detail; colour boost, shadows, highlights, saturation, hue, lum mix
   const cgNeutral = () => ({ look: null, amount: 1, lift: cgWheel0(), gamma: cgWheel0(), gain: cgWheel0(), offset: cgWheel0(),
-    exposure: 0, contrast: 1, pivot: 0.435, saturation: 1, temperature: 0, tint: 0, vignette: 0, grain: 0, halo: 0, shH: 30, shS: 0, hiH: 200, hiS: 0 });
+    exposure: 0, contrast: 1, pivot: 0.435, saturation: 1, temperature: 0, tint: 0,
+    midDetail: 0, boost: 0, shadows: 0, highlights: 0, hue: 0, lumMix: 1,
+    vignette: 0, grain: 0, halo: 0, shH: 30, shS: 0, hiH: 200, hiS: 0 });
+  // a grade made before a setting existed (kept in this browser, or waiting in the queue): the setting at its neutral value
+  const cgNorm = (g) => (g ? { ...cgNeutral(), ...g } : g);
   const WH = (h, s, m = 0) => ({ h, s, m });
   // the 31 looks to start with, by the emotion they carry (the most used grades: teal & orange, bleach bypass, film
   // emulations, day for night, cyberpunk…) — a look is a grade; its amount mixes it with the neutral one
@@ -59,6 +65,13 @@
   const lookById = (id) => CG_LOOKS.find((l) => l.id === id) ?? null;
 
   // ---------- the maths ----------
+  // One pipeline, written twice the same way: as an SVG filter (the preview, and what the agent writes in the project)
+  // and on pixels (the cards, the scopes, the images joined to a note). Its steps, in this order:
+  //   1. a table per channel: exposure, temperature / tint, Lift / Gamma / Gain / Offset (their colour, and the share of
+  //      their master the Lum Mix leaves to R, G, B), contrast around the pivot, shadows / highlights;
+  //   2. the masters' other share on the luma only (Lum Mix 100 = all of it, as DaVinci): Y → Y', the same shift on R, G, B;
+  //   3. saturation; 4. hue (all the hues turned); 5. colour boost (the dull colours saturated, not the vivid ones);
+  //   6. the tinted shadows / highlights; 7. mid/detail (local contrast: the image minus its blur); 8. the glow.
   // a hue's direction in colour, its luma taken away (a wheel pushes towards it without changing the brightness)
   function hueDir(h) {
     const k = (n) => (n + h / 30) % 12, f = (n) => 0.5 - 0.5 * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
@@ -67,59 +80,112 @@
   }
   const wheelRGB = (w) => hueDir(w.h).map((d) => d * w.s);
   const mixW = (a, b, t) => { const A = wheelRGB(a).map((v) => v * t), B = wheelRGB(b); return { rgb: A.map((v, i) => v + B[i]), m: a.m * t + b.m }; };
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
   // the grade as it acts: its look (at its amount) and the user's own moves on top
   function cgEffective(g) {
-    const L = lookById(g?.look)?.p ?? cgNeutral(), t = g?.look ? Math.max(0, Math.min(1, g.amount ?? 1)) : 0, u = g ?? cgNeutral();
+    const L = lookById(g?.look)?.p ?? cgNeutral(), t = g?.look ? Math.max(0, Math.min(1, g.amount ?? 1)) : 0, u = cgNorm(g) ?? cgNeutral();
     const lin = (k, n) => n + (L[k] - n) * t;
     const E = {};
     for (const k of CG_WHEELS) E[k] = mixW(L[k], u[k], t);
     E.exposure = lin('exposure', 0) + u.exposure; E.contrast = lin('contrast', 1) * u.contrast; E.pivot = u.pivot ?? 0.435;
     E.saturation = lin('saturation', 1) * u.saturation; E.temperature = lin('temperature', 0) + u.temperature; E.tint = lin('tint', 0) + u.tint;
+    E.midDetail = lin('midDetail', 0) + u.midDetail; E.boost = lin('boost', 0) + u.boost; E.hue = lin('hue', 0) + u.hue;
+    E.shadows = lin('shadows', 0) + u.shadows; E.highlights = lin('highlights', 0) + u.highlights; E.lumMix = clamp01(u.lumMix);
     E.vignette = Math.min(1, lin('vignette', 0) + u.vignette); E.grain = Math.min(1, lin('grain', 0) + u.grain); E.halo = Math.min(1, lin('halo', 0) + u.halo);
     // the tinted shadows / highlights: the user's if set, else the look's at its amount
     E.sh = u.shS > 0 ? { h: u.shH, s: u.shS } : { h: L.shH, s: L.shS * t };
     E.hi = u.hiS > 0 ? { h: u.hiH, s: u.hiS } : { h: L.hiH, s: L.hiS * t };
     return E;
   }
-  // one channel (0 R · 1 G · 2 B), x in 0…1 -> the channel after the primaries (the table of the SVG filter)
+  // step 1: one channel (0 R · 1 G · 2 B), x in 0…1 -> the channel after the primaries (the table of the SVG filter)
   function cgChannel(E, c, x) {
     const temp = [1 + 0.12 * E.temperature, 1 + 0.01 * E.temperature, 1 - 0.14 * E.temperature][c] * [1 + 0.05 * E.tint, 1 - 0.1 * E.tint, 1 + 0.05 * E.tint][c];
+    const rm = 1 - E.lumMix;   // the masters' share on R, G, B (the rest goes to the luma, step 2)
     let v = x * Math.pow(2, E.exposure) * temp;
-    const lift = 0.35 * (E.lift.rgb[c] + E.lift.m), gain = Math.pow(2, 0.7 * (E.gain.rgb[c] + E.gain.m)), gam = Math.pow(2, -0.9 * (E.gamma.rgb[c] + E.gamma.m));
+    const lift = 0.35 * (E.lift.rgb[c] + rm * E.lift.m), gain = Math.pow(2, 0.7 * (E.gain.rgb[c] + rm * E.gain.m)), gam = Math.pow(2, -0.9 * (E.gamma.rgb[c] + rm * E.gamma.m));
     v = gain * (v + lift * (1 - v));
     v = Math.pow(Math.max(0, v), gam);
-    v += 0.25 * (E.offset.rgb[c] + E.offset.m);
-    v = (v - E.pivot) * E.contrast + E.pivot;
-    return Math.max(0, Math.min(1, v));
+    v += 0.25 * (E.offset.rgb[c] + rm * E.offset.m);
+    v = clamp01((v - E.pivot) * E.contrast + E.pivot);
+    // shadows / highlights: the dark tones opened (or crushed), the bright ones pushed (or recovered); monotonic curves
+    v += E.shadows * v * (1 - v) * (1 - v) + E.highlights * v * v * (1 - v);
+    return clamp01(v);
   }
+  // step 2: the masters on the luma: Y -> the shift added to R, G, B
+  function cgLumaShift(E, y) {
+    const L = E.lumMix, lift = 0.35 * L * E.lift.m, gain = Math.pow(2, 0.7 * L * E.gain.m), gam = Math.pow(2, -0.9 * L * E.gamma.m);
+    let v = gain * (y + lift * (1 - y));
+    v = Math.pow(Math.max(0, v), gam) + 0.25 * L * E.offset.m;
+    return v - y;
+  }
+  const cgLumaOn = (E) => E.lumMix > 0.001 && CG_WHEELS.some((k) => Math.abs(E[k].m) > 1e-4);
   const N_TABLE = 48;
   const cgTables = (E) => [0, 1, 2].map((c) => Array.from({ length: N_TABLE + 1 }, (_, i) => cgChannel(E, c, i / N_TABLE)));
+  const cgLumaTable = (E) => Array.from({ length: N_TABLE + 1 }, (_, i) => clamp01(cgLumaShift(E, i / N_TABLE) / 2 + 0.5));   // signed, as 0.5 ± shift / 2
+  // a table read as the SVG filter reads it (linear between its points)
+  const cgTab = (t, x) => { const n = t.length - 1, u = clamp01(x) * n, j = Math.min(n - 1, Math.floor(u)); return t[j] + (t[j + 1] - t[j]) * (u - j); };
   // the split toning: shadows weighted (1 − Y)², highlights Y², as signed tints split in what adds and what takes away
   const cgSplit = (E) => { const s = hueDir(E.sh.h).map((d) => d * E.sh.s * 0.6), h = hueDir(E.hi.h).map((d) => d * E.hi.s * 0.6); return { s, h, on: E.sh.s > 0.001 || E.hi.s > 0.001 }; };
+  // the saturation and hue matrices of SVG (feColorMatrix saturate / hueRotate, as the browser computes them)
+  const satM = (s) => [0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s];
+  const hueM = (deg) => {
+    const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+    return [0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
+      0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283,
+      0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072];
+  };
+  const LUMA_ROW = '0.2126 0.7152 0.0722 0 0';
+  const CHROMA_M = '0.7874 -0.7152 -0.0722 0 0.5  -0.2126 0.2848 -0.0722 0 0.5  -0.2126 -0.7152 0.9278 0 0.5  0 0 0 1 0';   // R − Y + ½, G − Y + ½, B − Y + ½
+  const BOOST_K = 0.75;   // the dull colours' weight: 1 − 0.75 × (|R−Y| + |G−Y| + |B−Y|) × 2
+  const DETAIL_K = 1.2, DETAIL_BLUR = 0.01, HALO_BLUR = 0.012;   // × the image's width
   const f4 = (v) => (Math.round(v * 10000) / 10000).toString();
   const tv = (arr) => arr.map(f4).join(' ');
-  // the SVG filter of a grade; blur = the halo's blur in px of the element it is on (its width × 0.012)
+  const rgbFuncs = (t3) => `<feFuncR type="table" tableValues="${tv(t3[0])}"/><feFuncG type="table" tableValues="${tv(t3[1])}"/><feFuncB type="table" tableValues="${tv(t3[2])}"/>`;
+  // the SVG filter of a grade; width = the width in px of the element it is on (the blurs are in px)
   function cgFilterSvg(id, E, width) {
     const T3 = cgTables(E), S = cgSplit(E);
     const o = [`<filter id="${id}" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1">`,
-      `<feComponentTransfer in="SourceGraphic" result="t"><feFuncR type="table" tableValues="${tv(T3[0])}"/><feFuncG type="table" tableValues="${tv(T3[1])}"/><feFuncB type="table" tableValues="${tv(T3[2])}"/></feComponentTransfer>`,
-      `<feColorMatrix in="t" type="saturate" values="${f4(Math.max(0, E.saturation))}" result="s"/>`];
-    let last = 's';
-    if (S.on) {
+      `<feComponentTransfer in="SourceGraphic" result="t">${rgbFuncs(T3)}</feComponentTransfer>`];
+    let last = 't';
+    const step = (s, r) => { o.push(s); last = r; };
+    if (cgLumaOn(E)) {   // 2. the masters on the luma
+      const Y = cgLumaTable(E);
+      o.push(`<feColorMatrix in="${last}" type="matrix" values="${LUMA_ROW} ${LUMA_ROW} ${LUMA_ROW} 0 0 0 1 0" result="ly"/>`,
+        `<feComponentTransfer in="ly" result="ld">${rgbFuncs([Y, Y, Y])}</feComponentTransfer>`);
+      step(`<feComposite in="${last}" in2="ld" operator="arithmetic" k2="1" k3="2" k4="-1" result="lm"/>`, 'lm');
+    }
+    step(`<feColorMatrix in="${last}" type="saturate" values="${f4(Math.max(0, E.saturation))}" result="s"/>`, 's');   // 3.
+    if (Math.abs(E.hue) > 1e-4) step(`<feColorMatrix in="${last}" type="hueRotate" values="${f4(E.hue * 180)}" result="hr"/>`, 'hr');   // 4.
+    if (Math.abs(E.boost) > 1e-4) {   // 5. lerp(image, image more saturated, how dull it is)
+      const k = BOOST_K, row = (a, b) => `${a} ${a} ${a} 0 ${b}`;
+      o.push(`<feColorMatrix in="${last}" type="matrix" values="${CHROMA_M}" result="bc"/>`,
+        `<feComponentTransfer in="bc" result="ba">${rgbFuncs([[1, 0, 1], [1, 0, 1], [1, 0, 1]])}</feComponentTransfer>`,
+        `<feColorMatrix in="ba" type="matrix" values="${row(-k, 1)} ${row(-k, 1)} ${row(-k, 1)} 0 0 0 1 0" result="bm"/>`,
+        `<feColorMatrix in="ba" type="matrix" values="${row(k, 0)} ${row(k, 0)} ${row(k, 0)} 0 0 0 1 0" result="bn"/>`,
+        `<feColorMatrix in="${last}" type="saturate" values="${f4(Math.max(0, 1 + E.boost))}" result="bs"/>`,
+        `<feComposite in="${last}" in2="bn" operator="arithmetic" k1="1" result="b1"/>`,
+        `<feComposite in="bs" in2="bm" operator="arithmetic" k1="1" result="b2"/>`);
+      step('<feComposite in="b1" in2="b2" operator="arithmetic" k2="1" k3="1" result="bo"/>', 'bo');
+    }
+    if (S.on) {   // 6.
       const ys = Array.from({ length: 17 }, (_, i) => i / 16);
       const P = [0, 1, 2].map((c) => ys.map((y) => Math.max(0, S.s[c]) * (1 - y) * (1 - y) + Math.max(0, S.h[c]) * y * y));
       const Nn = [0, 1, 2].map((c) => ys.map((y) => 1 - (Math.max(0, -S.s[c]) * (1 - y) * (1 - y) + Math.max(0, -S.h[c]) * y * y)));
-      o.push(`<feColorMatrix in="s" type="matrix" values="0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0 0 0 1 0" result="y"/>`,
-        `<feComponentTransfer in="y" result="p"><feFuncR type="table" tableValues="${tv(P[0])}"/><feFuncG type="table" tableValues="${tv(P[1])}"/><feFuncB type="table" tableValues="${tv(P[2])}"/></feComponentTransfer>`,
-        `<feComponentTransfer in="y" result="n"><feFuncR type="table" tableValues="${tv(Nn[0])}"/><feFuncG type="table" tableValues="${tv(Nn[1])}"/><feFuncB type="table" tableValues="${tv(Nn[2])}"/></feComponentTransfer>`,
-        `<feComposite in="s" in2="p" operator="arithmetic" k2="1" k3="1" result="a"/>`,
-        `<feComposite in="a" in2="n" operator="arithmetic" k2="1" k3="1" k4="-1" result="sp"/>`);
-      last = 'sp';
+      o.push(`<feColorMatrix in="${last}" type="matrix" values="${LUMA_ROW} ${LUMA_ROW} ${LUMA_ROW} 0 0 0 1 0" result="y"/>`,
+        `<feComponentTransfer in="y" result="p">${rgbFuncs(P)}</feComponentTransfer>`,
+        `<feComponentTransfer in="y" result="n">${rgbFuncs(Nn)}</feComponentTransfer>`,
+        `<feComposite in="${last}" in2="p" operator="arithmetic" k2="1" k3="1" result="a"/>`);
+      step('<feComposite in="a" in2="n" operator="arithmetic" k2="1" k3="1" k4="-1" result="sp"/>', 'sp');
     }
-    if (E.halo > 0.001) {
-      const k = E.halo / 0.4;
-      o.push(`<feComponentTransfer in="${last}" result="hl"><feFuncR type="linear" slope="${f4(k)}" intercept="${f4(-0.6 * k)}"/><feFuncG type="linear" slope="${f4(k)}" intercept="${f4(-0.6 * k)}"/><feFuncB type="linear" slope="${f4(k)}" intercept="${f4(-0.6 * k)}"/></feComponentTransfer>`,
-        `<feGaussianBlur in="hl" stdDeviation="${f4(Math.max(0.5, width * 0.012))}" result="bl"/>`,
+    if (Math.abs(E.midDetail) > 1e-4) {   // 7. (1 + k) × image − k × its blur
+      const k = E.midDetail * DETAIL_K;
+      o.push(`<feGaussianBlur in="${last}" stdDeviation="${f4(Math.max(0.5, width * DETAIL_BLUR))}" edgeMode="duplicate" result="md"/>`);
+      step(`<feComposite in="${last}" in2="md" operator="arithmetic" k2="${f4(1 + k)}" k3="${f4(-k)}" result="dt"/>`, 'dt');
+    }
+    if (E.halo > 0.001) {   // 8.
+      const k = E.halo / 0.4, lf = (C) => `<feFunc${C} type="linear" slope="${f4(k)}" intercept="${f4(-0.6 * k)}"/>`;
+      o.push(`<feComponentTransfer in="${last}" result="hl">${lf('R')}${lf('G')}${lf('B')}</feComponentTransfer>`,
+        `<feGaussianBlur in="hl" stdDeviation="${f4(Math.max(0.5, width * HALO_BLUR))}" edgeMode="duplicate" result="bl"/>`,
         `<feBlend in="${last}" in2="bl" mode="screen"/>`);
     }
     o.push('</filter>');
@@ -127,31 +193,47 @@
   }
   // the vignette and the grain, as CSS (the preview's overlays, and what the agent lays over the scene)
   const cgVignetteCss = (v) => (v > 0.001 ? `radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,${f4(Math.min(0.92, v * 0.85))}) 100%)` : 'none');
-  // the same maths on pixels (the looks' cards, the scopes): an RGBA array, w × h, graded in place
+  // a blur of an RGB float image (two box passes ≈ a Gaussian of deviation sigma), edges repeated
+  function cgBlur(src, w, h, sigma) {
+    const rad = Math.max(1, Math.round(sigma * 1.22)), a = Float32Array.from(src), tmp = new Float32Array(src.length);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let y = 0; y < h; y++) for (let c = 0; c < 3; c++) for (let x = 0; x < w; x++) { let s = 0; for (let d = -rad; d <= rad; d++) s += a[(y * w + Math.min(w - 1, Math.max(0, x + d))) * 3 + c]; tmp[(y * w + x) * 3 + c] = s / (2 * rad + 1); }
+      for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) for (let y = 0; y < h; y++) { let s = 0; for (let d = -rad; d <= rad; d++) s += tmp[(Math.min(h - 1, Math.max(0, y + d)) * w + x) * 3 + c]; a[(y * w + x) * 3 + c] = s / (2 * rad + 1); }
+    }
+    return a;
+  }
+  // the same maths on pixels (the looks' cards, the scopes, the images of a note): an RGBA array, w × h -> RGB floats
   function cgPixels(data, w, h, E) {
-    const T3 = cgTables(E), S = cgSplit(E), L = T3.map((t) => { const out = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = (i / 255) * N_TABLE, j = Math.min(N_TABLE - 1, Math.floor(x)), f = x - j; out[i] = t[j] + (t[j + 1] - t[j]) * f; } return out; });
-    const s = Math.max(0, E.saturation);
-    const M = [0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s];
-    const out = new Float32Array(w * h * 3);
+    const T3 = cgTables(E), S = cgSplit(E), L = T3.map((t) => { const out = new Float32Array(256); for (let i = 0; i < 256; i++) out[i] = cgTab(t, i / 255); return out; });
+    const luma = cgLumaOn(E) ? cgLumaTable(E) : null, M = satM(Math.max(0, E.saturation)), Hm = Math.abs(E.hue) > 1e-4 ? hueM(E.hue * 180) : null;
+    const boost = Math.abs(E.boost) > 1e-4, Mb = satM(Math.max(0, 1 + E.boost));
+    const mat = (m, r, g, b) => [clamp01(m[0] * r + m[1] * g + m[2] * b), clamp01(m[3] * r + m[4] * g + m[5] * b), clamp01(m[6] * r + m[7] * g + m[8] * b)];
+    let out = new Float32Array(w * h * 3);
     for (let i = 0, p = 0; i < data.length; i += 4, p += 3) {
-      const r = L[0][data[i]], g = L[1][data[i + 1]], b = L[2][data[i + 2]];
-      let R = M[0] * r + M[1] * g + M[2] * b, G = M[3] * r + M[4] * g + M[5] * b, B = M[6] * r + M[7] * g + M[8] * b;
-      R = Math.max(0, Math.min(1, R)); G = Math.max(0, Math.min(1, G)); B = Math.max(0, Math.min(1, B));
+      let R = L[0][data[i]], G = L[1][data[i + 1]], B = L[2][data[i + 2]];
+      if (luma) { const d = 2 * cgTab(luma, 0.2126 * R + 0.7152 * G + 0.0722 * B) - 1; R = clamp01(R + d); G = clamp01(G + d); B = clamp01(B + d); }
+      [R, G, B] = mat(M, R, G, B);
+      if (Hm) [R, G, B] = mat(Hm, R, G, B);
+      if (boost) {
+        const y = 0.2126 * R + 0.7152 * G + 0.0722 * B, sum = Math.abs(clamp01(R - y + 0.5) - 0.5) * 2 + Math.abs(clamp01(G - y + 0.5) - 0.5) * 2 + Math.abs(clamp01(B - y + 0.5) - 0.5) * 2;
+        const m = clamp01(1 - BOOST_K * sum), n = clamp01(BOOST_K * sum), [r2, g2, b2] = mat(Mb, R, G, B);
+        R = clamp01(R * n + r2 * m); G = clamp01(G * n + g2 * m); B = clamp01(B * n + b2 * m);
+      }
       if (S.on) {
         const y = 0.2126 * R + 0.7152 * G + 0.0722 * B, a = (1 - y) * (1 - y), z = y * y;
-        R = Math.max(0, Math.min(1, R + S.s[0] * a + S.h[0] * z)); G = Math.max(0, Math.min(1, G + S.s[1] * a + S.h[1] * z)); B = Math.max(0, Math.min(1, B + S.s[2] * a + S.h[2] * z));
+        R = clamp01(R + S.s[0] * a + S.h[0] * z); G = clamp01(G + S.s[1] * a + S.h[1] * z); B = clamp01(B + S.s[2] * a + S.h[2] * z);
       }
       out[p] = R; out[p + 1] = G; out[p + 2] = B;
     }
-    if (E.halo > 0.001) {   // the highlights, blurred (a box twice ≈ the Gaussian), screened over the image
+    if (Math.abs(E.midDetail) > 1e-4) {   // the image minus its blur
+      const k = E.midDetail * DETAIL_K, bl = cgBlur(out, w, h, Math.max(0.5, w * DETAIL_BLUR));
+      for (let i = 0; i < out.length; i++) out[i] = clamp01((1 + k) * out[i] - k * bl[i]);
+    }
+    if (E.halo > 0.001) {   // the highlights, blurred, screened over the image
       const k = E.halo / 0.4, hl = new Float32Array(out.length);
-      for (let i = 0; i < out.length; i++) hl[i] = Math.max(0, Math.min(1, (out[i] - 0.6) * k));
-      const rad = Math.max(1, Math.round(w * 0.012)), tmp = new Float32Array(out.length);
-      for (let pass = 0; pass < 2; pass++) {
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) { let sum = 0, n = 0; for (let d = -rad; d <= rad; d++) { const xx = x + d; if (xx >= 0 && xx < w) { sum += hl[(y * w + xx) * 3 + c]; n++; } } tmp[(y * w + x) * 3 + c] = sum / n; }
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) { let sum = 0, n = 0; for (let d = -rad; d <= rad; d++) { const yy = y + d; if (yy >= 0 && yy < h) { sum += tmp[(yy * w + x) * 3 + c]; n++; } } hl[(y * w + x) * 3 + c] = sum / n; }
-      }
-      for (let i = 0; i < out.length; i++) out[i] = 1 - (1 - out[i]) * (1 - hl[i]);
+      for (let i = 0; i < out.length; i++) hl[i] = clamp01((out[i] - 0.6) * k);
+      const bl = cgBlur(hl, w, h, Math.max(0.5, w * HALO_BLUR));
+      for (let i = 0; i < out.length; i++) out[i] = 1 - (1 - out[i]) * (1 - bl[i]);
     }
     if (E.vignette > 0.001) {
       const a = Math.min(0.92, E.vignette * 0.85);
@@ -168,7 +250,7 @@
   const CG = { on: false, bypass: false, wipe: 1, scope: 'wave', grades: {}, src: null, srcKey: '', applied: '', cards: '', thumbs: {} };
   const cgKeyOf = (sc) => `${sc.from}-${sc.to}`;
   const cgStoreKey = () => 'cg.' + (META?.coulissesFile ?? META?.episode ?? META?.title ?? 'x');
-  const cgLoad = () => { CG.grades = store.get(cgStoreKey(), {}) ?? {}; };
+  const cgLoad = () => { CG.grades = Object.fromEntries(Object.entries(store.get(cgStoreKey(), {}) ?? {}).map(([k, g]) => [k, cgNorm(g)])); };
   const cgSave = () => store.set(cgStoreKey(), CG.grades);
   // the scenes: an episode's sets, a project's chapters (its band), else the whole video
   let cgScCache = { k: null, list: [] };
@@ -201,7 +283,7 @@
     const sc = cgSceneAt(f); if (!sc) return null;
     return CG.grades[sc.key] ?? cgDraftFor(sc.key)?.grade?.user ?? null;
   }
-  const cgIsNeutral = (g) => !g || JSON.stringify({ ...g, pivot: 0 }) === JSON.stringify({ ...cgNeutral(), pivot: 0 });
+  const cgIsNeutral = (g) => !g || JSON.stringify({ ...cgNorm(g), pivot: 0 }) === JSON.stringify({ ...cgNeutral(), pivot: 0 });
 
   // ---------- the image: the filter on what is behind #cgFx, the vignette, the grain ----------
   const cgFxEl = $('#cgFx'), cgVig = $('#cgVig'), cgGrainCv = $('#cgGrain');
@@ -331,20 +413,24 @@
     }
   }
 
-  // ---------- the controls: the four wheels, the basic settings, the filters ----------
-  const cgCurrent = () => { const sc = cgSceneAt(curFrame()); return sc ? (CG.grades[sc.key] ?? cgDraftFor(sc.key)?.grade?.user ?? null) : null; };
+  // ---------- the controls: the bars above and under the wheels, the four wheels, the filters ----------
+  const cgCurrent = () => { const sc = cgSceneAt(curFrame()); return sc ? cgNorm(CG.grades[sc.key] ?? cgDraftFor(sc.key)?.grade?.user ?? null) : null; };
   // a change of the scene's grade (it starts from the one waiting in the queue, if any)
   function cgEdit(fn) {
     const sc = cgSceneAt(curFrame()); if (!sc) return;
-    const g = CG.grades[sc.key] ?? JSON.parse(JSON.stringify(cgDraftFor(sc.key)?.grade?.user ?? cgNeutral()));
+    const g = cgNorm(CG.grades[sc.key] ?? JSON.parse(JSON.stringify(cgDraftFor(sc.key)?.grade?.user ?? cgNeutral())));
     fn(g); CG.grades[sc.key] = g; cgSave();
     cgApply(); cgSync(); cgScopeSoon();
   }
+  // a wheel (DaVinci's): its name, its reset ↺, the ring, the master bar under it, its values (master · R · G · B)
   function wheelEl(k) {
     const el = document.createElement('div'); el.className = 'cgw'; el.dataset.w = k;
     const [wn, ws] = T('st.cg.w.' + k).split(' · ');
-    el.innerHTML = `<div class="t">${esc(wn)}${ws ? `<small>${esc(ws)}</small>` : ''}</div><div class="wb"><canvas width="300" height="300"></canvas></div><div class="roll" title="${esc(T('st.cg.masterTitle'))}"><i></i></div><div class="v"></div>`;
+    el.innerHTML = `<div class="hd"><span class="t">${esc(wn)}${ws ? `<small>${esc(ws)}</small>` : ''}</span></div>`
+      + `<div class="wb"><canvas width="300" height="300"></canvas><button class="rs" title="${esc(T('st.cg.wheelReset'))}" aria-label="${esc(T('st.cg.wheelReset'))}">${ic('reset')}</button></div><div class="roll" title="${esc(T('st.cg.masterTitle'))}"><i></i></div>`
+      + `<div class="v"><span class="y"></span><span class="r"></span><span class="g"></span><span class="b"></span></div>`;
     const cv2 = el.querySelector('canvas'), roll = el.querySelector('.roll');
+    el.querySelector('.rs').addEventListener('click', () => cgEdit((g) => { g[k] = cgWheel0(); }));
     const setFrom = (e) => {
       const r = cv2.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 2 - 1, y = -((e.clientY - r.top) / r.height * 2 - 1);
       const a = Math.atan2(y, x) * 180 / Math.PI, s = Math.min(1, Math.hypot(x, y) / 0.86);
@@ -373,22 +459,69 @@
     g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 2; g.beginPath(); g.moveTo(R, R * 0.2); g.lineTo(R, R * 1.8); g.moveTo(R * 0.2, R); g.lineTo(R * 1.8, R); g.stroke();
     const a = (w.h + 103) * Math.PI / 180, x = R + Math.cos(a) * w.s * R * 0.86, y = R - Math.sin(a) * w.s * R * 0.86;
     g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fillStyle = w.s > 0.001 ? `hsl(${w.h} 80% 60%)` : '#f4f5fa'; g.fill(); g.lineWidth = 4; g.strokeStyle = '#0b0d14'; g.stroke();
-    const rgb = wheelRGB(w).map((c) => c + w.m);
-    el.querySelector('.v').textContent = rgb.map((c) => (c >= 0 ? '+' : '') + c.toFixed(2)).join('  ');
+    const rgb = wheelRGB(w).map((c) => c + w.m), n2 = (c) => dec(c.toFixed(2));
+    const [y0, r0, g0, b0] = el.querySelectorAll('.v span');
+    y0.textContent = n2(w.m); r0.textContent = n2(rgb[0]); g0.textContent = n2(rgb[1]); b0.textContent = n2(rgb[2]);
+    el.classList.toggle('moved', w.s > 0.001 || Math.abs(w.m) > 0.001);
     el.querySelector('.roll i').style.left = `${50 + w.m * 50}%`;
   }
+  // the bars above and under the wheels (DaVinci Resolve's Primaries): each shown in its usual units; drag left / right
+  // (Maj: finer), click to type a value, double-click = neutral
+  const FLD = (key, show, unshow, step, dp, min, max, u) => ({ key, show, unshow, step, dp, min, max, u });
+  const x1 = (x) => x, x100 = (x) => x * 100, d100 = (y) => y / 100;
+  const CG_TOP = [FLD('exposure', x1, x1, 0.01, 2, -4, 4, 'grey'), FLD('temperature', (x) => x * 2000, (y) => y / 2000, 5, 1, -2000, 2000, 'temp'),
+    FLD('tint', x100, d100, 0.25, 2, -100, 100, 'tint'), FLD('contrast', x1, x1, 0.005, 3, 0, 2, 'grey'), FLD('pivot', x1, x1, 0.002, 3, 0, 1, 'grey'),
+    FLD('midDetail', x100, d100, 0.25, 2, -100, 100, 'grey')];
+  const CG_BOT = [FLD('boost', x100, d100, 0.25, 2, -100, 100, 'rainbow'), FLD('shadows', x100, d100, 0.25, 2, -100, 100, 'grey'), FLD('highlights', x100, d100, 0.25, 2, -100, 100, 'grey'),
+    FLD('saturation', (x) => x * 50, (y) => y / 50, 0.25, 2, 0, 100, 'rainbow'), FLD('hue', (x) => 50 + x * 50, (y) => (y - 50) / 50, 0.25, 2, 0, 100, 'rainbow'),
+    FLD('lumMix', x100, d100, 0.25, 2, 0, 100, 'grey')];
+  const CG_FIELDS = [...CG_TOP, ...CG_BOT];
+  const fldShow = (f, x) => dec((+f.show(x)).toFixed(f.dp));
+  const fldParse = (f, s) => { const v = parseFloat(String(s).replace(',', '.').replace(/[^\d.+-]/g, '')); return Number.isFinite(v) ? f.unshow(Math.max(f.min, Math.min(f.max, v))) : null; };
+  function fieldsHtml(list) {
+    return list.map((f) => `<label class="cgf" data-k="${f.key}" title="${esc(T('st.cg.ft.' + f.key))} · ${esc(T('st.cg.fieldHow'))}"><span class="l">${esc(T('st.cg.f.' + f.key))}</span>`
+      + `<span class="bx"><input type="text" inputmode="decimal" spellcheck="false" autocomplete="off" data-k="${f.key}"><i class="u ${f.u}"></i></span></label>`).join('');
+  }
+  function fieldWire(lab) {
+    const f = CG_FIELDS.find((x) => x.key === lab.dataset.k), inp = lab.querySelector('input');
+    const set = (x) => cgEdit((g) => { g[f.key] = x; });
+    let drag = null;
+    inp.addEventListener('pointerdown', (e) => {
+      if (document.activeElement === inp) return;   // typing: the field's own cursor
+      e.preventDefault(); inp.setPointerCapture(e.pointerId);
+      drag = { x0: e.clientX, v0: +f.show(cgCurrent()?.[f.key] ?? cgNeutral()[f.key]), moved: false };
+    });
+    inp.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x0; if (!drag.moved && Math.abs(dx) < 3) return;
+      drag.moved = true; lab.classList.add('drag');
+      const v = Math.max(f.min, Math.min(f.max, drag.v0 + dx * f.step * (e.shiftKey ? 0.1 : 1)));
+      set(f.unshow(Math.round(v / f.step) * f.step));
+    });
+    inp.addEventListener('pointerup', () => { if (!drag) return; const moved = drag.moved; drag = null; lab.classList.remove('drag'); if (!moved) { inp.focus(); inp.select(); } });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); inp.dataset.cancel = '1'; inp.blur(); }
+      e.stopPropagation();
+    });
+    inp.addEventListener('blur', () => {
+      const cancel = inp.dataset.cancel; delete inp.dataset.cancel;
+      const x = cancel ? null : fldParse(f, inp.value);
+      if (x !== null && Math.abs(x - (cgCurrent()?.[f.key] ?? cgNeutral()[f.key])) > 1e-9) set(x); else cgSync();
+    });
+    lab.addEventListener('dblclick', (e) => { e.preventDefault(); inp.blur(); set(cgNeutral()[f.key]); });
+  }
   const SL = (key, min, max, step, fmt = (x) => dec(x.toFixed(2))) => ({ key, min, max, step, fmt });
-  const CG_BASIC = [SL('exposure', -2, 2, 0.05, (x) => (x >= 0 ? '+' : '') + dec(x.toFixed(2))), SL('contrast', 0, 2, 0.01), SL('pivot', 0.1, 0.9, 0.005, (x) => dec(x.toFixed(3))), SL('saturation', 0, 2, 0.01),
-    SL('temperature', -1, 1, 0.01, (x) => (x >= 0 ? '+' : '') + dec(x.toFixed(2))), SL('tint', -1, 1, 0.01, (x) => (x >= 0 ? '+' : '') + dec(x.toFixed(2)))];
   const CG_FX = [SL('vignette', 0, 1, 0.01), SL('grain', 0, 1, 0.01), SL('halo', 0, 1, 0.01), SL('shH', 0, 360, 1, (x) => `${Math.round(x)}°`), SL('shS', 0, 1, 0.01), SL('hiH', 0, 360, 1, (x) => `${Math.round(x)}°`), SL('hiS', 0, 1, 0.01)];
   function slidersHtml(list) {
     return list.map((s) => `<label class="cgs${/H$/.test(s.key) ? ' hue' : ''}"><span class="l">${esc(T('st.cg.s.' + s.key))}</span><input type="range" data-k="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}"><span class="n" data-n="${s.key}"></span></label>`).join('');
   }
   function cgBuildPanel() {
     const wb = $('#cgWheels'); wb.innerHTML = ''; for (const k of CG_WHEELS) wb.appendChild(wheelEl(k));
-    $('#cgBasic').innerHTML = `<h3>${esc(T('st.cg.basic'))}</h3>${slidersHtml(CG_BASIC)}`;
+    $('#cgTop').innerHTML = fieldsHtml(CG_TOP); $('#cgBot').innerHTML = fieldsHtml(CG_BOT);
+    document.querySelectorAll('#cgTop .cgf, #cgBot .cgf').forEach(fieldWire);
     $('#cgFxCtl').innerHTML = `<h3>${esc(T('st.cg.filters'))}</h3>${slidersHtml(CG_FX)}`;
-    for (const inp of document.querySelectorAll('#cgBasic input, #cgFxCtl input')) {
+    for (const inp of document.querySelectorAll('#cgFxCtl input')) {
       inp.addEventListener('input', () => cgEdit((g) => { g[inp.dataset.k] = +inp.value; }));
       inp.addEventListener('dblclick', () => cgEdit((g) => { g[inp.dataset.k] = cgNeutral()[inp.dataset.k]; }));
     }
@@ -396,14 +529,18 @@
   // the controls show the grade of the scene under the playhead
   function cgSync() {
     if (!CG.on) return;
-    const sc = cgSceneAt(curFrame()), g = cgCurrent() ?? cgNeutral(), d = sc ? cgDraftFor(sc.key) : null;
+    const sc = cgSceneAt(curFrame()), g = cgCurrent() ?? cgNeutral(), d = sc ? cgDraftFor(sc.key) : null, n0 = cgNeutral();
     $('#cgSceneName').textContent = sc ? sc.name : '—';
     $('#cgSceneSub').textContent = sc ? T(CG.grades[sc.key] ? 'st.cg.subEditing' : d ? 'st.cg.subQueued' : 'st.cg.subNone', { a: sc.from, b: sc.to }) : '';
     for (const el of document.querySelectorAll('#cgWheels .cgw')) drawWheel(el, g[el.dataset.w]);
-    for (const inp of document.querySelectorAll('#cgBasic input, #cgFxCtl input')) {
+    for (const inp of document.querySelectorAll('#cgTop input, #cgBot input')) {
+      const f = CG_FIELDS.find((x) => x.key === inp.dataset.k);
+      if (document.activeElement !== inp) inp.value = fldShow(f, g[f.key]);
+      inp.closest('.cgf').classList.toggle('moved', Math.abs(g[f.key] - n0[f.key]) > 1e-6);
+    }
+    for (const inp of document.querySelectorAll('#cgFxCtl input')) {
       if (document.activeElement !== inp) inp.value = g[inp.dataset.k];
-      const s = [...CG_BASIC, ...CG_FX].find((x) => x.key === inp.dataset.k);
-      $(`[data-n="${inp.dataset.k}"]`).textContent = s.fmt(+g[inp.dataset.k]);
+      $(`[data-n="${inp.dataset.k}"]`).textContent = CG_FX.find((x) => x.key === inp.dataset.k).fmt(+g[inp.dataset.k]);
     }
     $('#cgAmount').value = Math.round((g.amount ?? 1) * 100); $('#cgAmountV').textContent = `${Math.round((g.amount ?? 1) * 100)}${FR ? ' %' : '%'}`;
     $('#cgAmount').disabled = !g.look;
@@ -440,10 +577,12 @@
   $('#cgAmount').addEventListener('input', (e) => cgEdit((g) => { g.amount = +e.target.value / 100; }));
   // what changed, in words (the note's text)
   function cgWords(g) {
+    g = cgNorm(g);
     const o = [], n0 = cgNeutral(), L = lookById(g.look);
     if (L) o.push(T('st.cg.wLook', { name: T('st.cg.look.' + L.id), pct: Math.round((g.amount ?? 1) * 100), emo: T('st.cg.emo.' + L.emotion) }));
     for (const k of CG_WHEELS) if (g[k].s > 0.001 || Math.abs(g[k].m) > 0.001) o.push(T('st.cg.wWheel', { w: T('st.cg.w.' + k), h: Math.round(g[k].h), s: dec(g[k].s.toFixed(2)), m: (g[k].m >= 0 ? '+' : '') + dec(g[k].m.toFixed(2)) }));
-    for (const s of [...CG_BASIC, ...CG_FX]) if (Math.abs(g[s.key] - n0[s.key]) > 1e-4 && !(/H$/.test(s.key) && !(g[s.key.replace(/H$/, 'S')] > 0))) o.push(`${T('st.cg.s.' + s.key)} ${s.fmt(+g[s.key])}`);
+    for (const f of CG_FIELDS) if (Math.abs(g[f.key] - n0[f.key]) > 1e-4) o.push(`${T('st.cg.f.' + f.key)} ${fldShow(f, g[f.key])}`);
+    for (const s of CG_FX) if (Math.abs(g[s.key] - n0[s.key]) > 1e-4 && !(/H$/.test(s.key) && !(g[s.key.replace(/H$/, 'S')] > 0))) o.push(`${T('st.cg.s.' + s.key)} ${s.fmt(+g[s.key])}`);
     return o.join(FR ? ' ; ' : '; ');
   }
   const cgEdited = () => { const cur = cgSceneAt(curFrame()); return cgScenes().filter((x) => CG.grades[x.key]).sort((a, b) => (b.key === cur?.key) - (a.key === cur?.key) || a.from - b.from); };

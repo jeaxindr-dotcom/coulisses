@@ -36,11 +36,38 @@ try {
     const blueLift = __grade.pixels(grey, 1, 1, __grade.effective({ ...N, lift: { h: 240, s: 1, m: 0 } }));
     const bright = __grade.pixels(new Uint8ClampedArray([200, 200, 200, 255]), 1, 1, __grade.effective({ ...N, gain: { h: 0, s: 0, m: 0.5 } }));
     const bw = __grade.pixels(d, 3, 1, __grade.effective({ ...N, look: 'bw', amount: 1 }));
-    return { same, ident, blueLift: [...blueLift], bright: [...bright], bwGrey: [0, 1, 2].every((k) => Math.abs(bw[k * 3] - bw[k * 3 + 1]) < 0.02 && Math.abs(bw[k * 3 + 1] - bw[k * 3 + 2]) < 0.02), looks: __grade.lookIds().length }`);
+    const px = (r, g, b, o) => [...__grade.pixels(new Uint8ClampedArray([r, g, b, 255]), 1, 1, __grade.effective({ ...N, ...o }))].map((v) => Math.round(v * 255));
+    const hue = px(200, 40, 40, { hue: 2 / 3 });   // Hue 83,33: +120° turns red into green
+    const dull = (c) => c[0] - c[2], b0 = [px(140, 120, 100, {}), px(230, 40, 40, {})], b1 = [px(140, 120, 100, { boost: 1 }), px(230, 40, 40, { boost: 1 })];
+    const lm1 = px(150, 100, 50, { gain: { h: 0, s: 0, m: 0.5 }, lumMix: 1 }), lm0 = px(150, 100, 50, { gain: { h: 0, s: 0, m: 0.5 }, lumMix: 0 });
+    const sh = px(40, 40, 40, { shadows: 1 }), hl = px(215, 215, 215, { highlights: -1 });
+    // the filter, as the browser applies it (a canvas drawn through it), against the pixel maths
+    const W0 = 96, H0 = 54, cv = document.createElement('canvas'); cv.width = W0; cv.height = H0;
+    const g0 = cv.getContext('2d', { willReadFrequently: true });
+    for (let x = 0; x < W0; x++) for (let y = 0; y < H0; y++) { g0.fillStyle = 'hsl(' + (x * 360 / W0) + ' ' + (25 + y * 75 / H0) + '% ' + (15 + ((x * 7 + y * 3) % 70)) + '%)'; g0.fillRect(x, y, 1, 1); }
+    const srcD = g0.getImageData(0, 0, W0, H0);
+    const cmp = (o) => {
+      const E = __grade.effective({ ...N, ...o }), d = document.createElement('div');
+      d.innerHTML = '<svg width="0" height="0" style="position:absolute">' + __grade.filter('cgtest', E, W0) + '</svg>'; document.body.appendChild(d);
+      const c2 = document.createElement('canvas'); c2.width = W0; c2.height = H0; const g2 = c2.getContext('2d', { willReadFrequently: true });
+      g2.filter = 'url(#cgtest)'; g2.drawImage(cv, 0, 0); const a = g2.getImageData(0, 0, W0, H0).data, b = __grade.pixels(srcD.data, W0, H0, E);
+      d.remove();
+      let sum = 0, mx = 0; for (let i = 0, j = 0; j < b.length; i += 4, j += 3) for (let c = 0; c < 3; c++) { const e = Math.abs(a[i + c] - b[j + c] * 255); sum += e; mx = Math.max(mx, e); }
+      return [+(sum / (b.length)).toFixed(2), Math.round(mx)];
+    };
+    const same1 = cmp({ look: 'tealorange', amount: 1, temperature: 0.2, tint: -0.1, contrast: 1.1, shadows: 0.4, highlights: -0.3, hue: 0.1, boost: 0.6, lift: { h: 200, s: 0.3, m: 0.05 }, gain: { h: 40, s: 0.2, m: 0.1 }, gamma: { h: 0, s: 0, m: -0.05 }, shS: 0.3, shH: 220 });
+    const same2 = cmp({ midDetail: 0.6, halo: 0.4 });
+    return { hue, b0, b1, boostDull: dull(b1[0]) / Math.max(1, dull(b0[0])), boostVivid: dull(b1[1]) / Math.max(1, dull(b0[1])), lm1, lm0, sh, hl, same1, same2, same, ident, blueLift: [...blueLift], bright: [...bright], bwGrey: [0, 1, 2].every((k) => Math.abs(bw[k * 3] - bw[k * 3 + 1]) < 0.02 && Math.abs(bw[k * 3 + 1] - bw[k * 3 + 2]) < 0.02), looks: __grade.lookIds().length }`);
   check(m.same && m.ident, 'a neutral grade changes nothing: identity tables, the same pixels');
   check(m.blueLift[2] > m.blueLift[0] + 0.05, `Lift towards blue: the shadows go blue (R ${m.blueLift[0].toFixed(3)} · B ${m.blueLift[2].toFixed(3)})`);
   check(m.bright[0] > 200 / 255 + 0.05, `Gain master +0.5: the highlights brighter (${(m.bright[0] * 255).toFixed(0)} > 200)`);
   check(m.bwGrey && m.looks === 31, `the « Noir et blanc » look gives greys; ${m.looks} looks`);
+  check(m.hue[1] > m.hue[0] && m.hue[1] > m.hue[2], `Hue +120°: red turns green (${m.hue.join(', ')})`);
+  check(m.boostDull > 1.25 && m.boostVivid < m.boostDull, `Color Boost: a dull colour gains more saturation (×${m.boostDull.toFixed(2)}) than a vivid one (×${m.boostVivid.toFixed(2)})`);
+  check(Math.abs((m.lm1[0] - m.lm1[2]) - 100) <= 3 && (m.lm0[0] - m.lm0[2]) > 115, `Lum Mix 100: the master Gain brightens without saturating (R−B ${m.lm1[0] - m.lm1[2]}); Lum Mix 0: on R, G, B (R−B ${m.lm0[0] - m.lm0[2]})`);
+  check(m.sh[0] > 50 && m.hl[0] < 205, `Ombres +100 opens the dark tones (40 → ${m.sh[0]}), Hautes lumières −100 recovers the bright ones (215 → ${m.hl[0]})`);
+  check(m.same1[0] < 2.5 && m.same1[1] <= 10, `the SVG filter (the preview, what the agent writes) = the pixel maths (cards, scopes, images): mean ${m.same1[0]}, max ${m.same1[1]} / 255`);
+  check(m.same2[0] < 3, `the same with Mid/Detail and the glow (blurs): mean ${m.same2[0]} / 255 (max ${m.same2[1]})`);
   // ---- G: the page ----
   await p.key('g', 'KeyG', 'g');
   await p.until(`__grade.state().on && document.querySelectorAll('#cgLookList .cgcard').length`, 10000); await sleep(2500);
@@ -80,12 +107,31 @@ try {
   await sleep(300);
   const gain = await p.eval(`return Object.values(__grade.state().grades)[0].gain`);
   check(gain.s > 0.3 && gain.s < 0.6 && Math.abs(gain.h - 257) < 3, `the Gain wheel dragged right: hue ${gain.h.toFixed(0)}° (blue-violet), strength ${gain.s.toFixed(2)}`);
-  // ---- a slider, and its double-click back to neutral ----
-  await p.eval(`const i = document.querySelector('#cgBasic input[data-k="exposure"]'); i.value = '0.5'; i.dispatchEvent(new Event('input', { bubbles: true })); return 1`); await sleep(200);
-  const ex = await p.eval(`return [Object.values(__grade.state().grades)[0].exposure, document.querySelector('[data-n="exposure"]').textContent]`);
-  await p.eval(`document.querySelector('#cgBasic input[data-k="exposure"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1`); await sleep(200);
-  const ex2 = await p.eval(`return Object.values(__grade.state().grades)[0].exposure`);
-  check(ex[0] === 0.5 && ex[1] === '+0,50' && ex2 === 0, `Exposition +0,50, double-click: 0 (${ex[1]})`);
+  // ---- the bars above and under the wheels (DaVinci's Primaries): drag, type, double-click ----
+  const bars = await p.eval(`return { top: [...document.querySelectorAll('#cgTop .cgf .l')].map((e) => e.textContent), bot: [...document.querySelectorAll('#cgBot .cgf .l')].map((e) => e.textContent) }`);
+  check(bars.top.join(',') === 'Expo,Temp,Tint,Contraste,Pivot,Mid/Detail' && bars.bot.join(',') === 'Color Boost,Ombres,Hautes lumières,Saturation,Hue,Lum Mix', `above the wheels: ${bars.top.join(' · ')}; under: ${bars.bot.join(' · ')}`);
+  const fld = (k) => p.eval(`const r = document.querySelector('.cgf[data-k="${k}"] input').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
+  const tp = await fld('temperature');
+  await p.mouse('mousePressed', tp[0], tp[1]); for (let i = 1; i <= 8; i++) await p.mouse('mouseMoved', tp[0] + 5 * i, tp[1]); await p.mouse('mouseReleased', tp[0] + 40, tp[1]);
+  await sleep(250);
+  const t1 = await p.eval(`return [Object.values(__grade.state().grades)[0].temperature, document.querySelector('.cgf[data-k="temperature"] input').value]`);
+  check(Math.abs(t1[0] - 0.1) < 1e-9 && t1[1] === '200,0', `Temp dragged 40 px to the right: ${t1[1]} (warmer)`);
+  const ct = await fld('contrast');
+  await p.mouse('mousePressed', ct[0], ct[1]); await p.mouse('mouseReleased', ct[0], ct[1]); await sleep(150);
+  const focused = await p.eval(`return document.activeElement === document.querySelector('.cgf[data-k="contrast"] input')`);
+  await p.type('1,2'); await p.key('Enter', 'Enter'); await sleep(250);
+  const c1 = await p.eval(`return [Object.values(__grade.state().grades)[0].contrast, document.querySelector('.cgf[data-k="contrast"] input').value]`);
+  check(focused && Math.abs(c1[0] - 1.2) < 1e-9 && c1[1] === '1,200', `a click, « 1,2 », Entrée: Contraste ${c1[1]}`);
+  await p.eval(`for (const k of ['contrast', 'temperature']) document.querySelector('.cgf[data-k="' + k + '"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1`); await sleep(200);
+  const c2 = await p.eval(`const g = Object.values(__grade.state().grades)[0]; return [g.contrast, g.temperature, document.querySelector('.cgf[data-k="hue"] input').value, document.querySelector('.cgf[data-k="saturation"] input').value, document.querySelector('.cgf[data-k="lumMix"] input').value]`);
+  check(c2[0] === 1 && c2[1] === 0 && c2[2] === '50,00' && c2[3] === '50,00' && c2[4] === '100,00', `double-click: back to neutral; Hue ${c2[2]}, Saturation ${c2[3]}, Lum Mix ${c2[4]} as in DaVinci`);
+  // ---- a wheel's reset ↺ ----
+  const lw = await p.eval(`const c = document.querySelector('.cgw[data-w="lift"] canvas').getBoundingClientRect(); return [c.left + c.width / 2, c.top + c.height * 0.3]`);
+  await p.mouse('mousePressed', lw[0], lw[1]); await p.mouse('mouseReleased', lw[0], lw[1]); await sleep(200);
+  const l1 = await p.eval(`return [Object.values(__grade.state().grades)[0].lift.s, document.querySelector('.cgw[data-w="lift"]').classList.contains('moved')]`);
+  await p.eval(`document.querySelector('.cgw[data-w="lift"] .rs').click(); return 1`); await sleep(200);
+  const l2 = await p.eval(`const g = Object.values(__grade.state().grades)[0]; return [g.lift.s, g.lift.m, g.gain.s > 0.3, document.querySelector('.cgw[data-w="lift"]').classList.contains('moved')]`);
+  check(l1[0] > 0.2 && l1[1] && l2[0] === 0 && l2[1] === 0 && l2[2] && !l2[3], `the ↺ of Lift puts that wheel back to zero, and only that one (Gain kept)`);
   // ---- the scopes: the parade, three lanes ----
   await p.eval(`document.querySelector('#cgScopeSeg button[data-s="parade"]').click(); return 1`); await sleep(1500);
   const sc = await p.eval(`const c = document.querySelector('#cgScope'), g = c.getContext('2d'), w = c.width, h = c.height, lane = (x0) => { const d = g.getImageData(Math.round(x0 * w), 0, Math.round(w / 3) - 8, h).data; let r = 0, gg = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; } return [r, gg, b]; };

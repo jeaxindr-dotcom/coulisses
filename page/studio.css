@@ -509,7 +509,7 @@
   #cgVig, #cgGrain { position: absolute; top: 0; height: 100%; left: 0; width: 100%; }
   #cgGrain { mix-blend-mode: overlay; display: none; image-rendering: pixelated; }
   body.cg #lside, body.cg #side, body.cg #tlpanel, body.cg .split, body.cg #ctlbar .tools { display: none; }
-  body.cg #app { grid-template-columns: 56px 286px 12px minmax(0, 1fr) 12px 330px; grid-template-rows: minmax(0, 1fr) 12px clamp(250px, 33vh, 330px); }
+  body.cg #app { grid-template-columns: 56px 286px 12px minmax(0, 1fr) 12px 330px; grid-template-rows: minmax(0, 1fr) 12px clamp(300px, 38vh, 420px); }
   body.cg .cgp { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
   body.cg #cgLooks { grid-column: 2; grid-row: 1; }
   body.cg #viewer { grid-column: 4; grid-row: 1; }
@@ -563,19 +563,45 @@
   .cgbar .grow { flex: 1; }
   .cgbar button { height: 30px; font-size: 12px; }
   #cgBypass.on { background: var(--grad-amber); color: #2a1a05; border-color: transparent; }
-  .cgbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px 250px; gap: 18px; padding: 4px 18px 12px; }
-  .cgwheels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-height: 0; }
+  .cgbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; padding: 2px 18px 12px; }
+  /* the wheels between two bars of settings, as in DaVinci Resolve's Primaries (user request, 09/10/2026) */
+  .cgmain { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .cgstrip { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 14px; padding: 6px 4px; flex: none; }
+  .cgstrip.top { border-bottom: 1px solid var(--stroke); margin-bottom: 6px; }
+  .cgstrip.bot { border-top: 1px solid var(--stroke); margin-top: 6px; }
+  .cgf { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--s11); white-space: nowrap; cursor: ew-resize; user-select: none; }
+  .cgf.moved .l { color: var(--s12); }
+  .cgf .bx { position: relative; display: inline-block; }
+  .cgf input { width: 64px; height: 22px; padding: 0 4px; border-radius: 5px; border: 1px solid var(--stroke-2); background: rgba(0, 0, 0, 0.38); color: var(--s12);
+    font: 11.5px var(--mono); text-align: center; cursor: ew-resize; outline: none; }
+  .cgf input:focus { cursor: text; border-color: rgba(201, 242, 107, 0.7); background: rgba(0, 0, 0, 0.55); }
+  .cgf.drag input, .cgf.moved input { border-color: rgba(255, 210, 127, 0.45); }
+  .cgf .u { position: absolute; left: 9px; right: 9px; bottom: -4px; height: 2px; border-radius: 1px; pointer-events: none; }
+  .cgf .u.grey { background: rgba(255, 255, 255, 0.55); }
+  .cgf .u.temp { background: linear-gradient(90deg, #4f9dff, #ffb04f); }
+  .cgf .u.tint { background: linear-gradient(90deg, #58d36b, #e05cf2); }
+  .cgf .u.rainbow { background: linear-gradient(90deg, #ff4d4d, #ffd84d, #59e36b, #4de0ff, #5b6cff, #ff4df0); }
+  .cgwheels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-height: 0; flex: 1; }
   .cgw { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; min-height: 0; }
+  .cgw .hd { position: relative; width: 100%; display: flex; justify-content: center; }
   .cgw .t { font: 600 12px/1.2 var(--font-d); color: var(--s12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+  /* a wheel's reset ↺ (DaVinci's), at its top right */
+  .cgw .rs { position: absolute; left: calc(50% + min(50cqw, 50cqh) - 20px); top: calc(50% - min(50cqw, 50cqh) - 2px); width: 24px; height: 24px; padding: 0; justify-content: center; border-radius: 7px; background: transparent; border-color: transparent; color: var(--s9); }
+  .cgw .rs svg.ic { width: 14px; height: 14px; }
+  .cgw .rs:hover { color: var(--s12); background: var(--glass-3); }
+  .cgw.moved .rs { color: var(--amber); }
   .cgw .t small { display: block; font: 500 10.5px/1.3 var(--font); color: var(--s9); }
-  .cgw .wb { flex: 1; min-height: 0; width: 100%; container-type: size; display: grid; place-items: center; }
+  .cgw .wb { position: relative; flex: 1; min-height: 0; width: 100%; container-type: size; display: grid; place-items: center; }
   .cgw canvas { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); cursor: crosshair; touch-action: none; }
-  .cgw .roll { position: relative; width: 76%; height: 14px; flex: none; border-radius: 7px; cursor: ew-resize; touch-action: none;
+  .cgw .roll { position: relative; width: min(76%, 190px); height: 14px; flex: none; border-radius: 7px; cursor: ew-resize; touch-action: none;
     background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 6px), linear-gradient(90deg, #0b0c12, #3a3d4a); border: 1px solid var(--stroke); }
   .cgw .roll i { position: absolute; top: -3px; width: 6px; height: 18px; margin-left: -3px; border-radius: 3px; background: #f4f5fa; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
-  .cgw .v { font: 10px var(--mono); color: var(--s9); white-space: nowrap; overflow: hidden; max-width: 100%; }
+  /* its values, as DaVinci's boxes: master (white) · R · G · B */
+  .cgw .v { display: flex; gap: 4px; justify-content: center; max-width: 100%; overflow: hidden; }
+  .cgw .v span { min-width: 38px; padding: 1px 4px 2px; border-radius: 4px; background: rgba(0, 0, 0, 0.32); font: 10.5px var(--mono); color: var(--s11); text-align: center; border-bottom: 2px solid; }
+  .cgw .v .y { border-color: rgba(255, 255, 255, 0.7); } .cgw .v .r { border-color: #ff5a5a; } .cgw .v .g { border-color: #4fe07a; } .cgw .v .b { border-color: #5a8dff; }
   .cgwheels { container-type: inline-size; }
-  @container (max-width: 560px) { .cgw .v { display: none; } }
+  @container (max-width: 640px) { .cgw .v { display: none; } }
   .cgcol { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow-y: auto; padding-right: 4px; }
   .cgcol h3 { font: 600 11.5px var(--font-d); color: var(--s11); margin: 0 0 4px; letter-spacing: .05em; text-transform: uppercase; }
   .cgs { display: grid; grid-template-columns: 104px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 12px; color: var(--s11); min-height: 24px; }
