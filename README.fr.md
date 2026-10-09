@@ -154,6 +154,8 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 
 Coulisses relit aussi les projets **HyperFrames** (une vidéo = une composition HTML et sa timeline GSAP), à côté de Remotion. Il ne fournit rien de HyperFrames : il se sert de l'outil déjà sur le PC (le cache de `npx`), dans la version que le projet épingle.
 
+![Un projet HyperFrames dans le studio : la composition HTML jouée en direct, ses clips sur la timeline, l'Inspecteur qui dit quel clip et quel fichier sont à l'écran](docs/screenshots/hyperframes-fr.jpg)
+
 - **Dans la liste des projets**, chaque projet porte son moteur à côté de son titre : **Remotion** ou **HyperFrames**.
 - **Nouveau projet** : le choix entre Remotion (la scène 3D vide) et HyperFrames (une composition HTML vide, créée par `hyperframes init`, sans rien installer).
 - **Le studio** joue la composition en direct, à sa taille ; la timeline vient de `hyperframes timeline` ; un clic nomme l'élément visé par son `id` ; la mise en scène 2D marche comme sur un run Remotion ; un changement du code recharge l'aperçu seul.

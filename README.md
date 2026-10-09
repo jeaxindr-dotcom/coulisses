@@ -45,6 +45,8 @@ It was born as the review tool of the *Brambleshire Theatre* channel (a 3D paper
 
 Coulisses also reviews **HyperFrames** projects (a video = an HTML composition and its GSAP timeline), next to Remotion. It ships nothing of HyperFrames: it uses the tool already on the PC (npx's cache), in the version the project pins.
 
+![A HyperFrames project in the studio: the HTML composition played live, its clips on the timeline, the Inspector saying which clip and which file are on screen](docs/screenshots/hyperframes-en.jpg)
+
 - **In the project list**, each project shows its engine next to its title: **Remotion** or **HyperFrames**.
 - **New project**: the choice between Remotion (the empty 3D scene) and HyperFrames (an empty HTML composition, made by `hyperframes init`, with nothing to install).
 - **The studio** plays the composition live, at its size; the timeline comes from `hyperframes timeline`; a click names the element aimed at by its `id`; the 2D staging works as on a Remotion run; a change of the code reloads the preview by itself.
