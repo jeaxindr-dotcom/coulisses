@@ -104,7 +104,46 @@
     const box = $('#stagewrap').getBoundingClientRect(), w = Math.max(160, box.width - 32), h = Math.max(90, box.height - 28);
     const R = CW / CH, W0 = Math.floor(Math.min(w, h * R)), H0 = Math.floor(W0 / R);
     v.style.width = W0 + 'px'; v.style.height = H0 + 'px';
-    drawOv();
+    applyView();
+  }
+  // ---------- the image's zoom (user request, 09/10/2026): the wheel zooms in / out where the mouse is, the middle
+  // button drags the image, Maj+Z (or the « 200 % » label) puts it back whole. The whole image zooms (the MP4, the live
+  // code, the marks); the pins' labels and the « what should change here? » box keep their size (--iz) ----------
+  const VZ = { k: 1, x: 0, y: 0 };   // the zoom, and where the zoomed image's corner is in the frame of the image (px)
+  function applyView() {
+    const st = $('#stage'), W = st.clientWidth, H = st.clientHeight;
+    VZ.k = Math.max(1, Math.min(8, VZ.k || 1));
+    if (VZ.k < 1.005) { VZ.k = 1; VZ.x = 0; VZ.y = 0; }
+    VZ.x = Math.min(0, Math.max(W - W * VZ.k, VZ.x)); VZ.y = Math.min(0, Math.max(H - H * VZ.k, VZ.y));   // the image always fills its frame
+    media.style.transform = VZ.k === 1 ? '' : `translate(${VZ.x}px, ${VZ.y}px) scale(${VZ.k})`;
+    media.style.setProperty('--iz', String(1 / VZ.k));
+    const b = $('#zoomBadge');
+    if (b) { b.style.display = VZ.k > 1 ? '' : 'none'; b.querySelector('.t').textContent = `${Math.round(VZ.k * 100)}${FR ? ' %' : '%'}`; b.querySelector('kbd').textContent = window.Shortcuts?.show?.('viewReset') || ''; }
+    if (typeof drawOv === 'function') drawOv();
+  }
+  function zoomViewAt(cx, cy, f) {   // the point under (cx, cy) stays under it
+    const s = $('#stage').getBoundingClientRect(), ux = (cx - s.left - VZ.x) / VZ.k, uy = (cy - s.top - VZ.y) / VZ.k;
+    const k = Math.max(1, Math.min(8, VZ.k * f));
+    VZ.x = cx - s.left - k * ux; VZ.y = cy - s.top - k * uy; VZ.k = k; applyView();
+  }
+  const resetView = () => { VZ.k = 1; applyView(); };
+  {
+    const wrap = $('#stagewrap');
+    wrap.addEventListener('wheel', (e) => {
+      if (e.target.closest?.('#pop, #pickBtn, #zoomBadge')) return;   // the box's text scrolls as usual
+      e.preventDefault();
+      const d = e.deltaY || e.deltaX; if (d) zoomViewAt(e.clientX, e.clientY, Math.exp(-d * 0.0015));
+    }, { passive: false });
+    let pan = null;
+    wrap.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });   // not the browser's autoscroll
+    wrap.addEventListener('pointerdown', (e) => {
+      if (e.button !== 1 || VZ.k === 1) return;
+      e.preventDefault(); pan = { x: e.clientX, y: e.clientY, x0: VZ.x, y0: VZ.y }; wrap.setPointerCapture(e.pointerId); wrap.classList.add('panning');
+    });
+    wrap.addEventListener('pointermove', (e) => { if (!pan) return; VZ.x = pan.x0 + e.clientX - pan.x; VZ.y = pan.y0 + e.clientY - pan.y; applyView(); });
+    const end = () => { if (!pan) return; pan = null; wrap.classList.remove('panning'); };
+    wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+    $('#zoomBadge').onclick = resetView;
   }
   new ResizeObserver(() => { fitMedia(); }).observe($('#stagewrap'));
   // two groups of tabs, each with its own one shown: the agent's column (Agent · Modifs · Envois) and the right panel

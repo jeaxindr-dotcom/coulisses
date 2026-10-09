@@ -61,6 +61,7 @@
         if (e.key === 'Escape' && stSel) { SP.stage.select(null); return; }
       }
     }
+    if (on('viewReset')) { e.preventDefault(); resetView(); return; }   // Maj+Z: the whole image again (its zoom)
     if (on('play')) { e.preventDefault(); if (shuttle) stopShuttle(); play(); }
     else if (on('frameBack') || on('frameFwd')) {   // one frame; held: the shuttle (×2)
       e.preventDefault();

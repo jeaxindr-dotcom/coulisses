@@ -111,6 +111,16 @@ try {
     const after = await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); return { v: ta.value, focused: document.activeElement === ta }`);
     check(nl === ta0 + '\n' && after.v === ta0 + '\n' && !after.focused, `in a note, Maj+Entrée starts a new line, Entrée confirms it: the field lets go, no new line (${JSON.stringify(nl)} → ${JSON.stringify(after.v)})`);
     await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.value = ta.value.replace(/\\n$/, ''); ta.dispatchEvent(new Event('input', { bubbles: true })); ta.blur(); return 1`); await sleep(300); }   // as it was
+  // the image's zoom (user request, 09/10/2026): the wheel zooms where the mouse is (the pixel under it stays there),
+  // Maj+Z puts the whole image back
+  { const at = await p.eval(`const r = document.querySelector('#ov').getBoundingClientRect(); return [r.left + r.width * 0.7, r.top + r.height * 0.4]`);
+    const comp = () => p.eval(`const r = document.querySelector('#ov').getBoundingClientRect(), [w, h] = __studio.state().size; return [(${at[0]} - r.left) / r.width * w, (${at[1]} - r.top) / r.height * h]`);
+    const c0 = await comp();
+    await p.wheel(at[0], at[1], -300); await sleep(300);
+    const z = (await S()).vz, c1 = await comp();
+    check(z.k > 1.3 && Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) < 1, `the wheel on the image zooms in where the mouse is (×${z.k.toFixed(2)}; the pixel under it: ${c0.map(Math.round)} → ${c1.map(Math.round)})`);
+    await p.key('Z', 'KeyZ', 'Z', 8); await sleep(300);
+    check((await S()).vz.k === 1 && await p.eval(`return document.querySelector('#media').style.transform === ''`), 'Maj+Z: the whole image again'); }
   // the Édition menu
   const [mx, my] = await p.eval(`const r = document.querySelector('#menubar > button[data-menu=edit]').getBoundingClientRect(); return [r.left + 10, r.top + 8]`);
   await p.mouse('mousePressed', mx, my); await p.mouse('mouseReleased', mx, my); await sleep(300);

@@ -34,6 +34,7 @@
     { g: 'image', id: 'toolComment', keys: ['C'] },
     { g: 'image', id: 'ask', keys: ['A'] },
     { g: 'image', id: 'source', keys: ['P'] },
+    { g: 'image', id: 'viewReset', keys: ['Shift+Z'] },
     { g: 'notes', id: 'note', keys: ['N'] },
     { g: 'notes', id: 'range', keys: ['R'] },
     { g: 'notes', id: 'setIn', keys: ['I'] },

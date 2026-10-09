@@ -45,11 +45,12 @@
     g.restore();
   }
   function drawOv() {
-    const dpr = window.devicePixelRatio || 1, r = ovRect();
-    if (!r.width) return;
-    if (ov.width !== Math.round(r.width * dpr) || ov.height !== Math.round(r.height * dpr)) { ov.width = Math.round(r.width * dpr); ov.height = Math.round(r.height * dpr); }
-    const g = ov.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, r.width, r.height);
-    const k = r.width / CW, num = new Map(sorted().map((n, i) => [n.id, i + 1]));
+    // drawn in the image's own size (it zooms with it), sharp up to ×3 of zoom
+    const lw = ov.clientWidth, lh = ov.clientHeight, q = (window.devicePixelRatio || 1) * Math.min(3, VZ.k);
+    if (!lw) return;
+    if (ov.width !== Math.round(lw * q) || ov.height !== Math.round(lh * q)) { ov.width = Math.round(lw * q); ov.height = Math.round(lh * q); }
+    const g = ov.getContext('2d'); g.setTransform(q, 0, 0, q, 0, 0); g.clearRect(0, 0, lw, lh);
+    const k = lw / CW, num = new Map(sorted().map((n, i) => [n.id, i + 1]));
     for (const n of visibleNotes()) {
       const done = statusOf(n) === 'done';
       paintMark(g, n.mark, String(num.get(n.id)), k, n.id === sel ? C.acc : (done ? C.done : C.mark), done && n.id !== sel);
@@ -69,12 +70,15 @@
   // live preview of the code, at the frame shown (loaded hidden on first use)
   let hoverT = 0, hoverPending = false;
   const hideHover = () => { $('#hoverTag').style.display = 'none'; };
+  // the part of the image on screen (zoomed in, only part of it shows), in screen pixels from the image's corner
+  const visBox = () => { const r = ovRect(), s = $('#stage').getBoundingClientRect(); return { x0: Math.max(0, s.left - r.left), y0: Math.max(0, s.top - r.top), x1: Math.min(r.width, s.right - r.left), y1: Math.min(r.height, s.bottom - r.top) }; };
   // a label next to the cursor: on its right, or on its left when it would leave the image; kept inside vertically
+  // (placed in the image's own pixels: zoomed, they are the screen's divided by the zoom)
   function placeBeside(el, pt) {
-    const [px, py] = toPx(pt), r = ovRect(), w = el.offsetWidth, h = el.offsetHeight;
-    el.classList.toggle('left', px + 16 + w > r.width - 6 && px - 16 - w >= 6);
-    el.style.left = px + 'px';
-    el.style.top = Math.max(h / 2 + 6, Math.min(r.height - h / 2 - 6, py)) + 'px';
+    const [px, py] = toPx(pt), v = visBox(), w = el.offsetWidth, h = el.offsetHeight;
+    el.classList.toggle('left', px + 16 + w > v.x1 - 6 && px - 16 - w >= v.x0 + 6);
+    el.style.left = px / VZ.k + 'px';
+    el.style.top = Math.max(v.y0 + h / 2 + 6, Math.min(v.y1 - h / 2 - 6, py)) / VZ.k + 'px';
   }
   async function hoverAt(e) {
     if (tool !== 'select' || popFor || stroke || !M.paused) { hideHover(); return; }
@@ -125,7 +129,7 @@
     openPop({ kind: 'circle', strokes: drawing.strokes }, drawing.frame);
   });
   $('#pickBtn').onclick = () => promptAtPick();
-  window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
+  window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, vz: { ...VZ }, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
     video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null }) };   // for tests
   function promptAtPick() { if (!pickPt) return; $('#pickBtn').style.display = 'none'; openPop({ kind: 'pin', points: [pickPt.pt] }, pickPt.frame); }
 
@@ -134,16 +138,16 @@
   function openPop(mark, frame) {
     const keep = popFor ? $('#popTx').value : '';
     popFor = { mark, frame, target: popFor?.frame === frame ? popFor.target : null };
-    const pop = $('#pop'), all = mark.kind === 'pin' ? mark.points : mark.strokes.flat(), r = ovRect();
+    const pop = $('#pop'), all = mark.kind === 'pin' ? mark.points : mark.strokes.flat(), v = visBox();   // the part of the image on screen
     const [x0, y0] = toPx([Math.min(...all.map((p) => p[0])) - 30, Math.min(...all.map((p) => p[1])) - 30]);
     const [x1, y1] = toPx([Math.max(...all.map((p) => p[0])) + 30, Math.max(...all.map((p) => p[1])) + 30]);
     pop.style.display = 'block';
     const pw = pop.offsetWidth, ph = pop.offsetHeight;
-    let left, top = Math.max(6, Math.min(r.height - ph - 6, y0));
-    if (x1 + 10 + pw <= r.width) left = x1 + 10;
-    else if (x0 - 10 - pw >= 0) left = x0 - 10 - pw;
-    else { left = Math.max(6, Math.min(r.width - pw - 6, x0)); top = y1 + 10 + ph <= r.height ? y1 + 10 : Math.max(6, y0 - 10 - ph); }
-    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    let left, top = Math.max(v.y0 + 6, Math.min(v.y1 - ph - 6, y0));
+    if (x1 + 10 + pw <= v.x1) left = x1 + 10;
+    else if (x0 - 10 - pw >= v.x0) left = x0 - 10 - pw;
+    else { left = Math.max(v.x0 + 6, Math.min(v.x1 - pw - 6, x0)); top = y1 + 10 + ph <= v.y1 ? y1 + 10 : Math.max(v.y0 + 6, y0 - 10 - ph); }
+    pop.style.left = left / VZ.k + 'px'; pop.style.top = top / VZ.k + 'px';   // in the image's own pixels (zoomed: /k)
     const c = contextAt(frame);
     $('#popT').innerHTML = T('st.pop.head', { what: mark.kind === 'pin' ? T('st.pop.pin') : T('st.pop.draw', { n: mark.strokes.length }), f: frame, scene: c.scene ? ' · ' + esc(c.scene) : '', code: mode === 'code' ? T('st.pop.code') : '' });
     $('#popClear').style.display = mark.kind === 'pin' ? 'none' : '';
