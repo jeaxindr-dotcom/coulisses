@@ -24,7 +24,7 @@
   $('#agent').onclick = openConnect;
 
   // ---------- note cards (Modifs = waiting to be sent ; Notes = the others) ----------
-  function renderAll() { renderAgent(); renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (tab === 'scene') renderScene(); }
+  function renderAll() { renderAgent(); renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (onTab('scene')) renderScene(); }
   function gestureHtml(n) {
     if (n.stage) return `<div class="gest">${ic('move')}<span class="obj">${esc(n.stage.name)}</span><span class="k">${esc(deltaWords(n.stage.delta))}</span></div>`;
     if (!n.mark && !n.target) return '';
@@ -142,7 +142,7 @@
   // ---------- inspector ----------
   let inspT = 0;
   function renderInspector(force) {
-    if (tab !== 'insp') return;
+    if (!onTab('insp')) return;
     if (!force && performance.now() - inspT < 150) return;
     inspT = performance.now();
     const f = curFrame(), t = (f + 0.5) / FPS, c = contextAt(f), L = LIVE, rows = [];

@@ -82,13 +82,13 @@ try {
   check(st.proj && st.size[0] === 1920 && st.lanes.join('|') === 'Chapitres|V1 plans|V2 présentateur|A1 voix|Son', `studio: the montage tracks (${st.lanes.join(', ')})`);
   check(await ev(`return document.querySelector('#bStage').classList.contains('off') && document.querySelector('#bSrc').classList.contains('off') && /que sa vidéo/.test(document.querySelector('#bStage .why').textContent) && document.querySelector('#kindTag').textContent.includes('AItelier')`), 'no live preview nor staging (the tools greyed, with the reason), the project tag in the header');
   await p.eval(`document.querySelector('#v').currentTime = 200.5 / 30; return 1`); await sleep(800);
-  await p.eval(`document.querySelector('#tabs button[data-tab=queue]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab=queue]').click(); return 1`); await sleep(300);
   await p.key('n', 'KeyN', 'n'); await sleep(300);
   await p.type('Le plan s01-01 arrive trop tôt'); await sleep(700);
-  await p.eval(`document.activeElement.blur(); document.querySelector('#tabs button[data-tab=insp]').click(); return 1`); await sleep(400);
+  await p.eval(`document.activeElement.blur(); document.querySelector('button[data-tab=insp]').click(); return 1`); await sleep(400);
   check(/s01-01-v2\.mp4/.test(await ev(`return document.querySelector('#insp').innerText`)) && /image 62 du clip/.test(await ev(`return document.querySelector('#insp').innerText`)), 'Inspector: the clip under the playhead and its own frame (image 62 du clip)');
   await sleep(1200); await p.shot(path.join(shots, 'projects-2-studio.png'));
-  await p.eval(`document.querySelector('#tabs button[data-tab=queue]').click(); document.querySelector('#qsend').click(); return 1`);
+  await p.eval(`document.querySelector('button[data-tab=queue]').click(); document.querySelector('#qsend').click(); return 1`);
   await until(`document.querySelector('#modal').style.display === 'flex'`, 60000);
   const line = await ev(`return document.querySelector('#mLine').textContent`);
   check(/^Coulisses · Run d'essai du studio · lot 1/.test(line), `the line to paste names the project (${line.slice(0, 52)}…)`);
@@ -116,7 +116,7 @@ try {
   await until(`window.__studio && __studio.state().video && __studio.state().video !== ${before}`, 40000);
   check(true, 'a new export in 07-renders: the page reloads it by itself');
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);
-  await p.eval(`document.querySelector('#tabs button[data-tab=lots]').click(); return 1`);
+  await p.eval(`document.querySelector('button[data-tab=lots]').click(); return 1`);
   await until(`document.querySelector('#rcCmp')`, 15000);
   check(/master-test-run-v2\.mp4/.test(await ev(`return document.querySelector('#renderCard').innerText`)), '« Envois »: the reviewed export, no « Lancer le rendu »');
   await p.eval(`document.querySelector('#rcCmp').click(); return 1`);

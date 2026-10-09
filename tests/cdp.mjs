@@ -54,6 +54,8 @@ export async function launch({ port = 9333, headless = true } = {}) {
     key: (key, code, text, modifiers = 0) => s('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text, modifiers, windowsVirtualKeyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : ({ Enter: 13, Escape: 27 }[key] ?? 0) }).then(() => s('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers })),
     type: (text) => s('Input.insertText', { text }),
     wheel: (x, y, deltaY, modifiers = 0) => s('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY, modifiers }),
+    // the window's size (the layout on a smaller or a larger screen); the page gets its « resize »
+    size: (width, height) => s('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }),
     close: async () => { try { ws.close(); } catch { /* */ } chrome.kill(); },
   };
   return page;

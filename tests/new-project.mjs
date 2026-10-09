@@ -82,7 +82,7 @@ try {
   await p.key('m', 'KeyM', 'm'); await p.until(`__studio.state().staging`, 30000); await sleep(800);
   check(await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.kind`) === '3d', 'M: the 3D staging (a free camera to look around the scene)');
   await p.key('m', 'KeyM', 'm'); await sleep(400);
-  await p.eval(`document.querySelector('#tabs button[data-tab="agent"]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab="agent"]').click(); return 1`); await sleep(300);
   await p.shot(path.join(SCR, 'new-project-empty.png'));
   // a request: a batch at once
   await p.eval(`const ta = document.querySelector('#agentText'); ta.value = 'Une planète bleue au centre, qui tourne lentement'; document.querySelector('#agentSend').click(); return 1`);

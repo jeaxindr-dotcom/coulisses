@@ -121,7 +121,7 @@
     const box = $('#lots'), lots = [...(STATUS.lots ?? [])].reverse();
     $('#nLots').textContent = lots.length; $('#nLots').classList.toggle('zero', !lots.length);
     $('#nLots').classList.toggle('hot', lots.some((L) => L.claude?.status === 'taken'));
-    if (tab !== 'lots') { rcKey = ''; return; }
+    if (!onTab('lots')) { rcKey = ''; return; }
     renderRender();
     if (!lots.length) { box.innerHTML = `<div class="empty">${T('st.lot.none')}</div>`; return; }
     box.innerHTML = '';

@@ -86,10 +86,12 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 
 | Zone | Contenu |
 |---|---|
-| **À gauche** | Les outils : Sélection (V), Dessin (D), Commentaire (C), Note (N), Plage (R), MP4 ⇄ code (P), Mise en scène (M). |
-| **Au centre** | L'image, ajustée à la place disponible : le MP4 rendu ou l'aperçu vivant du code. |
-| **À droite** | Des onglets. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Notes** : les notes déjà envoyées et les anciennes. **Envois** : les lots, leur état, et « Annuler cette correction ». **Scène** : la mise en scène (objet choisi, décalage, portée, caméra libre). **Médias** : la bibliothèque de la chaîne et l'atelier d'images. **Inspecteur** : à l'image affichée, la scène, les répliques, la caméra, la lumière, la musique, les bruitages, les émotes et qui marche, puis le détail de la note choisie avec l'objet 3D visé. |
-| **En bas** | La timeline multipiste. Pistes : Décors (avec le rideau fermé), Caméra (images clés), Lumière, une piste par personnage (répliques avec forme d'onde, marches, émotes), Musique, Ambiance, Bruitages, Mix (son du MP4), et la bande Notes. Un double-clic sur une réplique crée une note sur toute la réplique. |
+| **En haut** | « Projets / nom du projet » (retour à l'accueil), l'état (notes enregistrées, rendu en cours), l'aide, « Connecter à l'agent » et le bouton blanc de l'action principale : **Lancer le rendu** pour un épisode, **Exporter** pour un projet Remotion qui a son script d'export. |
+| **Rail, tout à gauche** | Accueil, Note (N), Plage (R), Mise en scène (M), MP4 ⇄ code (P), et en bas les Préférences. |
+| **Colonne de gauche** | Les onglets de l'agent. **Agent** : ce que tu écris à l'agent et ses réponses. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Envois** : les lots, leur état, « Annuler cette correction », le rendu et l'export. |
+| **Au centre** | L'image, ajustée à la place disponible : le MP4 rendu ou l'aperçu vivant du code. Dessous : les outils sur l'image (Sélection V, Dessin D, Commentaire C), la lecture (image précédente, lecture, image suivante, temps, numéro d'image), la vitesse et le volume. |
+| **À droite** | Des onglets. **Médias** : la bibliothèque de la chaîne et l'atelier d'images. **Notes** : les notes déjà envoyées et les anciennes. **Scène** : la mise en scène (objet choisi, décalage, portée, caméra libre). **Inspecteur** : à l'image affichée, la scène, les répliques, la caméra, la lumière, la musique, les bruitages, les émotes et qui marche, puis le détail de la note choisie avec l'objet 3D visé. |
+| **En bas, sur toute la largeur** | La timeline multipiste, avec au-dessus l'endroit où l'on est (scène, répliques) et le zoom (− / + / toute la vidéo). Pistes : Décors (avec le rideau fermé), Caméra (images clés), Lumière, une piste par personnage (répliques avec forme d'onde, marches, émotes), Musique, Ambiance, Bruitages, Mix (son du MP4), et la bande Notes. Un double-clic sur une réplique crée une note sur toute la réplique. |
 
 ## Ce qui est nouveau
 
@@ -135,7 +137,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
   - **Les autres chaînes**, une fois passées sous Remotion : le fichier pointe vers la composition du run, que Coulisses joue **en direct, sans export**. La timeline montre les pistes décrites par le projet, chaque note nomme l'élément visé (`data-coulisses`) et le clip (fichier, image du clip), et Claude lit le code. Quand l'export arrive dans le dossier prévu, Coulisses le charge seul.
 - **Le contrat** (ce que le projet Remotion doit fournir) : `docs\FICHE-COULISSES-REMOTION.md`, à donner aux sessions des pipelines. Il compte deux modules, `src/coulisses.ts` et `src/coulisses-timeline.ts`.
 - **Les commandes** : `studio-cli.mjs projet creer --depuis spec.json` (au début du run) et `studio-cli.mjs projet verifier "<fichier.coulisses>"` (jusqu'à « PROJET CONFORME », `--images 1700,8000` pour choisir les images de vérification).
-- **Exporter** (onglet « Envois ») : quand la relecture est finie, le bouton « Exporter la vidéo » lance le script d'export du projet de la chaîne (`scripts\coulisses-rendu.mjs`, contrat dans la fiche). L'avancement s'affiche dans la carte, avec « Arrêter l'export » et le journal (`revue\export.log`). L'export continue même si Coulisses est fermé, et la nouvelle vidéo est chargée seule à la fin. Test : `node tests\coulisses-export.mjs`.
+- **Exporter** (le bouton blanc en haut à droite, ou l'onglet « Envois ») : quand la relecture est finie, le bouton « Exporter la vidéo » lance le script d'export du projet de la chaîne (`scripts\coulisses-rendu.mjs`, contrat dans la fiche). L'avancement s'affiche dans la carte, avec « Arrêter l'export » et le journal (`revue\export.log`). L'export continue même si Coulisses est fermé, et la nouvelle vidéo est chargée seule à la fin. Test : `node tests\coulisses-export.mjs`.
 - **Un exemple complet** : `node tests\coulisses-fixture.mjs` (le projet d'essai). Test : `node tests\coulisses.mjs`.
 
 ## Projets importés (L'AItelier, n'importe quelle vidéo)
@@ -168,7 +170,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 
 ## Rendu depuis le studio
 
-- **Lancer le rendu** : en haut de l'onglet **Envois**. La carte « Rendu » dit ce que le rendu emportera (les lots corrigés depuis la vidéo actuelle). Le clic envoie une demande à ton agent : une ligne à coller, ou rien à coller s'il surveille l'outil. C'est toujours lui qui rend, comme tu l'avais choisi (« rendu sur ton ordre »).
+- **Lancer le rendu** : le bouton blanc en haut à droite, ou en haut de l'onglet **Envois**. La carte « Rendu » dit ce que le rendu emportera (les lots corrigés depuis la vidéo actuelle). Le clic envoie une demande à ton agent : une ligne à coller, ou rien à coller s'il surveille l'outil. C'est toujours lui qui rend, comme tu l'avais choisi (« rendu sur ton ordre »).
 - **Avancement**, dans la carte et dans une pastille en haut de l'écran, visible depuis tous les onglets :
   1. les cinq contrôles automatiques, un par un ;
   2. le rendu : image en cours, pourcentage, temps restant ;

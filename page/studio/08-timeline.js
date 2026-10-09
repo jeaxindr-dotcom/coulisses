@@ -87,6 +87,7 @@
     laneLayout();
     g.textBaseline = 'middle'; g.font = `11px ${FONT}`;
     const span = view.b - view.a, pps = W / span, L = LIVE;
+    showZoom(span);
     // ---- tracks ----
     g.save(); g.beginPath(); g.rect(0, Y.top, cv.clientWidth, H - Y.top); g.clip();
     g.translate(HX, 0);
@@ -394,6 +395,11 @@
   $('#bNote').onclick = () => { M.pause(); addNote(curFrame()); };
   $('#bRange').onclick = () => markRange();
   $('#bFit').onclick = () => { view = { a: 0, b: DUR }; draw(); };
+  // the zoom (the keys + / - and the buttons over the timeline): around the middle of what is shown
+  function zoomBy(k) { if (!DUR) return; const c = (view.a + view.b) / 2, s = Math.max(40 / FPS, Math.min(DUR, (view.b - view.a) * k)); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
+  $('#bZoomIn').onclick = () => zoomBy(1 / 1.5);
+  $('#bZoomOut').onclick = () => zoomBy(1.5);
+  function showZoom(span) { const el = $('#zoomPct'), z = `${Math.round((DUR / span) * 100)}${FR ? ' %' : '%'}`; if (el && el.textContent !== z) el.textContent = z; }
   $('#vol').oninput = (e) => { M.volume = +e.target.value; };
   document.querySelectorAll('.spd').forEach((b) => b.onclick = () => { M.playbackRate = +b.dataset.s; document.querySelectorAll('.spd').forEach((x) => x.classList.toggle('on', x === b)); });
   $('#hideDone').onchange = renderList;

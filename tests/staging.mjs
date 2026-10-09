@@ -67,7 +67,7 @@ try {
   await p.key('m', 'KeyM', 'm'); await sleep(500);
   check(!(await p.eval(`return __studio.state().staging`)), 'M again: staging off');
   // send
-  await p.eval(`document.querySelector('#tabs button[data-tab=queue]').click(); return 1`);
+  await p.eval(`document.querySelector('button[data-tab=queue]').click(); return 1`);
   await p.eval(`document.querySelector('#qsend').click(); return 1`);
   await p.until(`document.querySelector('#modal').style.display === 'flex'`, 120000);
   const lot = +/lot (\d+)/.exec(await p.eval(`return document.querySelector('#mLine').textContent`))[1];

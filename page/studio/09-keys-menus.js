@@ -85,8 +85,8 @@
     else if (on('setOut') && sel) { const n = byId(sel); setFrames(n, n.frame, curFrame()); save(); renderAll(); }
     else if (on('loop') && sel) { const n = byId(sel); if (n.end !== null) { loopId = loopId === n.id ? null : n.id; if (loopId) { seekFrame(n.frame); M.play(); } renderAll(); } }
     else if (on('deleteNote') && sel) { e.preventDefault(); delNote(sel); setSave(T('st.key.deleted'), 'ok'); }   // Ctrl+Z brings it back
-    else if (on('zoomIn')) { const c = (view.a + view.b) / 2, s = Math.max(40 / FPS, (view.b - view.a) / 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
-    else if (on('zoomOut')) { const c = (view.a + view.b) / 2, s = Math.min(DUR, (view.b - view.a) * 1.5); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
+    else if (on('zoomIn')) zoomBy(1 / 1.5);
+    else if (on('zoomOut')) zoomBy(1.5);
   });
 
   // ---------- the menu bar (menubar.js): « Fichier · Édition · Outils · Aide », every item calls what the page already does ----------
@@ -205,6 +205,28 @@
     ]);
   }
   mountMenus();
+  // the far-left rail: « Accueil » (the home screen: every episode and project) at the top, « Préférences » at the bottom
+  $('#bHome').onclick = () => { const why = noHub(); if (why) return setSave(why, 'err'); toHub(); };
+  $('#bPrefs').onclick = showPrefs;
+  $('#crumb').onclick = (e) => { e.preventDefault(); toHub(); };
+  for (const [b, key] of [[$('#bZoomIn'), 'zoomIn'], [$('#bZoomOut'), 'zoomOut']]) { const k = SC.show(key); if (k) b.title += ` (${k})`; }
+  // the top bar's main action, white (user request, 09/10/2026, after the reference's « Export »): an episode's
+  // « Lancer le rendu » (asked to the agent), a run's « Exporter » (its export script, the first of its variants); a
+  // project with neither: no button. Busy (a render or an export running): it shows where it goes, in « Envois »
+  const goKind = () => (!META ? null : !PROJ ? 'render' : META.kind === 'remotion' && META.features?.export ? 'export' : null);
+  const goBusy = () => (goKind() === 'render' ? (renderBusy() ? T('menu.why.renderBusy') : null) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : null);
+  function markGo() {
+    const b = $('#hdrGo'), k = goKind();
+    b.style.display = k ? '' : 'none'; if (!k) return;
+    const o = exportOpts()[0], why = goBusy();
+    b.querySelector('.t').textContent = k === 'render' ? T('menu.render') : T('st.top.export');
+    b.title = why ?? (k === 'render' ? T('st.top.renderTitle', { ep: META.episode ?? '' }) : (isDefaultExport(o.label) ? T('st.top.exportTitle') : T('st.top.exportTitleAs', { label: o.label })));
+    b.classList.toggle('off', !!why);
+  }
+  $('#hdrGo').onclick = () => {
+    if (goBusy()) { setTab('lots'); return; }
+    if (goKind() === 'render') launchRender(); else if (goKind() === 'export') { const o = exportOpts()[0]; startExportUI(o.id, o.label); }
+  };
 
   const hashFrame = () => { const m = /f=(\d+)/.exec(location.hash); return m ? +m[1] : null; };
 

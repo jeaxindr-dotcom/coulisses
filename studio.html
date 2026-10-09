@@ -20,28 +20,64 @@
 </head>
 <body>
 <nav id="menubar"></nav>
+<!-- the layout (user request, 09/10/2026, after a video editor's): the agent's column on the left, the image in the
+     middle with its tools and its transport under it, the media and the notes on the right, the timeline the whole width
+     under them, a slim rail on the far left; the top bar: « Projets / name », the state, the main action -->
 <header>
   <a class="logo" id="logo" title="Coulisses">C</a>
+  <a class="crumb" id="crumb">{{st.top.projects}}</a><span class="crumbSep" id="crumbSep">/</span>
   <h1 id="title">Studio</h1><span id="kindTag"></span><span class="sub" id="render"></span>
   <span class="grow"></span>
+  <span id="save">—</span>
   <button id="helpBtn" title="{{st.help.title}}" aria-label="{{st.help.aria}}"><i data-ic="question"></i></button>
   <button id="renderPill" title="{{st.pill.title}}"><span class="t">{{st.rc.render}}</span><span class="mini"><i></i></span></button>
   <button id="agent" title="{{st.agent.title}}"><span class="dot"></span><span class="t">{{st.agent.connect}}</span></button>
-  <span id="save">—</span>
+  <button id="hdrGo" style="display:none"><i data-ic="film"></i><span class="t"></span></button>
 </header>
 <div id="app">
   <nav id="rail" class="glass">
-    <button data-tool="select" class="on"><i data-ic="pointer"></i><span class="tipr">{{st.rail.select}}</span></button>
-    <button data-tool="draw"><i data-ic="pen"></i><span class="tipr">{{st.rail.draw}}</span></button>
-    <button data-tool="comment"><i data-ic="comment"></i><span class="tipr">{{st.rail.comment}}</span></button>
+    <button id="bHome"><i data-ic="home"></i><span class="tipr"><span>{{st.start.home}}</span><span class="why"></span></span></button>
     <div class="sep"></div>
     <button id="bNote"><i data-ic="plus"></i><span class="tipr">{{st.rail.note}}</span></button>
     <button id="bRange"><i data-ic="range"></i><span class="tipr">{{st.rail.range}}</span></button>
     <div class="sep"></div>
     <button id="bStage"><i data-ic="move"></i><span class="tipr"><span>{{st.rail.stage}}</span><span class="why"></span></span></button>
-    <div class="sep"></div>
     <button id="bSrc"><i data-ic="code"></i><span class="tipr"><span>{{st.rail.src}}</span><span class="why"></span></span></button>
+    <div class="grow"></div>
+    <button id="bPrefs"><i data-ic="gear"></i><span class="tipr">{{st.rail.prefs}}</span></button>
   </nav>
+  <aside id="lside" class="glass">
+    <div class="tabbar" id="ltabs">
+      <button data-tab="agent"><i data-ic="sparkle"></i>{{st.tab.agent}}<span class="n zero" id="nAgent">0</span></button>
+      <button data-tab="queue"><i data-ic="list"></i>{{st.tab.queue}}<span class="n zero" id="nQueue">0</span></button>
+      <button data-tab="lots"><i data-ic="send"></i>{{st.tab.lots}}<span class="n zero" id="nLots">0</span></button>
+    </div>
+    <div class="tab" id="tab-agent">
+      <div class="bar"><b>{{st.ag.title}}</b><span class="grow"></span><span class="muted">{{st.ag.sub}}</span></div>
+      <div class="who" id="agentWho"><span class="dot"></span><span class="t"></span></div>
+      <div class="scroll" id="agentList"></div>
+      <div class="foot">
+        <textarea id="agentText" placeholder="{{st.ag.placeholder}}"></textarea>
+        <button id="agentSend" class="primary">{{st.ag.send}}</button>
+        <span class="muted" id="agentHint" style="font-size:11.5px"></span>
+      </div>
+    </div>
+    <div class="tab" id="tab-queue">
+      <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
+      <div class="scroll" id="draftList"></div>
+      <div class="foot">
+        <textarea id="qwords" placeholder="{{st.queue.words}}"></textarea>
+        <button id="qsend" class="primary" disabled>{{st.queue.send}}</button>
+        <span id="qhint"></span>
+      </div>
+    </div>
+    <div class="tab" id="tab-lots">
+      <div class="bar"><b>{{st.lots.title}}</b></div>
+      <div id="renderCard"></div>
+      <div class="scroll" id="lots"></div>
+    </div>
+  </aside>
+  <div class="split v" id="splitL" title="{{st.splitV}}"></div>
   <section id="viewer" class="glass">
     <div id="viewbar">
       <span class="seg" title="{{st.src.title}}">
@@ -74,51 +110,42 @@
         <div id="heldOv">{{st.held}}</div>
       </div>
     </div>
+    <!-- under the image: the tools on it (left), the transport (middle), the speed and the sound (right) -->
+    <div id="ctlbar">
+      <div class="side l">
+        <span class="seg tools">
+          <button data-tool="select" class="on"><i data-ic="pointer"></i><span class="tipr">{{st.rail.select}}</span></button><button data-tool="draw"><i data-ic="pen"></i><span class="tipr">{{st.rail.draw}}</span></button><button data-tool="comment"><i data-ic="comment"></i><span class="tipr">{{st.rail.comment}}</span></button>
+        </span>
+      </div>
+      <div class="mid">
+        <button id="bPrev" class="icon" title="{{st.tr.prev}}"><i data-ic="left"></i></button>
+        <button id="bPlay" title="{{st.tr.play}}"><i data-ic="play"></i></button>
+        <button id="bNext" class="icon" title="{{st.tr.next}}"><i data-ic="right"></i></button>
+        <span id="tc">0:00.000</span><span id="fr">{{st.tr.frame0}}</span>
+      </div>
+      <div class="side r">
+        <span class="spds"><button class="spd" data-s="0.25">¼</button><button class="spd" data-s="0.5">½</button><button class="spd on" data-s="1">1×</button><button class="spd" data-s="2">2×</button></span>
+        <span class="muted volic"><i data-ic="volume"></i></span><input id="vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
+      </div>
+    </div>
   </section>
   <div class="split v" id="splitV" title="{{st.splitV}}"></div>
   <aside id="side" class="glass">
-    <div id="tabs">
-      <button data-tab="agent">{{st.tab.agent}}<span class="n zero" id="nAgent">0</span></button>
-      <button data-tab="queue">{{st.tab.queue}}<span class="n zero" id="nQueue">0</span></button>
-      <button data-tab="notes">{{st.tab.notes}}<span class="n zero" id="nNotes">0</span></button>
-      <button data-tab="lots">{{st.tab.lots}}<span class="n zero" id="nLots">0</span></button>
-      <button data-tab="insp">{{st.tab.insp}}</button>
-      <button data-tab="medias">{{st.tab.medias}}<span class="n" id="nMedias"></span></button>
-      <button data-tab="scene">{{st.tab.scene}}</button>
+    <div class="tabbar" id="tabs">
+      <button data-tab="medias"><i data-ic="image"></i>{{st.tab.medias}}<span class="n" id="nMedias"></span></button>
+      <button data-tab="notes"><i data-ic="comment"></i>{{st.tab.notes}}<span class="n zero" id="nNotes">0</span></button>
+      <button data-tab="scene"><i data-ic="box"></i>{{st.tab.scene}}</button>
+      <button data-tab="insp"><i data-ic="sliders"></i>{{st.tab.insp}}</button>
     </div>
-    <div class="tab" id="tab-agent">
-      <div class="bar"><b>{{st.ag.title}}</b><span class="grow"></span><span class="muted">{{st.ag.sub}}</span></div>
-      <div class="who" id="agentWho"><span class="dot"></span><span class="t"></span></div>
-      <div class="scroll" id="agentList"></div>
-      <div class="foot">
-        <textarea id="agentText" placeholder="{{st.ag.placeholder}}"></textarea>
-        <button id="agentSend" class="primary">{{st.ag.send}}</button>
-        <span class="muted" id="agentHint" style="font-size:11.5px"></span>
-      </div>
-    </div>
-    <div class="tab" id="tab-queue">
-      <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
-      <div class="scroll" id="draftList"></div>
-      <div class="foot">
-        <textarea id="qwords" placeholder="{{st.queue.words}}"></textarea>
-        <button id="qsend" class="primary" disabled>{{st.queue.send}}</button>
-        <span id="qhint"></span>
-      </div>
-    </div>
+    <div class="tab" id="tab-medias"></div>
     <div class="tab" id="tab-notes">
       <div class="bar"><b id="count">{{st.notes.zero}}</b><span class="grow"></span><label class="chk"><input type="checkbox" id="hideDone"> {{st.notes.hideDone}}</label></div>
       <div class="scroll" id="list"></div>
-    </div>
-    <div class="tab" id="tab-lots">
-      <div class="bar"><b>{{st.lots.title}}</b></div>
-      <div id="renderCard"></div>
-      <div class="scroll" id="lots"></div>
     </div>
     <div class="tab" id="tab-scene">
       <div class="bar"><b>{{st.stage.badge}}</b><span class="grow"></span><span class="muted" id="sceneState">{{st.scene.off}}</span></div>
       <div class="scroll" id="scene"></div>
     </div>
-    <div class="tab" id="tab-medias"></div>
     <div class="tab" id="tab-insp">
       <div class="bar"><b>{{st.tab.insp}}</b><span class="grow"></span><span class="muted">{{st.insp.sub}}</span></div>
       <div class="scroll" id="insp"></div>
@@ -126,17 +153,14 @@
   </aside>
   <div class="split h" id="splitH" title="{{st.splitH}}"></div>
   <section id="tlpanel" class="glass">
-    <div id="transport">
-      <button id="bPrev" class="icon" title="{{st.tr.prev}}"><i data-ic="left"></i></button>
-      <button id="bPlay" title="{{st.tr.play}}"><i data-ic="play"></i></button>
-      <button id="bNext" class="icon" title="{{st.tr.next}}"><i data-ic="right"></i></button>
-      <span id="tc">0:00.000</span><span id="fr">{{st.tr.frame0}}</span>
-      <span class="sep"></span>
-      <button class="spd" data-s="0.25">¼</button><button class="spd" data-s="0.5">½</button><button class="spd on" data-s="1">1×</button><button class="spd" data-s="2">2×</button>
-      <span class="sep"></span>
-      <button id="bFit" class="icon" title="{{st.tr.fit}}"><i data-ic="fit"></i></button>
-      <span class="muted" style="display:inline-flex;margin-left:6px"><i data-ic="volume"></i></span><input id="vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
+    <div id="tlbar">
       <div id="context">—</div>
+      <span class="zoom">
+        <button id="bZoomOut" class="icon" title="{{st.tl.zoomOut}}"><i data-ic="minus"></i></button>
+        <span id="zoomPct" title="{{st.tl.zoom}}">100 %</span>
+        <button id="bZoomIn" class="icon" title="{{st.tl.zoomIn}}"><i data-ic="plus"></i></button>
+        <button id="bFit" class="icon" title="{{st.tr.fit}}"><i data-ic="fit"></i></button>
+      </span>
     </div>
     <div id="tlwrap"><canvas id="tl"></canvas><div id="tip"></div></div>
   </section>

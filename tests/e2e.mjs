@@ -97,7 +97,7 @@ try {
   for (const e of L.edits) console.log('   ' + cli('reply', e.id, `Test : modif ${e.k} traitée`, '--status', 'done'));
   console.log('   ' + cli('done', String(lot), 'Lot de test traité'));
   await sleep(3500);
-  await p.eval(`document.querySelector('#tabs button[data-tab=lots]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab=lots]').click(); return 1`); await sleep(300);
   const lotsTxt = await p.eval(`return document.querySelector('#lots').innerText`);
   check(/corrigé par l'agent/i.test(lotsTxt) && /Annuler cette correction/.test(lotsTxt), '« Envois »: lot done, undo offered');
   check(await p.eval(`return /Afficher dans l'Explorateur/.test(document.querySelector('#renderCard')?.innerText ?? '') && !!document.querySelector('#rcReveal')`), '« Envois » › Rendu: « Afficher dans l\'Explorateur » (the video, selected in its folder)');
@@ -118,7 +118,7 @@ try {
   check(['Caméra', 'Lumière', 'Narrateur', 'Hazel', 'Musique', 'Ambiance', 'Bruitages', 'Mix'].every((x) => st.lanes.includes(x)), `timeline tracks: ${st.lanes.join(', ')}`);
   const pk = await (await fetch(`http://localhost:${PORT}/api/peaks?src=%40mix`)).json();
   check(pk.peaks.length > 40000, `waveform of the MP4 mix (${pk.peaks.length} peaks)`);
-  await p.eval(`document.querySelector('#tabs button[data-tab=insp]').click(); return 1`); await sleep(400);
+  await p.eval(`document.querySelector('button[data-tab=insp]').click(); return 1`); await sleep(400);
   check(/Caméra/.test(await p.eval(`return document.querySelector('#insp').innerText`)) && /Musique/.test(await p.eval(`return document.querySelector('#insp').innerText`)), 'inspector: camera, music… at this frame');
   console.log('timeline wheel (DaVinci Resolve style)');
   const r = await p.eval(`const r = document.querySelector('#tl').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]`);

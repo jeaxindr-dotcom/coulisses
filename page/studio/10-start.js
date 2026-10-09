@@ -11,12 +11,13 @@
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
       if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }
-      if (META.newProject && !(data0Notes ?? 0)) tab = 'agent';
+      if (META.newProject && !(data0Notes ?? 0)) tabL = 'agent';
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
       markTools();
       document.title = PROJ ? `Coulisses — ${META.title}` : `Coulisses · ${META.episode} — ${META.title}`;
-      if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; }
+      if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; $('#crumb').href = META.hub; $('#crumb').title = T('st.start.home'); }
+      else { document.body.classList.add('nohub'); $('#bHome').classList.add('off'); $('#bHome').querySelector('.why').textContent = T('menu.why.noHub'); }
       $('#title').textContent = PROJ ? META.title : `${META.episode} · ${META.title}`;
       $('#render').textContent = META.render ? T('st.start.render', { name: META.render.name, what: T(PROJ ? 'st.start.exported' : 'st.start.rendered'), date: FR ? new Date(META.render.mtime).toLocaleString() : new Date(META.render.mtime).toLocaleString('en-US', { hour12: false }) }) : META.features?.code ? T('st.start.liveCode') : T('st.start.noVideo');
       if (PROJ) { /* no episode plan: the montage plan (if any) gives the tracks */ }
@@ -27,7 +28,7 @@
       HIST.last = JSON.stringify(notes);
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
       STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
-      buildLanes(); setTab(tab); fitMedia(); resize(); renderAll(); updateHud();
+      buildLanes(); setTab(tabR); setTab(tabL); fitMedia(); resize(); renderAll(); updateHud();
       loadLive();
       setSave(notes.length ? T('st.start.loaded', { n: notes.length }) : T('st.start.ready'), 'ok');
       pollReplies();
@@ -66,4 +67,4 @@
       })();
     } catch (e) { setSave(T('st.start.noAnswer'), 'err'); console.error(e); }
   })();
-  window.addEventListener('resize', () => { fitMedia(); resize(); });
+  window.addEventListener('resize', () => { applySizes(); fitMedia(); resize(); });   // a narrower window: the two columns give way (00-base.js)

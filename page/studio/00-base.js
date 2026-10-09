@@ -59,27 +59,45 @@
     point: '<path d="M12 4v16"/><circle cx="12" cy="12" r="3"/>',
     move: '<path d="M12 2v20M2 12h20"/><path d="m15 19-3 3-3-3M19 9l3 3-3 3M5 9l-3 3 3 3M9 5l3-3 3 3"/>',
     camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+    home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+    sparkle: '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>',
+    list: '<path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+    minus: '<path d="M5 12h14"/>',
+    box: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    sliders: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
   };
   const ic = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] ?? ''}</svg>`;
   document.querySelectorAll('i[data-ic]').forEach((el) => { el.outerHTML = ic(el.dataset.ic); });
 
   // ---------- panels: sizes (dragged splitters, remembered), image fitted in its area ----------
+  // three columns: the agent's (--lside, on the left), the image, the media and notes (--side, on the right); the image
+  // keeps at least IMG_MIN px: on a narrow window the two panels give way, in proportion (what was dragged is kept)
   const root = document.documentElement;
-  const applySizes = () => { root.style.setProperty('--side', store.get('side', 420) + 'px'); root.style.setProperty('--tlh', store.get('tlh', 330) + 'px'); };
+  const L_MIN = 280, S_MIN = 300, IMG_MIN = 420, CHROME = 12 * 2 + 56 + 12 * 2;   // #app's padding, the rail, the two splitters
+  function applySizes() {
+    let l = store.get('lside', 340), s = store.get('side', 430);
+    const room = window.innerWidth - CHROME - IMG_MIN;
+    if (l + s > room) { const k = Math.max(0, room - L_MIN - S_MIN) / Math.max(1, l - L_MIN + s - S_MIN); l = L_MIN + (l - L_MIN) * Math.min(1, k); s = S_MIN + (s - S_MIN) * Math.min(1, k); }
+    root.style.setProperty('--lside', Math.round(l) + 'px'); root.style.setProperty('--side', Math.round(s) + 'px');
+    root.style.setProperty('--tlh', Math.round(Math.max(150, Math.min(window.innerHeight - 340, store.get('tlh', Math.min(300, window.innerHeight * 0.32))))) + 'px');
+  }
   applySizes();
   function splitter(el, axis) {
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('drag');
+      const room = window.innerWidth - CHROME - IMG_MIN;
       const move = (ev) => {
-        if (axis === 'x') store.set('side', Math.round(Math.max(320, Math.min(window.innerWidth - 500, window.innerWidth - ev.clientX))));
-        else store.set('tlh', Math.round(Math.max(150, Math.min(window.innerHeight - 260, window.innerHeight - ev.clientY))));
+        if (axis === 'l') store.set('lside', Math.round(Math.max(L_MIN, Math.min(room - parseFloat(css('--side')), ev.clientX - $('#lside').getBoundingClientRect().left))));
+        else if (axis === 'x') store.set('side', Math.round(Math.max(S_MIN, Math.min(room - parseFloat(css('--lside')), window.innerWidth - 12 - ev.clientX))));
+        else store.set('tlh', Math.round(Math.max(150, Math.min(window.innerHeight - 300, window.innerHeight - ev.clientY))));
         applySizes(); fitMedia(); resize();
       };
       const up = () => { el.classList.remove('drag'); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
       el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
     });
   }
-  splitter($('#splitV'), 'x'); splitter($('#splitH'), 'y');
+  splitter($('#splitL'), 'l'); splitter($('#splitV'), 'x'); splitter($('#splitH'), 'y');
   function fitMedia() {
     const box = $('#stagewrap').getBoundingClientRect(), w = Math.max(160, box.width - 32), h = Math.max(90, box.height - 28);
     const R = CW / CH, W0 = Math.floor(Math.min(w, h * R)), H0 = Math.floor(W0 / R);
@@ -87,18 +105,27 @@
     drawOv();
   }
   new ResizeObserver(() => { fitMedia(); }).observe($('#stagewrap'));
-  let tab = store.get('tab', 'queue');
+  // two groups of tabs, each with its own one shown: the agent's column (Agent · Modifs · Envois) and the right panel
+  // (Médias · Notes · Scène · Inspecteur); `tab` is the last one chosen, onTab(t) says whether t is shown
+  const LEFT = new Set(['agent', 'queue', 'lots']);
+  const tab0 = store.get('tab', null);   // the one tab of the earlier layout: kept in its group
+  let tabL = store.get('tabL', LEFT.has(tab0) ? tab0 : 'queue'), tabR = store.get('tabR', tab0 && !LEFT.has(tab0) ? tab0 : 'medias');
+  let tab = tabL;
+  const onTab = (t) => (LEFT.has(t) ? tabL : tabR) === t;
   function setTab(t) {
-    tab = t; store.set('tab', t);
-    document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    document.querySelector(`#tabs button[data-tab="${t}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x.id === 'tab-' + t));
+    const left = LEFT.has(t), bar = left ? '#ltabs' : '#tabs';
+    if (!document.querySelector(`${bar} button[data-tab="${t}"]`)) return;
+    tab = t;
+    if (left) { tabL = t; store.set('tabL', t); } else { tabR = t; store.set('tabR', t); }
+    document.querySelectorAll(`${bar} button`).forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    document.querySelector(`${bar} button[data-tab="${t}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    document.querySelectorAll(`${left ? '#lside' : '#side'} > .tab`).forEach((x) => x.classList.toggle('on', x.id === 'tab-' + t));
     if (t === 'insp') renderInspector(true);
     if (t === 'lots') renderLots();
     if (t === 'scene') renderScene();
-    if (t === 'medias') window.CoulissesMedias?.show(); else window.CoulissesMedias?.hide();
+    if (!left) { if (t === 'medias') window.CoulissesMedias?.show(); else window.CoulissesMedias?.hide(); }
   }
-  document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+  document.querySelectorAll('.tabbar button[data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   $('#helpBtn').onclick = () => window.Shortcuts?.open();   // Aide › Raccourcis clavier (shortcuts.js)
   // « Langue · Language » (Édition › Préférences): the user's choice for the whole app (settings.json, via
   // the server); the notes are saved first, and the page comes back in the new language on the same frame

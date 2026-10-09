@@ -46,8 +46,8 @@ try {
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
   p = await launch({ port: 9391 });
   await p.goto(U + '/');
-  await p.until(`window.__studio && document.querySelector('#tabs button[data-tab=lots]')`, 60000);
-  await p.eval(`window.confirm = () => true; document.querySelector('#tabs button[data-tab=lots]').click(); return 1`);
+  await p.until(`window.__studio && document.querySelector('button[data-tab=lots]')`, 60000);
+  await p.eval(`window.confirm = () => true; document.querySelector('button[data-tab=lots]').click(); return 1`);
   await p.until(`/Rendre ce plan/.test(document.querySelector('#renderCard')?.innerText ?? '')`, 20000);
   const card0 = await p.eval(`return document.querySelector('#renderCard').innerText`);
   check(/Ce plan est un clip de « Short essai » \(plan\.mp4\)/.test(card0) && !!(await p.eval(`return document.querySelector('.shGo') ? 1 : 0`)), '1. the shot\'s card: « Rendre ce plan », a clip of « Short essai » (plan.mp4)');

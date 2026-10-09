@@ -58,13 +58,13 @@ try {
   await p.mouse('mousePressed', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5); await p.mouse('mouseReleased', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5);
   await until(`document.querySelector('#pop').style.display === 'block'`, 10000); await sleep(1500);
   await p.type('Le titre arrive trop vite'); await p.key('Enter', 'Enter'); await sleep(800);
-  await p.eval(`document.activeElement?.blur?.(); document.querySelector('#tabs button[data-tab=insp]').click(); return 1`); await sleep(500);
+  await p.eval(`document.activeElement?.blur?.(); document.querySelector('button[data-tab=insp]').click(); return 1`); await sleep(500);
   const insp = await ev(`return document.querySelector('#insp').innerText`);
   check(/titre s02/.test(insp), 'the pin names what it points at (« titre s02 », from data-coulisses)');
   check(/Plans\s+plan s02 · Trois chiffres/.test(insp) && /image 60 du clip/.test(insp), 'Inspector: the clip of the project\'s timeline and its own frame');
   await p.shot(path.join(shots, 'coulisses-1-code.png'));
   // 3) send: a batch on the code
-  await p.eval(`document.querySelector('#tabs button[data-tab=queue]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab=queue]').click(); return 1`); await sleep(300);
   await p.eval(`document.querySelector('#qsend').click(); return 1`);
   await until(`document.querySelector('#modal').style.display === 'flex'`, 120000);
   const REVUE = path.join(RUN, 'revue'), md = fs.readFileSync(path.join(REVUE, 'lots', '001.md'), 'utf8');

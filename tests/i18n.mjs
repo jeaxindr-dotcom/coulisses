@@ -169,8 +169,8 @@ try {
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(600);
   const studioUrl = await ev('return location.origin');
-  check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && (await ev(`return [...document.querySelectorAll('#tabs button')].map((b) => b.childNodes[0].textContent).join('|')`)) === 'Agent|Edits|Notes|Batches|Inspector|Media|Scene',
-    'studio: the tabs « Agent · Edits · Notes · Batches · Inspector · Media · Scene », the tag « · live code »');
+  check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && (await ev(`return [...document.querySelectorAll('.tabbar button')].map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|')`)) === 'Agent|Edits|Batches|Media|Notes|Scene|Inspector',
+    'studio: the tabs « Agent · Edits · Batches » (left) and « Media · Notes · Scene · Inspector » (right), the tag « · live code »');
   // a pin on the title of plan s02 (frame 150), named by data-coulisses, sent as a batch
   await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(150); return 1`); await sleep(900);
   const r = await ev(`const r = document.querySelector('#media').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]`);
@@ -179,9 +179,9 @@ try {
   await until(`document.querySelector('#pop').style.display === 'block'`, 10000); await sleep(1500);
   check(/^Spot · frame 150/.test(await ev(`return document.querySelector('#popT').textContent`)) && (await ev(`return document.querySelector('#popTx').placeholder`)) === 'What should change here?', 'the note box: « Spot · frame 150 », « What should change here? »');
   await p.type('The title comes in too fast'); await p.key('Enter', 'Enter'); await sleep(800);
-  for (const tab of ['agent', 'queue', 'notes', 'lots', 'medias', 'insp']) { await p.eval(`document.activeElement?.blur?.(); document.querySelector('#tabs button[data-tab=${tab}]').click(); return 1`); await sleep(500); await scan(`studio (Remotion run), tab ${tab}`); }
+  for (const tab of ['agent', 'queue', 'notes', 'lots', 'medias', 'insp']) { await p.eval(`document.activeElement?.blur?.(); document.querySelector('button[data-tab=${tab}]').click(); return 1`); await sleep(500); await scan(`studio (Remotion run), tab ${tab}`); }
   check(/frame \d+ · /i.test(await ev(`return document.querySelector('#insp').innerText`)) && /Plans\s+plan s02 · Trois chiffres/.test(await ev(`return document.querySelector('#insp').innerText`)), 'Inspector: « Frame … », the project\'s own track names as they are');
-  await p.eval(`document.querySelector('#tabs button[data-tab=queue]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab=queue]').click(); return 1`); await sleep(300);
   check(/^Send the edit to the agent$/.test((await ev(`return document.querySelector('#qsend').textContent`)).trim()), 'the send button: « Send the edit to the agent »');
   await p.eval(`document.querySelector('#qsend').click(); return 1`);
   await until(`document.querySelector('#modal').style.display === 'flex'`, 120000);
@@ -199,7 +199,7 @@ try {
   check(/^batch 1 taken: 1 note\(s\) "The agent is fixing" in the tool$/.test(tk.out) && new RegExp(`^${id}: done, 0 image\\(s\\), 1 message\\(s\\)$`).test(rp.out)
     && /^batch 1 closed \(done\) · no snapshot: cannot be undone$/.test(dn.out) && /session watching: no/.test(stt.out) && /batch 1 · 1 edit\(s\) · .* · agent: done/.test(stt.out), 'take / reply / done / status: in English');
   await sleep(3500);
-  await p.eval(`document.querySelector('#tabs button[data-tab=lots]').click(); return 1`); await sleep(600);
+  await p.eval(`document.querySelector('button[data-tab=lots]').click(); return 1`); await sleep(600);
   check(/Batch 1/.test(await ev(`return document.querySelector('#lots').innerText`)) && /Fixed by the agent/.test(await ev(`return document.querySelector('#lots').innerText`)), '« Batches »: « Batch 1 · Fixed by the agent »');
   await scan('studio, tab Batches after the fix');
   await p.eval(`document.querySelector('#helpBtn').click(); return 1`); await sleep(200);
@@ -237,7 +237,7 @@ try {
   check(!!stUrl && /review studio for E03/.test(stOut) && /Close this window to stop the tool\./.test(stOut), `the studio's console, in English (« Open: ${stUrl} »)`);
   await p.goto(stUrl);
   await until(`document.querySelector('#v').readyState >= 2`, 60000); await sleep(2500);
-  for (const tab of ['agent', 'queue', 'notes', 'lots', 'insp', 'medias', 'scene']) { await p.eval(`document.querySelector('#tabs button[data-tab=${tab}]').click(); return 1`); await sleep(500); await scan(`studio (episode E03), tab ${tab}`); }
+  for (const tab of ['agent', 'queue', 'notes', 'lots', 'insp', 'medias', 'scene']) { await p.eval(`document.querySelector('button[data-tab=${tab}]').click(); return 1`); await sleep(500); await scan(`studio (episode E03), tab ${tab}`); }
   check(/Start the render/.test(await ev(`return document.querySelector('#renderCard').innerText`)) && /Move the objects yourself/.test(await ev(`return document.querySelector('#scene').innerText`)), 'the render card « Start the render », the staging panel « Move the objects yourself »');
   await until(`__studio.state().lanes.includes('Camera')`, 60000).catch(() => {});
   const lanes = await ev(`return __studio.state().lanes`);

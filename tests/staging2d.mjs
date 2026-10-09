@@ -60,14 +60,15 @@ try {
 
   // ---------- 1. the same tools everywhere ----------
   console.log('les mêmes outils partout');
-  const rail = await p.eval(`return [...document.querySelectorAll('#rail button')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
-  check(rail.map((b) => b.id).join() === 'select,draw,comment,bNote,bRange,bStage,bSrc' && rail.every((b) => b.shown), `the rail: ${rail.map((b) => b.id).join(' · ')}, all shown`);
+  const rail = await p.eval(`return [...document.querySelectorAll('#rail button, #ctlbar button[data-tool]')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
+  check(rail.map((b) => b.id).join() === 'bHome,bNote,bRange,bStage,bSrc,bPrefs,select,draw,comment' && rail.every((b) => b.shown), `the rail and the tools under the image: ${rail.map((b) => b.id).join(' · ')}, all shown`);
   const src = rail.find((b) => b.id === 'bSrc'), stg = rail.find((b) => b.id === 'bStage');
   check(src.off && /Pas encore de vidéo/.test(src.why) && !stg.off, `« MP4 ⇄ code » greyed here (« ${src.why} »), « Mise en scène » ready`);
-  const tabs = await p.eval(`const bar = document.querySelector('#tabs'), r = bar.getBoundingClientRect();
-    return { names: [...bar.querySelectorAll('button')].map((b) => b.childNodes[0].textContent), cut: [...bar.querySelectorAll('button')].filter((b) => b.scrollWidth > b.clientWidth + 1).length,
-      fits: bar.scrollWidth <= bar.clientWidth + 1, last: [...bar.querySelectorAll('button')].at(-1).getBoundingClientRect().right <= r.right + 1 }`);
-  check(tabs.names.join('|') === 'Agent|Modifs|Notes|Envois|Inspecteur|Médias|Scène' && !tabs.cut && tabs.fits && tabs.last, `seven tabs, none cut, « Scène » whole (${tabs.names.join(' · ')})`);
+  // the two tab bars (user request, 09/10/2026): the agent's column on the left, the media and notes on the right
+  const tabs = await p.eval(`return [...document.querySelectorAll('.tabbar')].map((bar) => { const r = bar.getBoundingClientRect(), bs = [...bar.querySelectorAll('button')];
+      return { names: bs.map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|'), cut: bs.filter((b) => b.scrollWidth > b.clientWidth + 1).length,
+        fits: bar.scrollWidth <= bar.clientWidth + 1, last: bs.at(-1).getBoundingClientRect().right <= r.right + 1 }; })`);
+  check(tabs.map((t) => t.names).join(' / ') === 'Agent|Modifs|Envois / Médias|Notes|Scène|Inspecteur' && tabs.every((t) => !t.cut && t.fits && t.last), `two tab bars, none cut, the last whole (${tabs.map((t) => t.names.replaceAll('|', ' · ')).join(' / ')})`);
   const m1 = await menuIds(p);
   check(TOOLS.every((id) => m1.ids.includes(id)) && !m1.ids.includes('render') && !m1.off.staging && /Pas encore de vidéo/.test(m1.off.source), `Outils: ${m1.ids.filter(Boolean).join(' · ')}`);
 
@@ -172,13 +173,13 @@ try {
   p = await launch({ port: 9373 });
   await p.goto(`http://127.0.0.1:${PORT + 1}/`);
   await p.until(`document.querySelector('#v').readyState >= 1`, 30000); await sleep(1200);
-  const r2 = await p.eval(`return [...document.querySelectorAll('#rail button')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
+  const r2 = await p.eval(`return [...document.querySelectorAll('#rail button, #ctlbar button[data-tool]')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
   check(r2.map((b) => b.id).join() === rail.map((b) => b.id).join() && r2.every((b) => b.shown), 'the same rail for a video');
   const s2 = r2.find((b) => b.id === 'bStage');
   check(s2.off && /que sa vidéo/.test(s2.why), `« Mise en scène » greyed: « ${s2.why.slice(0, 70)}… »`);
   const m2 = await menuIds(p);
   check(JSON.stringify(m2.ids.filter(Boolean)) === JSON.stringify(m1.ids.filter(Boolean)) && /que sa vidéo/.test(m2.off.staging) && /propre logiciel/.test(m2.off.export), 'the same Tools menu, greyed where it does not apply, with the reason');
-  await p.eval(`document.querySelector('#tabs button[data-tab="scene"]').click(); return 1`); await sleep(300);
+  await p.eval(`document.querySelector('button[data-tab="scene"]').click(); return 1`); await sleep(300);
   check(/que sa vidéo/.test(await p.eval(`return document.querySelector('#scene').innerText`)), 'the « Scène » tab says why');
 } catch (e) {
   check(false, `erreur : ${e.stack ?? e.message}`);

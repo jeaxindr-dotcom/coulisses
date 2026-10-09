@@ -91,7 +91,7 @@ try {
   // 2) the page: « Envois » › « Lancer le rendu »
   await p.goto(`http://localhost:${PORT}/#f=9050`);
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);
-  await p.eval(`window.confirm = () => true; document.querySelector('#tabs button[data-tab=lots]').click(); return 1`);
+  await p.eval(`window.confirm = () => true; document.querySelector('button[data-tab=lots]').click(); return 1`);
   await until(`document.querySelector('#rcGo')`, 10000);
   check(/1 lot corrigé/.test(await card()), 'the card says what the render will carry (1 lot corrigé)');
   await p.eval(`document.querySelector('#rcGo').click(); return 1`);
@@ -124,7 +124,7 @@ try {
   await until(`window.__studio && __studio.state().video && __studio.state().video !== ${before}`, 40000);
   check(true, 'the page reloaded the new video by itself');
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);
-  await p.eval(`window.confirm = () => true; document.querySelector('#tabs button[data-tab=lots]').click(); return 1`);
+  await p.eval(`window.confirm = () => true; document.querySelector('button[data-tab=lots]').click(); return 1`);
   await until(`/Nouvelle vidéo prête/.test(document.querySelector('#renderCard').innerText)`, 15000);
   const ready = await card();
   check(/−16,0 LUFS/.test(ready) && /crête −1,6 dBTP/.test(ready) && /regarde en entier/.test(ready), 'card: « Nouvelle vidéo prête · −16,0 LUFS · crête −1,6 dBTP », Claude watches it');

@@ -40,7 +40,7 @@
   }
   function showCard(id) {
     const n = byId(id); if (!n) return;
-    if (tab !== 'insp') setTab(n.draft ? 'queue' : 'notes');
+    if (n.draft) setTab('queue'); else if (!onTab('insp')) setTab('notes');   // the queue on the left, the notes on the right (unless the inspector is shown)
     requestAnimationFrame(() => document.querySelector(`.card[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   }
 
@@ -285,7 +285,7 @@
     } else if (!SP && mode === 'code' && STATUS.code?.status === 'ready' && !codeLoading) loadCode();   // the preview was not built yet at the start
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
     showCodeStatus();
-    renderPill(); onHeld();
+    renderPill(); onHeld(); markGo();
   }
   let liveVer = -1;
   async function loadLive() {

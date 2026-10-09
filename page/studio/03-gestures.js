@@ -9,12 +9,12 @@
   const toPx = ([x, y]) => { const r = ovRect(); return [(x + 0.5) / CW * r.width, (y + 0.5) / CH * r.height]; };
   function setTool(t) {
     tool = t; ov.className = t;
-    document.querySelectorAll('#rail button[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
+    document.querySelectorAll('button[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
     if (t !== 'draw' && drawing && !popFor) drawing = null;
     if (t !== 'select') { pickPt = null; $('#pickBtn').style.display = 'none'; hideHover(); }
     drawOv();
   }
-  document.querySelectorAll('#rail button[data-tool]').forEach((b) => b.onclick = () => setTool(b.dataset.tool));
+  document.querySelectorAll('button[data-tool]').forEach((b) => b.onclick = () => setTool(b.dataset.tool));
   const thin = (pts, n) => pts.length <= n ? pts : Array.from({ length: n }, (_, i) => pts[Math.round(i * (pts.length - 1) / (n - 1))]);
   const visibleNotes = () => { const f = curFrame(); return notes.filter((n) => n.mark && f >= n.frame && f <= (n.end ?? n.frame)); };
   // a mark on the image (also drawn at full size, k = 1, into the PNG sent with a batch)
@@ -125,7 +125,7 @@
     openPop({ kind: 'circle', strokes: drawing.strokes }, drawing.frame);
   });
   $('#pickBtn').onclick = () => promptAtPick();
-  window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, vzoom, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
+  window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
     video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null }) };   // for tests
   function promptAtPick() { if (!pickPt) return; $('#pickBtn').style.display = 'none'; openPop({ kind: 'pin', points: [pickPt.pt] }, pickPt.frame); }
 
