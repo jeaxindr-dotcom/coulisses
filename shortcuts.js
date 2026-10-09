@@ -46,6 +46,7 @@
     { g: 'stage', id: 'modeMove', keys: ['W'], stage: true },
     { g: 'stage', id: 'modeRotate', keys: ['E'], stage: true },
     { g: 'stage', id: 'modeScale', keys: ['R'], stage: true },
+    { g: 'stage', id: 'freeCam', keys: ['C'], stage: true },
   ];
   const BY = new Map(ACTIONS.map((a) => [a.id, a]));
   const GROUPS = ['common', 'play', 'image', 'notes', 'timeline', 'stage'];

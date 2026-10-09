@@ -51,8 +51,7 @@
       try { codeEl.contentWindow.focus(); } catch { /* */ }
     } else { SP?.stage.enable(false); freeCamOn = false; stSel = null; }
     staging = on;
-    media.classList.toggle('staging', on); $('#stage').classList.toggle('staging', on); $('#bStage').classList.toggle('on', on);
-    $('#sceneState').textContent = on ? T('st.scene.on') : T('st.scene.off');
+    media.classList.toggle('staging', on); $('#stage').classList.toggle('staging', on); $('#bStage').classList.toggle('on', on); $('#viewer').classList.toggle('staging', on);
     if (on) setTab('scene');
     renderScene();
   }
@@ -103,13 +102,52 @@
     if (Math.abs(d.s - 1) > 1e-4) parts.push(T(cam ? 'st.s2.wZoom' : 'st.delta.scale', { s: dec(d.s.toFixed(2)) }));
     return parts.join(FR ? ' ; ' : '; ') || T('st.delta.none');
   };
+  // the panel (user request, 09/10/2026: « améliorer comment les choses sont présentées »): the gestures as rows
+  // « gesture → what it does », the steps numbered, the camera in a card of its own; « Quitter » in the panel's bar
+  const howRows = (rows) => `<div class="how">${rows.map(([g, t]) => `<span class="g">${T(g)}</span><span>${T(t)}</span>`).join('')}</div>`;
+  const stepsHtml = (keys) => `<ol class="steps">${keys.map((k) => `<li><span>${T(k, { key: esc(SC.show('freeCam')) })}</span></li>`).join('')}</ol>`;
+  function markSceneBar() {
+    const ss = $('#sceneState'); if (!ss || ss.dataset.on === String(staging)) return;
+    ss.dataset.on = String(staging);
+    ss.innerHTML = staging ? `<span class="on">${T('st.scene.on')}</span><button class="soft" id="sc-off">${T('st.scene.exit')}</button>` : esc(T('st.scene.off'));
+    $('#sc-off')?.addEventListener('click', () => setStaging(false));
+  }
+  // the tools under the image while staging (user request, 09/10/2026: « le mode caméra libre moins perdu dans les
+  // menus »): the handles' mode, the free camera (a run's 2D: « Cadrer l'image »), back to the shot's camera
+  function markStageBar() {
+    const two = D2(), cam = two ? stSel?.id === '@camera' : freeCamOn, k = SC.show('freeCam');
+    const tips = { translate: two && cam ? 'st.s2.pan' : 'st.scene.move', rotate: 'st.scene.rotate', scale: two && cam ? 'st.s2.zoom' : 'st.scene.size' };
+    document.querySelectorAll('#ctlbar [data-sm]').forEach((b) => { b.classList.toggle('on', b.dataset.sm === stMode); b.querySelector('.tipr').innerHTML = T(tips[b.dataset.sm]); });
+    const c = $('#stCam');
+    c.classList.toggle('on', staging && cam);
+    c.querySelector('.t').textContent = T(two ? 'st.bar.cam2d' : 'st.bar.cam');
+    c.querySelector('.tipr').innerHTML = T(two ? 'st.bar.cam2dTip' : cam ? 'st.bar.camOffTip' : 'st.bar.camTip') + (k ? `<kbd>${esc(k)}</kbd>` : '');
+    $('#stCam0 .tipr').textContent = T(two ? 'st.s2.camResetTitle' : 'st.bar.cam0Tip');
+    $('#stage').classList.toggle('freecam', staging && !two && freeCamOn);
+  }
+  function toggleFreeCam() {
+    if (!staging || !SP?.stage) return;
+    if (D2()) SP.stage.freeCamera(stSel?.id !== '@camera');
+    else freeCamOn = SP.stage.freeCamera(!freeCamOn);
+    renderScene();
+  }
+  function resetCam() {
+    if (!staging || !SP?.stage) return;
+    SP.stage.resetCamera?.();
+    if (D2()) stSel = SP.stage.selected ? stSel : null;
+    setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); if (D2()) syncStage();
+  }
+  document.querySelectorAll('#ctlbar [data-sm]').forEach((b) => b.onclick = () => { if (!staging || !SP?.stage) return; stMode = b.dataset.sm; SP.stage.setMode(stMode); renderScene(); });
+  $('#stCam').onclick = toggleFreeCam;
+  $('#stCam0').onclick = resetCam;
   function renderScene() {
+    markSceneBar(); if (staging) markStageBar(); else $('#stage').classList.remove('freecam');
     const box = $('#scene'); if (!box) return;
     const a = document.activeElement; if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName) && !renderScene.force) return;   // never under the user's typing
     if (stageWhy()) { box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${esc(stageWhy())}</p></div>`; return; }
-    const two = PROJ;   // a run: 2D (its preview is HTML); an episode: the Theatre's 3D
+    const two = staging ? D2() : PROJ && !SP?.stage?.scene3d;   // a run's HTML preview: 2D; an episode, a 3D shot: the Theatre's 3D
     if (!staging) {
-      box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div><p class="muted">${T(two ? 'st.s2.intro' : 'st.scene.intro')}</p>
+      box.innerHTML = `<div class="box"><div class="ttl">${T('st.scene.introTitle')}</div>${stepsHtml(['st.scene.step1', two ? 'st.scene.step2run' : 'st.scene.step2', 'st.scene.step3'])}
         <div class="row"><button class="primary" id="sc-on">${ic('move')}${T('st.scene.enable')}</button></div></div>` + listHtml();
       $('#sc-on').onclick = () => setStaging(true); bindList(); return;
     }
@@ -123,7 +161,7 @@
           <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(3), 0.05)}${num('y', d.p[1].toFixed(3), 0.05)}${num('z', d.p[2].toFixed(3), 0.05)}
           <span class="lbl">${T('st.scene.rotation')}</span>${num('rx', deg(d.r[0]).toFixed(1), 1)}${num('ry', deg(d.r[1]).toFixed(1), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
           <span class="lbl">${T('st.scene.sizePct')}</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
-        <p class="muted" style="margin:10px 0 0">${T(PROJ ? 'st.scene.unitsRun' : 'st.scene.units')}</p>
+        <p class="note2">${T(PROJ ? 'st.scene.unitsRun' : 'st.scene.units')}</p>
         <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">${T('st.scene.scope')}</span><select id="sc-scope">
           <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>${T('st.scene.thisScene', { name: esc(sceneAt(curFrame()).name) })}</option>
           <option value="here" ${stScope === 'here' ? 'selected' : ''}>${T('st.scene.fromHere')}</option>
@@ -131,10 +169,16 @@
           <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
         <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
         <div class="row"><button class="soft danger" id="sc-reset">${ic(sel.cutout ? 'trash' : 'undo')}${T(sel.cutout ? 'st.scene.cutRemove' : 'st.scene.reset')}</button><span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
-      : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.scene.pick')}</p>`}
+      : `<div class="ttl">${T('st.scene.pickTitle')}</div>${howRows([['st.how.click', 'st.how.clickT'], ['st.how.drag', 'st.how.dragT'], ['st.how.shift', 'st.how.shiftT'], ['st.how.handles', 'st.how.handlesT'],
+        ...(freeCamOn ? [['st.bar.cam', 'st.how.freeT']] : []), ['st.how.esc', 'st.how.escT']])}`}
+    </div>
+    <h3 class="sh">${ic('camera')}${T('st.scene.camTitle')}</h3>
+    <div class="box">
+      <div class="camst"><span class="dot ${freeCamOn ? 'free' : ''}"></span><span>${T(freeCamOn ? 'st.scene.camFree' : 'st.scene.camShot')}</span></div>
       <div class="row"><button class="soft ${freeCamOn ? 'on' : ''}" id="sc-cam">${ic('camera')}${freeCamOn ? T('st.scene.camOn') : T('st.scene.cam')}</button>
-        <button class="soft" id="sc-cam0" title="${esc(T('st.scene.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
-      ${freeCamOn ? `<p class="muted" style="margin:8px 0 0">${T('st.scene.camHelp')}</p>` : ''}
+        <button class="soft" id="sc-cam0" title="${esc(T('st.scene.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button></div>
+      ${freeCamOn ? howRows([['st.how.drag', 'st.cam.dragT'], ['st.cam.right', 'st.cam.rightT'], ['st.cam.wheel', 'st.cam.wheelT']]) + `<p class="note2">${T('st.scene.camNote')}</p>`
+        : `<p class="note2">${T('st.scene.camWhy', { key: esc(SC.show('freeCam')) })}</p>`}
     </div>` + listHtml();
     box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
     for (const k of ['x', 'y', 'z', 'rx', 'ry', 'rz', 's']) $('#sc-' + k)?.addEventListener('change', () => { const sc2 = scopeOf(); SP.stage.setDelta(stSel.id, readFields(), sc2.from, sc2.to); });
@@ -143,9 +187,8 @@
     $('#sc-here')?.addEventListener('click', () => { stTo = curFrame(); if (!stFrom) stFrom = curFrame(); renderScene(); });
     $('#sc-reset')?.addEventListener('click', () => { const id = stSel.id; SP.stage.reset(id); stSel = null; renderScene(); syncStage(); });
     $('#sc-add')?.addEventListener('click', addStageNote);
-    $('#sc-cam').onclick = () => { freeCamOn = SP.stage.freeCamera(!freeCamOn); renderScene(); };
-    $('#sc-cam0')?.addEventListener('click', () => { SP.stage.resetCamera?.(); setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); });
-    $('#sc-off').onclick = () => setStaging(false);
+    $('#sc-cam').onclick = toggleFreeCam;
+    $('#sc-cam0').onclick = resetCam;
     bindList();
   }
   // the 2D panel (a run): x / y in pixels of the frame, one turn, the size; « Caméra » = the whole frame
@@ -158,7 +201,7 @@
         <div class="grid3"><span></span><span class="axis">${T('st.s2.axisX')}</span><span class="axis">${T('st.s2.axisY')}</span><span class="axis">${T('st.s2.turn')}</span>
           <span class="lbl">${T('st.scene.offset')}</span>${num('x', d.p[0].toFixed(0), 1)}${num('y', d.p[1].toFixed(0), 1)}${num('rz', deg(d.r[2]).toFixed(1), 1)}
           <span class="lbl">${T(cam ? 'st.s2.zoomPct' : 'st.scene.sizePct')}</span>${num('s', (d.s * 100).toFixed(1), 1)}<span></span><span></span></div>
-        <p class="muted" style="margin:10px 0 0">${T(cam ? 'st.s2.camUnits' : 'st.s2.units', { w: CW, h: CH })}</p>
+        <p class="note2">${T(cam ? 'st.s2.camUnits' : 'st.s2.units', { w: CW, h: CH })}</p>
         <div class="grid3" style="grid-template-columns:74px 1fr;margin-top:12px"><span class="lbl">${T('st.scene.scope')}</span><select id="sc-scope">
           <option value="scene" ${stScope === 'scene' ? 'selected' : ''}>${T('st.scene.thisScene', { name: esc(sceneAt(curFrame()).name) })}</option>
           <option value="here" ${stScope === 'here' ? 'selected' : ''}>${T('st.scene.fromHere')}</option>
@@ -166,8 +209,12 @@
           <option value="range" ${stScope === 'range' ? 'selected' : ''}>${T('st.scene.range')}</option></select></div>
         <div class="range ${stScope === 'range' ? 'on' : ''}">${T('st.scene.frames')} <input type="number" id="sc-from" value="${stFrom}"> → <input type="number" id="sc-to" value="${stTo}"><button class="soft" id="sc-here">${T('st.scene.current')}</button></div>
         <div class="row"><button class="soft danger" id="sc-reset">${ic(sel.cutout ? 'trash' : 'undo')}${T(sel.cutout ? 'st.scene.cutRemove' : 'st.scene.reset')}</button>${cam || sel.cutout ? '' : `<button class="soft" id="sc-parent" title="${esc(T('st.s2.parentTitle'))}">${T('st.s2.parent')}</button>`}<span class="grow"></span><button class="primary" id="sc-add">${ic('plus')}${T('st.scene.add')}</button></div>`
-      : `<div class="ttl">${T('st.scene.pickTitle')}</div><p class="muted">${T('st.s2.pick')}</p>`}
-      <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><button class="soft" id="sc-cam0" title="${esc(T('st.s2.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button><span class="grow"></span><button class="soft" id="sc-off">${T('st.scene.exit')}</button></div>
+      : `<div class="ttl">${T('st.scene.pickTitle')}</div>${howRows([['st.how.click', 'st.s2.clickT'], ['st.how.drag', 'st.s2.dragT'], ['st.s2.wheel', 'st.s2.wheelT'], ['st.s2.shiftWheel', 'st.s2.shiftWheelT'], ['st.how.esc', 'st.how.escT']])}`}
+    </div>
+    <h3 class="sh">${ic('camera')}${T('st.s2.camTitle')}</h3>
+    <div class="box">
+      <div class="camst"><span class="dot ${cam ? 'free' : ''}"></span><span>${T(cam ? 'st.s2.camChosen' : 'st.s2.camCode')}</span></div>
+      <div class="row"><button class="soft ${cam ? 'on' : ''}" id="sc-cam">${ic('camera')}${T(cam ? 'st.s2.camOn' : 'st.s2.cam')}</button><button class="soft" id="sc-cam0" title="${esc(T('st.s2.camResetTitle'))}">${ic('undo')}${T('st.scene.camReset')}</button></div>
     </div>` + listHtml();
     const fields = () => { const v = (k) => +($('#sc-' + k)?.value || 0); return { p: [v('x'), v('y'), 0], r: [0, 0, rad(v('rz'))], s: (v('s') || 100) / 100 }; };
     box.querySelectorAll('.modes button').forEach((b) => b.onclick = () => { stMode = b.dataset.m; SP.stage.setMode(stMode); renderScene(); });
@@ -177,10 +224,9 @@
     $('#sc-here')?.addEventListener('click', () => { stTo = curFrame(); if (!stFrom) stFrom = curFrame(); renderScene(); });
     $('#sc-reset')?.addEventListener('click', () => { const id = stSel.id; SP.stage.reset(id); stSel = null; renderScene(); syncStage(); });
     $('#sc-add')?.addEventListener('click', addStageNote);
-    $('#sc-cam').onclick = () => { SP.stage.freeCamera(!cam); renderScene(); };
-    $('#sc-cam0').onclick = () => { SP.stage.resetCamera?.(); stSel = SP.stage.selected ? stSel : null; setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); syncStage(); };
+    $('#sc-cam').onclick = toggleFreeCam;
+    $('#sc-cam0').onclick = resetCam;
     $('#sc-parent')?.addEventListener('click', () => { if (!SP.stage.selectParent()) setSave(T('st.s2.noParent'), 'err'); });
-    $('#sc-off').onclick = () => setStaging(false);
     bindList();
   }
   // the objects moved and not yet in the queue, and the offsets waiting in the queue

@@ -42,6 +42,7 @@
     if (on('redo')) { e.preventDefault(); undoStep('redo'); return; }
     // staging, focus outside the preview (panel, list…): the same keys as inside it
     if (staging && SP?.stage) {
+      if (on('freeCam')) { e.preventDefault(); toggleFreeCam(); return; }   // C: the free camera (a run's 2D: « Cadrer l'image »)
       const MODE = on('modeMove') ? 'translate' : on('modeRotate') ? 'rotate' : on('modeScale') ? 'scale' : null;
       if (MODE) { e.preventDefault(); SP.stage.setMode(MODE); return; }
       if (!e.ctrlKey && !e.metaKey) {
@@ -177,6 +178,7 @@
         { id: 'send', label: T('menu.send'), key: () => SC.show('send'), disabled: sendWhy, run: sendQueue },
         '-',
         { id: 'staging', label: T('menu.staging'), key: () => SC.show('staging'), disabled: () => stageWhy() ?? false, run: () => setStaging(!staging) },
+        { id: 'freeCam', label: () => T(staging && D2() ? 'st.bar.cam2d' : 'st.bar.cam'), key: () => SC.show('freeCam'), disabled: () => (stageWhy() ?? (staging ? false : T('menu.why.notStaging'))), run: toggleFreeCam },
         { id: 'source', label: T('menu.source'), key: () => SC.show('source'), disabled: () => srcWhy() ?? false, run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
         // « Exporter ▸ »: a run's export script (its variants), an episode's full render (asked to the agent), else nothing
         { id: 'export', label: T('menu.export'), disabled: () => (META?.kind === 'remotion' ? (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false)

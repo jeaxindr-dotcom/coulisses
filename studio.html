@@ -107,6 +107,7 @@
         </div>
         <div id="shuttle"></div>
         <div id="stageBadge">{{st.stage.badge}}<span class="k" id="stageBadgeK">{{st.stage.clickObj}}</span></div>
+        <div id="camHint">{{st.camHint}}</div>
         <div id="heldOv">{{st.held}}</div>
       </div>
     </div>
@@ -115,6 +116,13 @@
       <div class="side l">
         <span class="seg tools">
           <button data-tool="select" class="on"><i data-ic="pointer"></i><span class="tipr">{{st.rail.select}}</span></button><button data-tool="draw"><i data-ic="pen"></i><span class="tipr">{{st.rail.draw}}</span></button><button data-tool="comment"><i data-ic="comment"></i><span class="tipr">{{st.rail.comment}}</span></button>
+        </span>
+        <!-- staging on (user request, 09/10/2026: « le mode caméra libre moins perdu dans les menus »): its tools take
+             the place of the image's, the free camera among them -->
+        <span class="stbar">
+          <span class="seg modes"><button data-sm="translate"><i data-ic="move"></i><span class="tipr"></span></button><button data-sm="rotate"><i data-ic="rotate"></i><span class="tipr"></span></button><button data-sm="scale"><i data-ic="scale"></i><span class="tipr"></span></button></span>
+          <button id="stCam"><i data-ic="camera"></i><span class="t"></span><span class="tipr"></span></button>
+          <button id="stCam0" class="icon"><i data-ic="undo"></i><span class="tipr"></span></button>
         </span>
       </div>
       <div class="mid">

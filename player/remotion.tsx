@@ -58,6 +58,8 @@ let active: any = stage2d;
 const by = (id: string) => (is2d(id) || !s3 ? stage2d : s3.stage);
 const stage: any = {
   get kind() { return active === stage2d ? '2d' : '3d'; },
+  // a 3D scene on screen now (before the staging starts, the panel says how it will go: 3D cardboard or the 2D picture)
+  get scene3d() { return !!s3?.hasScene(); },
   get selected() { return active.selected; }, get enabled() { return active.enabled; },
   enable(want: boolean) {
     if (!want) { const r = active.enable(false); active = stage2d; return r; }
