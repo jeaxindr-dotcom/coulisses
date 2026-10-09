@@ -103,6 +103,14 @@ try {
   await key('s', { ctrl: true }); s = await soon(async () => { const x = await S(); return /^Enregistré \d/.test(x.save) && x; }) || await S();
   const saved = JSON.parse(fs.readFileSync(path.join(imp.revue, 'notes.json'), 'utf8')).notes;
   check(/^Enregistré \d/.test(s.save) && saved.some((n) => n.text === 'Le titre plus haut'), `Ctrl+S saves now (« ${s.save} »)`);
+  // in a note, Entrée confirms it and Maj+Entrée starts a new line (user request, 09/10/2026), with the real keys
+  { const ta0 = await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return ta.value`);
+    await p.key('Enter', 'Enter', '\r', 8); await sleep(200);
+    const nl = await p.eval(`const ta = document.activeElement; return ta?.classList?.contains('main') ? ta.value : null`);
+    await p.key('Enter', 'Enter', '\r'); await sleep(400);
+    const after = await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); return { v: ta.value, focused: document.activeElement === ta }`);
+    check(nl === ta0 + '\n' && after.v === ta0 + '\n' && !after.focused, `in a note, Maj+Entrée starts a new line, Entrée confirms it: the field lets go, no new line (${JSON.stringify(nl)} → ${JSON.stringify(after.v)})`);
+    await p.eval(`const ta = document.querySelector('#draftList .card textarea.main'); ta.value = ta.value.replace(/\\n$/, ''); ta.dispatchEvent(new Event('input', { bubbles: true })); ta.blur(); return 1`); await sleep(300); }   // as it was
   // the Édition menu
   const [mx, my] = await p.eval(`const r = document.querySelector('#menubar > button[data-menu=edit]').getBoundingClientRect(); return [r.left + 10, r.top + 8]`);
   await p.mouse('mousePressed', mx, my); await p.mouse('mouseReleased', mx, my); await sleep(300);

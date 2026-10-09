@@ -24,6 +24,8 @@
   $('#agent').onclick = openConnect;
 
   // ---------- note cards (Modifs = waiting to be sent ; Notes = the others) ----------
+  // a plain Entrée (no Maj, Ctrl, Alt), not the one that confirms the characters of a Japanese or Chinese input
+  function enterKey(e) { return e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing && e.keyCode !== 229; }
   function renderAll() { renderAgent(); renderQueue(); renderLots(); renderList(); renderInspector(); draw(); drawOv(); syncStage(); if (onTab('scene')) renderScene(); }
   function gestureHtml(n) {
     if (n.stage) return `<div class="gest">${ic('move')}<span class="obj">${esc(n.stage.name)}</span><span class="k">${esc(deltaWords(n.stage.delta))}</span></div>`;
@@ -79,6 +81,9 @@
     el.querySelectorAll('img[data-full]').forEach((im) => im.addEventListener('click', () => openLightbox(im.dataset.full)));
     const ta = el.querySelector('textarea.main');
     ta.addEventListener('input', () => { n.text = ta.value; n.updated = now(); save(); if (n.draft) renderQueue(); });
+    // Entrée valide la note, Maj+Entrée va à la ligne (user request, 09/10/2026): the field lets go, the keys are the
+    // studio's again (Espace, N…); the Enter of a Japanese or Chinese input, which confirms its characters, stays its own
+    ta.addEventListener('keydown', (e) => { if (!enterKey(e)) return; e.preventDefault(); n.text = ta.value; n.updated = now(); save(); ta.blur(); });   // the save says « Enregistré »
     el.querySelectorAll('.mainimgs .x').forEach((b, k) => b.addEventListener('click', () => { n.images.splice(k, 1); n.updated = now(); save(); renderAll(); }));
     el.querySelector('.f0').addEventListener('change', (e) => { setFrames(n, +e.target.value, n.end); save(); renderAll(); seekFrame(n.frame); });
     el.querySelector('.f1')?.addEventListener('change', (e) => { setFrames(n, n.frame, +e.target.value); save(); renderAll(); seekFrame(n.end ?? n.frame); });
@@ -111,7 +116,7 @@
         save(); renderAll();
       };
       rt.addEventListener('input', () => { (pending[n.id] ??= { text: '', images: [] }).text = rt.value; });
-      rt.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+      rt.addEventListener('keydown', (e) => { if (enterKey(e) || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); send(); } });   // Entrée envoie, Maj+Entrée va à la ligne
       box.querySelectorAll('.repimgs .x').forEach((b, k) => b.addEventListener('click', () => { pending[n.id].images.splice(k, 1); renderAll(); }));
       box.querySelector('.rimg').addEventListener('click', () => pick({ kind: 'reply', id: n.id }));
       box.querySelector('.send').addEventListener('click', send);
