@@ -38,6 +38,7 @@
   async function setStaging(on) {
     if (on === staging) return;
     if (on) {
+      if (window.__cgReady && CG.on) setPage('review');   // the staging is on the review's page (the grading's is part 11)
       if (mode !== 'code') await setMode('code');
       if (!SP) { setSave(T('st.code.unavailable'), 'err'); return; }
       M.pause();

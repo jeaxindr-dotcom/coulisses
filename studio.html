@@ -28,6 +28,8 @@
   <a class="crumb" id="crumb">{{st.top.projects}}</a><span class="crumbSep" id="crumbSep">/</span>
   <h1 id="title">Studio</h1><span id="kindTag"></span><span class="sub" id="render"></span>
   <span class="grow"></span>
+  <!-- the studio's pages (user request, 09/10/2026: « une page à part, un peu comme DaVinci Resolve »): the review, the grading -->
+  <span class="seg pages" id="pageSeg"><button data-page="review" class="on">{{st.page.review}}</button><button data-page="grade" title="{{st.page.gradeTitle}}">{{st.page.grade}}</button></span>
   <span id="save">—</span>
   <button id="helpBtn" title="{{st.help.title}}" aria-label="{{st.help.aria}}"><i data-ic="question"></i></button>
   <button id="renderPill" title="{{st.pill.title}}"><span class="t">{{st.rc.render}}</span><span class="mini"><i></i></span></button>
@@ -63,7 +65,7 @@
       </div>
     </div>
     <div class="tab" id="tab-queue">
-      <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0 / 10</span></div>
+      <div class="bar"><b>{{st.queue.title}}</b><span class="grow"></span><span id="qcnt">0</span></div>
       <div class="scroll" id="draftList"></div>
       <div class="foot">
         <textarea id="qwords" placeholder="{{st.queue.words}}"></textarea>
@@ -95,6 +97,9 @@
         <div id="media">
           <video id="v" preload="auto" playsinline></video>
           <iframe id="code" title="{{st.codeFrame}}"></iframe>
+          <!-- the grade, shown on the image (page/studio/11-grade.js): the filter on what is behind it, the vignette, the grain;
+               its left edge is the before / after wipe -->
+          <div id="cgFx"><div id="cgVig"></div><canvas id="cgGrain"></canvas></div>
           <canvas id="ov" class="select"></canvas>
           <div id="hoverTag"></div>
           <button id="pickBtn" class="primary" title="{{st.pick.title}}">{{st.pick.text}}</button>
@@ -112,6 +117,8 @@
         <div id="heldOv">{{st.held}}</div>
       </div>
     </div>
+    <!-- the « Étalonnage » page: its scenes along the video, the playhead (click or drag = go there) -->
+    <div id="cgStrip"><div class="scs"></div><i class="ph"></i></div>
     <!-- under the image: the tools on it (left), the transport (middle), the speed and the sound (right) -->
     <div id="ctlbar">
       <div class="side l">
@@ -173,7 +180,34 @@
     </div>
     <div id="tlwrap"><canvas id="tl"></canvas><div id="tip"></div></div>
   </section>
+  <!-- ---------- the « Étalonnage » page (page/studio/11-grade.js), shown instead of the review's panels ---------- -->
+  <section id="cgLooks" class="glass cgp">
+    <div class="bar"><b>{{st.cg.looks}}</b><span class="grow"></span><span class="muted">{{st.cg.byEmotion}}</span></div>
+    <div class="cgamt"><span>{{st.cg.amount}}</span><input type="range" id="cgAmount" min="0" max="100" step="1" value="100"><span id="cgAmountV">100 %</span></div>
+    <div class="scroll" id="cgLookList"></div>
+  </section>
+  <section id="cgScenes" class="glass cgp">
+    <div class="bar"><b>{{st.cg.scenes}}</b><span class="grow"></span><span class="muted" id="cgSceneN"></span></div>
+    <div class="scroll" id="cgSceneList"></div>
+  </section>
+  <section id="cgPanel" class="glass cgp">
+    <div class="cgbar"><b id="cgSceneName">—</b><span class="muted" id="cgSceneSub"></span><span class="grow"></span>
+      <button class="soft" id="cgBypass" title="{{st.cg.bypassTitle}}">{{st.cg.bypass}}</button>
+      <button class="soft" id="cgCopyAll" title="{{st.cg.copyAllTitle}}">{{st.cg.copyAll}}</button>
+      <button class="soft danger" id="cgReset">{{st.cg.reset}}</button>
+      <button class="primary" id="cgAdd"><i data-ic="plus"></i><span class="t">{{st.cg.add}}</span></button></div>
+    <div class="cgbody">
+      <div class="cgwheels" id="cgWheels"></div>
+      <div class="cgcol" id="cgBasic"></div>
+      <div class="cgcol" id="cgFxCtl"></div>
+    </div>
+  </section>
+  <section id="cgScopes" class="glass cgp">
+    <div class="bar"><span class="seg" id="cgScopeSeg"><button data-s="wave" class="on">{{st.cg.waveform}}</button><button data-s="parade">{{st.cg.parade}}</button></span><span class="grow"></span><span class="muted" id="cgScopeSrc"></span></div>
+    <canvas id="cgScope"></canvas>
+  </section>
 </div>
+<svg id="cgDefs" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <div class="menu" id="menu"></div>
 <div id="lb"><img alt=""></div>
 <div id="cmp"><div class="box">

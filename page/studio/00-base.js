@@ -9,7 +9,7 @@
   const hm5 = (d) => (FR ? d.toLocaleTimeString() : d.toLocaleTimeString('en-GB')).slice(0, 5);
   const v = $('#v'), cv = $('#tl'), tip = $('#tip'), ov = $('#ov'), media = $('#media');
   let codeEl = $('#code');   // the live preview's frame (a new version of the code comes in a new one, then takes its place)
-  let META = null, SNAP = null, LIVE = null, FPS = 30, FRAMES = 0, DUR = 0, MAXQ = 10;
+  let META = null, SNAP = null, LIVE = null, FPS = 30, FRAMES = 0, DUR = 0, MAXQ = 0;   // the most pending edits: 0 = no limit
   let CW = 1920, CH = 1080;                    // the frame's pixels (1920×1080 for an episode; a project: its video's): every mark is stored in these
   let PROJ = false;                            // an imported project (AItelier run, any video), not a Brambleshire episode
   // a project whose code is played live and exported from the studio: a Remotion run, or a HyperFrames project (09/10/2026)

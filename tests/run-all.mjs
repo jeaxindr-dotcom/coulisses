@@ -1,6 +1,6 @@
 // Every test of Coulisses, in one command (code review, 08/10/2026: some suites needed a studio started by hand, and
 // nothing ran them all). It starts what they need itself — a studio on the sandbox E03 (port 4174) for e2e, staging and
-// e2e-agent; a studio on the render test's own copy (.cache\sandbox-test, port 4180) for render, then puts that copy
+// grade, e2e-agent; a studio on the render test's own copy (.cache\sandbox-test, port 4180) for render, then puts that copy
 // back — with the tests' own settings and media library (never the user's), runs the suites one after another, and
 // prints a summary. A suite whose resource is not on this PC skips itself (tests/where.mjs).
 // usage: node tests/run-all.mjs [--only a,b] [--skip a,b] [--quick]   (--quick: without the slowest: app, render, staging3d-run)
@@ -23,7 +23,7 @@ const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.j
 const SUITES = [
   ['typecheck', 'self'], ['guard', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
-  ['hyperframes', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
+  ['hyperframes', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['grade', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
 ].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run'].includes(n))));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC

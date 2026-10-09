@@ -155,6 +155,25 @@ Dans l'onglet **Agent** du studio, l'utilisateur écrit ce qu'il veut voir, sans
 
 Un projet créé par **Fichier › Nouveau projet** part d'une scène 3D vide : React Three Fiber, fond noir, grille au sol sur le plan y = 0, axes et point blanc à l'origine. Ces aides de l'éditeur (`<EditorAids />`) ne s'affichent que dans Coulisses, jamais dans un rendu. Ses modules sont partagés par tous les nouveaux projets (`node_modules` est une jonction) : ne rien y installer sans l'accord de l'utilisateur.
 
+## Un étalonnage
+
+La page **Étalonnage** du studio (touche G, à côté de « Revue » en haut) sert à régler la couleur scène par scène, comme la page Couleur de DaVinci Resolve : des looks rangés par émotion (31 au départ, avec un dosage), les quatre roues Lift / Gamma / Gain / Offset, exposition, contraste, saturation, température, teinte, vignettage, grain, halo, ombres et lumières teintées, avec forme d'onde et parade RVB. Rien n'est écrit dans le projet : « Ajouter à la file » fait une modif par scène, sur toute la plage de la scène, avec un bloc **« Étalonnage »** :
+
+- **le look** choisi et son dosage, et si l'utilisateur a ajouté ses propres réglages ;
+- **le filtre exact**, un fichier `k-etalonnage.svg` dans le dossier du lot : un `<filter>` SVG (tables par canal, saturation, ombres et lumières teintées, halo), calculé pour la taille de la composition. C'est ce filtre, appliqué à l'image, que l'utilisateur a vu dans l'aperçu ;
+- **le vignettage** (un `radial-gradient` à poser au-dessus) et **le grain** (son opacité) s'il y en a ;
+- **les valeurs** en JSON, pour un moteur où le CSS ne s'applique pas (un shader, un passage de post-traitement) ;
+- **les images jointes** « étalonnage (avant) » et « étalonnage (après) » : la même image de la scène, sans puis avec l'étalonnage. « après » est la cible.
+
+Pour l'appliquer :
+
+1. Copier le `<svg>` du fichier tel quel, une seule fois, dans la composition (un élément caché), puis mettre `filter: url(#<id>)` sur le conteneur de la scène, **seulement pendant la plage de la scène** : le `style` de l'`AbsoluteFill` de la scène dans Remotion, le CSS de l'élément de la scène dans HyperFrames, le parent d'un canvas 3D.
+2. Poser le vignettage et le grain en calques au-dessus de l'image de la scène (le grain change à chaque image, en `mix-blend-mode: overlay`).
+3. Dans le théâtre de Brambleshire, en faire un réglage de l'épisode (un flag), pour que les autres épisodes restent identiques à leurs vidéos.
+4. Ne rien changer d'autre (ni minutage, ni lumière, ni décor). Vérifier avec `CLI frame <projet> <image> --source code` que l'image ressemble à « étalonnage (après) ». Comme pour toute modif : `snapshot` avant, puis `reply` et `done`.
+
+Une scène déjà étalonnée dans le code et étalonnée de nouveau : remplacer son filtre par le nouveau, jamais les empiler.
+
 ## Une image de la bibliothèque à placer
 
 Chaque chaîne a une bibliothèque de médias (onglet « Médias » du studio) : ses personnages, décors, accessoires et effets, rangés par catégorie dans `Documents\Coulisses\Médias\<chaîne>\`. L'utilisateur y crée des images avec l'atelier d'images (Codex et son outil image_gen), ou y dépose les siennes. Quand il glisse une image sur la vidéo, la modif contient un bloc **« Média de la bibliothèque à placer »** :

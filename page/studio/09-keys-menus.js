@@ -80,6 +80,8 @@
     else if (on('ask')) { e.preventDefault(); if (pickPt) promptAtPick(); else setSave(T('st.key.pointFirst'), ''); }
     else if (on('source')) { if (!META.features?.code || !META.render) return; if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); }
     else if (on('staging')) { const why = stageWhy(); if (why) setSave(why, 'err'); else setStaging(!staging); }
+    else if (on('gradePage')) { e.preventDefault(); setPage(CG.on ? 'review' : 'grade'); }   // G: the « Étalonnage » page (part 11)
+    else if (on('gradeBypass') && CG.on) { e.preventDefault(); cgSetBypass(!CG.bypass); }    // B: the image without its grade
     else if (on('note')) { e.preventDefault(); M.pause(); addNote(curFrame()); }
     else if (on('range')) { e.preventDefault(); markRange(); }
     else if (e.key === 'Escape') { closePop(); rangeStart = null; $('#bRange').classList.remove('on'); loopId = null; renderAll(); }
@@ -181,6 +183,7 @@
         { id: 'staging', label: T('menu.staging'), key: () => SC.show('staging'), disabled: () => stageWhy() ?? false, run: () => setStaging(!staging) },
         { id: 'freeCam', label: () => T(staging && D2() ? 'st.bar.cam2d' : 'st.bar.cam'), key: () => SC.show('freeCam'), disabled: () => (stageWhy() ?? (staging ? false : T('menu.why.notStaging'))), run: toggleFreeCam },
         { id: 'source', label: T('menu.source'), key: () => SC.show('source'), disabled: () => srcWhy() ?? false, run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
+        { id: 'grade', label: () => T(CG.on ? 'menu.gradeOff' : 'menu.grade'), key: () => SC.show('gradePage'), run: () => setPage(CG.on ? 'review' : 'grade') },
         // « Exporter ▸ »: a run's export script (its variants), an episode's full render (asked to the agent), else nothing
         { id: 'export', label: T('menu.export'), disabled: () => (LIVEP() ? (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false)
           : !PROJ ? (renderBusy() ? T('menu.why.renderBusy') : false) : T('menu.why.noExport')),

@@ -5,7 +5,7 @@
   let sending = false;
   function renderQueue() {
     const d = drafts();
-    $('#qcnt').textContent = `${d.length} / ${MAXQ}`; $('#qcnt').classList.toggle('full', d.length >= MAXQ);
+    $('#qcnt').textContent = MAXQ ? `${d.length} / ${MAXQ}` : String(d.length); $('#qcnt').classList.toggle('full', !!MAXQ && d.length >= MAXQ);
     const nq = $('#nQueue'); nq.textContent = d.length; nq.classList.toggle('hot', d.length > 0); nq.classList.toggle('zero', !d.length);
     const empty = d.filter((n) => !n.text.trim() && !n.mark && !n.images?.length).length;
     $('#qsend').disabled = !d.length || !!empty || sending;

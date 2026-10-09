@@ -123,7 +123,7 @@
   #ctlbar .side.r { justify-content: flex-end; }
   #ctlbar .mid { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; overflow: hidden; }
   /* a narrow image: the frame number goes first, then the slow speeds, then the volume slider (the keys still work) */
-  @container (max-width: 665px) { #fr { display: none; } }
+  @container (max-width: 690px) { #fr { display: none; } }
   @container (max-width: 570px) { #ctlbar .spd[data-s="0.25"], #ctlbar .spd[data-s="0.5"] { display: none; } }
   @container (max-width: 505px) { #vol, #ctlbar .volic { display: none; } }
   #ctlbar button { height: 30px; background: transparent; border-color: transparent; color: var(--s11); position: relative; }
@@ -465,8 +465,8 @@
   #tc { font: 600 18px var(--font-d); font-variant-numeric: tabular-nums; min-width: 92px; margin-left: 10px; letter-spacing: .01em; }
   #fr { font: 500 12px var(--font-d); color: var(--s9); font-variant-numeric: tabular-nums; min-width: 96px; white-space: nowrap; }
   #tc { white-space: nowrap; }
-  .spd { width: 32px; padding: 0 !important; justify-content: center; font-variant-numeric: tabular-nums; }
-  #vol { width: 74px; height: 3px; }
+  .spd { width: 28px; padding: 0 !important; justify-content: center; font-variant-numeric: tabular-nums; }
+  #vol { width: 60px; height: 3px; }
   /* over the timeline: where we are (the scene, the lines), the zoom */
   #tlbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--stroke); min-height: 42px; }
   #tlbar .zoom { display: inline-flex; align-items: center; gap: 2px; flex: none; }
@@ -498,3 +498,93 @@
   #modal .agentpick button { height: 30px; font-size: 12px; }
   #modal .agentpick .muted { font-size: 11.5px; margin-left: 4px; }
   /* « Langue · Language » (top of the help panel): the app's language, for the user (settings.json) */
+
+  /* ---------- the « Étalonnage » page (page/studio/11-grade.js; user request, 09/10/2026: « une page à part, un peu comme
+     DaVinci Resolve »): the looks on the left, the image in the middle, the scenes on the right; under them the wheels,
+     the settings and the filters, and the scopes (waveform, RGB parade) ---------- */
+  header .pages button { height: 28px; padding: 0 13px; font-size: 12.5px; backdrop-filter: none; background: transparent; }
+  header .pages button.on { background: #f4f5fa; color: #11131c; }
+  .cgp, #cgStrip, #cgWipe { display: none; }
+  #cgFx { position: absolute; top: 0; bottom: 0; right: 0; left: 0; display: none; overflow: hidden; pointer-events: none; z-index: 1; }
+  #cgVig, #cgGrain { position: absolute; top: 0; height: 100%; left: 0; width: 100%; }
+  #cgGrain { mix-blend-mode: overlay; display: none; image-rendering: pixelated; }
+  body.cg #lside, body.cg #side, body.cg #tlpanel, body.cg .split, body.cg #ctlbar .tools { display: none; }
+  body.cg #app { grid-template-columns: 56px 286px 12px minmax(0, 1fr) 12px 330px; grid-template-rows: minmax(0, 1fr) 12px clamp(250px, 33vh, 330px); }
+  body.cg .cgp { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+  body.cg #cgLooks { grid-column: 2; grid-row: 1; }
+  body.cg #viewer { grid-column: 4; grid-row: 1; }
+  body.cg #cgScenes { grid-column: 6; grid-row: 1; }
+  body.cg #cgPanel { grid-column: 2 / 5; grid-row: 3; }
+  body.cg #cgScopes { grid-column: 6; grid-row: 3; }
+  .cgp .bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px 6px; min-height: 44px; }
+  .cgp .bar b { font: 600 15px var(--font-d); }
+  .cgp .bar .grow { flex: 1; }
+  .cgp .bar .muted { font-size: 12px; }
+  .cgp .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 16px; }
+  .cgamt { display: grid; grid-template-columns: auto minmax(0, 1fr) 44px; gap: 10px; align-items: center; padding: 0 16px 8px; font-size: 12px; color: var(--s11); }
+  .cgamt input { width: 100%; }
+  .cgamt input:disabled { opacity: .35; }
+  #cgAmountV { font: 11.5px var(--mono); text-align: right; color: var(--s12); }
+  /* the looks, by emotion: the frame shown, graded with each */
+  #cgLookList h3 { font: 600 11.5px var(--font-d); color: var(--s11); margin: 14px 4px 7px; letter-spacing: .05em; text-transform: uppercase; }
+  #cgLookList h3:first-child { margin-top: 4px; }
+  .cglk { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cgcard { height: auto; padding: 0; flex-direction: column; align-items: stretch; gap: 0; border-radius: 12px; overflow: hidden; background: rgba(0, 0, 0, 0.3); white-space: normal; }
+  .cgcard canvas { display: block; width: 100%; height: auto; background: #000; }
+  .cgcard span { padding: 5px 8px 6px; font: 500 11.5px/1.3 var(--font-d); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cgcard.on { background: var(--grad-lime); color: #10140a; box-shadow: 0 0 0 2px rgba(201, 242, 107, 0.9); }
+  /* the scenes */
+  #cgSceneList { display: flex; flex-direction: column; gap: 6px; }
+  .cgsc { height: auto; width: 100%; padding: 6px; gap: 10px; justify-content: flex-start; text-align: left; white-space: normal; border-radius: 14px; flex: none; }
+  .cgsc img { width: 92px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: #000; flex: none; }
+  .cgsc .tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .cgsc b { font: 600 12.5px var(--font-d); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cgsc .muted { font: 11px var(--mono); }
+  .cgsc .chip { font-size: 11px; color: var(--s9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cgsc .chip.ed { color: var(--amber); } .cgsc .chip.q { color: var(--mint); }
+  .cgsc.on { background: rgba(201, 242, 107, 0.10); color: var(--s12); border-color: rgba(201, 242, 107, 0.45); box-shadow: none; }
+  /* the strip under the image */
+  body.cg #cgStrip { display: block; position: relative; height: 22px; margin: 2px 18px 0; border-radius: 8px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--stroke); cursor: pointer; overflow: hidden; flex: none; }
+  #cgStrip .scs span { position: absolute; top: 2px; bottom: 2px; border-radius: 5px; background: rgba(255, 255, 255, 0.07); border-left: 1px solid rgba(255, 255, 255, 0.18);
+    font: 500 10.5px/16px var(--font-d); color: var(--s9); padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-sizing: border-box; }
+  #cgStrip .scs span.ed { background: rgba(255, 210, 127, 0.16); color: var(--amber); } #cgStrip .scs span.q { background: rgba(111, 231, 200, 0.14); color: var(--mint); }
+  #cgStrip .ph { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 8px rgba(255, 255, 255, 0.6); pointer-events: none; }
+  /* the wipe: before | after */
+  body.cg #cgWipe { position: absolute; top: 0; bottom: 0; width: 24px; margin-left: -12px; cursor: ew-resize; z-index: 6; touch-action: none; }
+  #cgWipe .ln { position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 6px rgba(0, 0, 0, 0.6); }
+  #cgWipe .kn { position: absolute; left: 4px; top: 50%; width: 16px; height: 34px; margin-top: -17px; border-radius: 8px; background: #f4f5fa; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); }
+  #cgWipe b { position: absolute; top: 10px; font: 600 11px/1.5 var(--font-d); color: #fff; background: rgba(10, 12, 20, 0.7); padding: 2px 8px; border-radius: 999px; display: none; white-space: nowrap; }
+  #cgWipe b.a { right: 18px; } #cgWipe b.p { left: 18px; }
+  #cgWipe.split b { display: block; }
+  /* the controls */
+  .cgbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px 18px; min-width: 0; }
+  .cgbar b { font: 600 15px var(--font-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .cgbar .muted { font-size: 12px; white-space: nowrap; }
+  .cgbar .grow { flex: 1; }
+  .cgbar button { height: 30px; font-size: 12px; }
+  #cgBypass.on { background: var(--grad-amber); color: #2a1a05; border-color: transparent; }
+  .cgbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px 250px; gap: 18px; padding: 4px 18px 12px; }
+  .cgwheels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-height: 0; }
+  .cgw { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; min-height: 0; }
+  .cgw .t { font: 600 12px/1.2 var(--font-d); color: var(--s12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+  .cgw .t small { display: block; font: 500 10.5px/1.3 var(--font); color: var(--s9); }
+  .cgw .wb { flex: 1; min-height: 0; width: 100%; container-type: size; display: grid; place-items: center; }
+  .cgw canvas { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); cursor: crosshair; touch-action: none; }
+  .cgw .roll { position: relative; width: 76%; height: 14px; flex: none; border-radius: 7px; cursor: ew-resize; touch-action: none;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 6px), linear-gradient(90deg, #0b0c12, #3a3d4a); border: 1px solid var(--stroke); }
+  .cgw .roll i { position: absolute; top: -3px; width: 6px; height: 18px; margin-left: -3px; border-radius: 3px; background: #f4f5fa; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+  .cgw .v { font: 10px var(--mono); color: var(--s9); white-space: nowrap; overflow: hidden; max-width: 100%; }
+  .cgwheels { container-type: inline-size; }
+  @container (max-width: 560px) { .cgw .v { display: none; } }
+  .cgcol { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  .cgcol h3 { font: 600 11.5px var(--font-d); color: var(--s11); margin: 0 0 4px; letter-spacing: .05em; text-transform: uppercase; }
+  .cgs { display: grid; grid-template-columns: 104px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 12px; color: var(--s11); min-height: 24px; }
+  .cgs .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cgs input { width: 100%; margin: 0; }
+  .cgs .n { font: 11px var(--mono); text-align: right; color: var(--s12); }
+  .cgs.hue input { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: linear-gradient(90deg, hsl(0 80% 55%), hsl(60 80% 55%), hsl(120 80% 55%), hsl(180 80% 55%), hsl(240 80% 55%), hsl(300 80% 55%), hsl(360 80% 55%)); }
+  .cgs.hue input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 16px; border-radius: 4px; background: #f4f5fa; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+  /* the scopes */
+  #cgScope { flex: 1; min-height: 0; width: calc(100% - 24px); margin: 0 12px 12px; border-radius: 12px; display: block; background: #05070c; }
+  #cgScopeSeg button { height: 26px; font-size: 12px; padding: 0 11px; }
+  #cgScopeSrc { font: 11px var(--mono); }

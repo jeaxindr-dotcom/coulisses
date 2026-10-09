@@ -18,7 +18,7 @@
   }
   function stamp(n) { n.updated = now(); n.context = contextAt(n.frame, n.end ?? n.frame); }
   function queueFull() {
-    if (drafts().length < MAXQ) return false;
+    if (!MAXQ || drafts().length < MAXQ) return false;
     setSave(T('st.queue.full', { max: MAXQ }), 'err');
     setTab('queue'); $('#qcnt').animate([{ transform: 'scale(1.3)' }, { transform: 'scale(1)' }], 400);
     return true;

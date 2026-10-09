@@ -7,7 +7,7 @@
     try {
       META = await (await fetch('/api/meta')).json();
       const data0Notes = META.newProject ? ((await (await fetch('/api/notes')).json()).notes ?? []).length : 0;
-      SNAP = META.snapshot; FPS = META.fps || 30; MAXQ = META.maxEdits || 10;
+      SNAP = META.snapshot; FPS = META.fps || 30; MAXQ = META.maxEdits || 0;
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
       if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }

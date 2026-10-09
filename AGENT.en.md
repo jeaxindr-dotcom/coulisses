@@ -168,6 +168,25 @@ In the studio's **Agent** tab, the user writes what they want to see, without ai
 
 A project created with **File › New project** starts from an empty 3D scene: React Three Fiber, a black background, a floor grid on the y = 0 plane, axes and a white dot at the origin. These editor aids (`<EditorAids />`) only show in Coulisses, never in a render. Its modules are shared by every new project (`node_modules` is a junction): install nothing there without the user's agreement.
 
+## A color grade
+
+The studio's **Color** page (key G, next to "Review" at the top) sets the color scene by scene, like DaVinci Resolve's Color page: looks sorted by emotion (31 to start with, with an amount), the four Lift / Gamma / Gain / Offset wheels, exposure, contrast, saturation, temperature, tint, vignette, grain, glow, tinted shadows and highlights, with a waveform and an RGB parade. Nothing is written in the project: "Add to queue" makes one edit per scene, over the scene's whole range, with a **"Color grade"** block:
+
+- **the look** chosen and its amount, and whether the user added their own adjustments;
+- **the exact filter**, a `k-etalonnage.svg` file in the batch's folder: an SVG `<filter>` (per-channel tables, saturation, tinted shadows and highlights, glow), computed for the composition's size. This filter, applied to the image, is what the user saw in the preview;
+- **the vignette** (a `radial-gradient` to lay on top) and **the grain** (its opacity), if any;
+- **the values** as JSON, for an engine where CSS does not apply (a shader, a post-processing pass);
+- **the attached images** "grade (before)" and "grade (after)": the same frame of the scene, without then with the grade. "after" is the target.
+
+To apply it:
+
+1. Copy the file's `<svg>` as it is, once, into the composition (a hidden element), then put `filter: url(#<id>)` on the scene's container, **only during the scene's range**: the `style` of the scene's `AbsoluteFill` in Remotion, the scene element's CSS in HyperFrames, the parent of a 3D canvas.
+2. Lay the vignette and the grain as layers over the scene's image (the grain changes every frame, with `mix-blend-mode: overlay`).
+3. In the Brambleshire theatre, make it an episode setting (a flag), so that the other episodes stay identical to their videos.
+4. Change nothing else (no timing, light or set). Check with `CLI frame <project> <frame> --source code` that the image looks like "grade (after)". As for any edit: `snapshot` first, then `reply` and `done`.
+
+A scene already graded in the code and graded again: replace its filter with the new one, never stack them.
+
 ## A library image to place
 
 Each channel has a media library (the studio's "Media" tab): its characters, sets, props and effects, sorted by category in `Documents\Coulisses\Media\<channel>\` (`Médias` when Coulisses was first used in French). The user creates images there with the image workshop (Codex and its image_gen tool), or drops their own. When they drag an image onto the video, the edit holds a **"Library image to place"** block:

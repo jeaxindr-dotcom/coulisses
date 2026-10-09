@@ -14,6 +14,10 @@ Coulisses est le studio de revue de toutes les chaînes : relire et annoter une 
 
 *La mise en scène (**M**) : tu choisis un objet dans l'aperçu vivant et tu le déplaces toi-même. Sous l'image, les outils de la mise en scène remplacent ceux de l'image : Déplacer · Tourner · Taille, et la **Caméra libre** (**C**) pour regarder la scène d'où tu veux. Le décalage part à l'agent, qui l'écrit dans le code.*
 
+![L'étalonnage : les looks par émotion à gauche, l'image avant | après au centre, les scènes à droite, les quatre roues, les réglages et les filtres dessous, la parade RVB](docs/screenshots/grading-fr.jpg)
+
+*La page **Étalonnage** (**G**, à côté de « Revue » en haut), dans l'esprit de celle de DaVinci Resolve : 31 looks rangés par l'émotion qu'ils transmettent, avec un dosage ; les roues Lift · Gamma · Gain · Offset ; exposition, contraste, saturation, température, teinte, vignettage, grain, halo, ombres et lumières teintées ; forme d'onde et parade RVB ; avant | après en tirant la ligne blanche sur l'image, **B** pour l'original. Scène par scène : « Ajouter à la file » envoie à l'agent le filtre SVG exact, qu'il écrit dans le code.*
+
 ## L'application (`.exe`)
 
 - **`Coulisses.exe`** est l'application, installée dans `C:\Users\owner\AppData\Local\Programs\Coulisses\`. Raccourcis « Coulisses » sur le Bureau et dans le menu Démarrer. **Un double-clic sur un fichier `.coulisses`** l'ouvre sur ce projet (association de fichier pour ton compte, sans droits administrateur).
@@ -109,13 +113,22 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 |---|---|
 | **Outils sur l'image** | **V** Sélection : pointer un endroit, puis **A** « Demander une modif ». **D** Dessin : plusieurs traits forment un seul dessin, **Entrée** pour l'ajouter. **C** Commentaire épinglé à un endroit et à une image. |
 | **Objet 3D visé** | Sous le geste, un lancer de rayon dans la scène Three.js de l'aperçu nomme l'objet touché, par exemple « Hazel · personnage » ou « flower arch · décor », avec son chemin complet dans l'Inspecteur (`Stage › Actor[key="hazel"]`). Aucun changement dans le code Remotion. |
-| **Modifs en attente** | Chaque nouvelle note entre dans la file, 10 au plus, modifiable ou supprimable. **Envoyer à l'agent** envoie toute la file en un **lot**. |
+| **Modifs en attente** | Chaque nouvelle note entre dans la file (autant que tu veux), modifiable ou supprimable. **Envoyer à l'agent** envoie toute la file en un **lot**. |
 | **Lien avec l'agent** | L'envoi affiche une ligne à coller dans la session de ton agent. Autre possibilité, le bouton **« Connecter à l'agent »** en haut : la ligne de connexion se colle une fois, puis chaque envoi réveille l'agent automatiquement. Une fois connecté, le bouton dit « Agent connecté · Claude Code » (ou Codex…). |
 | **Aperçu vivant** | **P**, ou « MP4 rendu / Code actuel » : le Remotion Player montre le code actuel au même instant, sans re-rendu. Il se recompile à chaque enregistrement, en environ 0,15 s, et se recharge sur la même image. |
 | **Les yeux de l'agent** | `studio-cli.mjs frame` / `sheet` donnent une image ou une bande avant/après, prise dans le MP4 ou dans le code (`renderStill` / `renderFrames`, Chrome `--gl=angle`). |
 | **Annuler une correction** | Panneau « Envois » : **Annuler cette correction** remet les fichiers du lot dans leur état d'avant (instantanés de `revue\runs\NNN\`). L'annulation est refusée si un fichier a changé depuis. **Rétablir** refait la correction. |
 | **Un nouveau projet, construit en direct** | **Fichier › Nouveau projet** crée une scène 3D vide dans `Documents\Coulisses\Projets\<nom>\` : React Three Fiber, fond noir, grille au sol sur le plan y = 0, axes au point 0. Ce sont des aides de l'éditeur, absentes de l'export. Dans l'onglet **Agent** du studio, tu écris ce que tu veux voir : chaque message part aussitôt à l'agent connecté à Coulisses, qui écrit le code, et la scène se monte dans l'aperçu. Les modules (Remotion, three.js, React Three Fiber) sont installés une seule fois, sur ton ordre, et partagés par tous les nouveaux projets. |
 | **Bibliothèque de médias et atelier d'images** | Onglet **Médias** : une bibliothèque par chaîne (personnages, décors, accessoires, effets), dans `Documents\Coulisses\Médias\<chaîne>\`. Tu décris une image dans l'atelier : **Codex CLI** la crée avec son outil image_gen (ton compte ChatGPT, sans clé d'API), elle arrive dans la bibliothèque, et tu l'ajustes en répondant (« plus grand », « de dos »). Les images déposées sont rangées par l'agent. Une image glissée sur l'aperçu y apparaît tout de suite : **en carton 3D** dans une scène 3D (comme les cartons de Brambleshire : l'image découpée, sa tranche et son dos, debout sur le sol là où tu la lâches, à la taille d'un accessoire, d'un personnage ou d'un décor), telle quelle sur une image 2D. Tu la places avec la mise en scène, `Ctrl`+`Z` la retire, puis « Ajouter à la file » : l'agent l'ajoute au projet à cet endroit. Sur une vidéo sans code, elle devient une modif épinglée. |
+
+## Étalonnage : la couleur, scène par scène
+
+- **G** ouvre la page (ou le bouton « Étalonnage » en haut, ou Outils › Étalonnage) ; **G** encore revient à la revue.
+- **Looks** à gauche, rangés par émotion : Chaleur · nostalgie, Joie · énergie, Rêve · merveilleux, Mélancolie, Tension · danger, Mystère · nuit, Futur · froid, Intemporel (31 au départ : heure dorée, teal & orange, bleach bypass, nuit américaine, pellicules Portra et Kodachrome, néon cyberpunk, noir et blanc…). Chaque carte montre l'image affichée avec ce look ; le **dosage** le mélange à l'image d'origine.
+- **Les roues** : Lift (ombres), Gamma (tons moyens), Gain (hautes lumières), Offset (tout) : glisser dans la roue pousse vers une couleur, la barre dessous éclaircit ou assombrit ; double-clic = zéro. **Réglages** : exposition, contraste et son pivot, saturation, température, teinte. **Filtres** : vignettage, grain, halo, ombres et lumières teintées.
+- **Scopes** : forme d'onde et parade RVB, sur l'image affichée, étalonnée (0 à 1023).
+- **Avant | après** : tirer la ligne blanche sur l'image (double-clic : moitié / tout) ; **B** montre l'original.
+- **Par scène** : les décors d'un épisode, les chapitres d'un run, sinon toute la vidéo, dans la colonne de droite et sur la bande sous l'image. « Copier à toutes les scènes », puis « Ajouter à la file » : une modif par scène, avec le filtre SVG exact (un fichier du lot), les valeurs et l'image avant / après. L'aperçu garde l'étalonnage tant que la modif attend ; l'agent l'écrit ensuite dans le code (`AGENT.md` › Un étalonnage).
 
 ## Mise en scène : déplacer les objets toi-même
 

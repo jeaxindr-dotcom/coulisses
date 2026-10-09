@@ -48,9 +48,11 @@
     { g: 'stage', id: 'modeRotate', keys: ['E'], stage: true },
     { g: 'stage', id: 'modeScale', keys: ['R'], stage: true },
     { g: 'stage', id: 'freeCam', keys: ['C'], stage: true },
+    { g: 'grade', id: 'gradePage', keys: ['G'] },
+    { g: 'grade', id: 'gradeBypass', keys: ['B'] },
   ];
   const BY = new Map(ACTIONS.map((a) => [a.id, a]));
-  const GROUPS = ['common', 'play', 'image', 'notes', 'timeline', 'stage'];
+  const GROUPS = ['common', 'play', 'image', 'notes', 'timeline', 'stage', 'grade'];
   // keys that stay where they are: the menu bar's, the dialogs', the text fields' and the ones the browser keeps for itself
   const RESERVED = new Set(['Escape', 'Tab', 'Shift+Tab', 'Enter', 'F10', 'F5', 'F11', 'F12', 'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+W', 'Ctrl+T',
     'Ctrl+R', 'Ctrl+Shift+T', 'Ctrl+Shift+N', 'Ctrl+Shift+W', 'Ctrl+Shift+I', 'Ctrl+Shift+J', 'Ctrl+Tab', 'Ctrl+Shift+Tab']);

@@ -462,6 +462,7 @@
       if (f !== lastF) { if (pickPt && pickPt.frame !== f) { pickPt = null; $('#pickBtn').style.display = 'none'; } hideHover(); }
       lastF = f; updateHud(); draw(); drawOv(); showShot();
     }
+    if (window.__cgReady) cgTick();   // the grade of the scene shown (part 11, evaluated after this first tick)
     requestAnimationFrame(tick);
   })();
 
