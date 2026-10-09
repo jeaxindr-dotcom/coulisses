@@ -34,7 +34,9 @@ import { timelineBuilder } from './lib/timeline-live.mjs';
 import { peaksOf } from './lib/peaks.mjs';
 import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
 import { project, tracksOf, shotsUsedIn } from './lib/projects.mjs';
-import { genericTimelineBuilder } from './lib/remotion-module.mjs';
+import { genericTimelineBuilder, normalizeTimeline } from './lib/remotion-module.mjs';
+import { hfPlayerBuilder, hfTimelineBuilder, hfFor, hfComposition, injectHead } from './lib/hyperframes.mjs';
+import { stripTypeScriptTypes } from 'node:module';
 import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/updates.mjs';
 import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
 import { CLI as CLI_FILE } from './lib/lots.mjs';
@@ -54,7 +56,9 @@ if (!epArg && !projArg) { console.error(t('srv.usage')); process.exit(1); }
 const P = projArg ? project(projArg) : episode(epArg, optionsFrom(args));
 const B = P.kind === 'brambleshire';   // an episode: live preview of the code, staging, render; a project: the video only
 const G = P.kind === 'remotion';       // a run of a Remotion pipeline (.coulisses): its code played live, before any export
-const CODE = B || G;
+const HFP = P.kind === 'hyperframes';   // a HyperFrames project (.coulisses moteur hyperframes): its HTML composition played live
+const CODE = B || G || HFP;
+const XP = G || HFP;                    // a project exported from the studio (its export script, or « hyperframes render »)
 const { ep, folder, EP, REVUE, NOTES, REPLIES, SNAP, IMAGES, PROXY, PROXY_INFO } = P;
 fs.mkdirSync(IMAGES, { recursive: true });
 fs.mkdirSync(path.dirname(PROXY), { recursive: true });
@@ -105,8 +109,9 @@ function refreshProxy() {
 // a project: the tracks of its montage plan (AItelier), read again when the plan changes; no code to preview
 const planTimeline = () => { const d = tracksOf(P); const v = d ? Date.parse(d.mtime) : 0; return { build: () => {}, state: { version: v, status: 'ready', error: null, data: d ? { tracks: d.tracks, fps: d.fps, frames: d.frames, plan: d.file } : null } }; };
 const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, log }) : G ? genericTimelineBuilder(P.remotion, { log })
+  : HFP ? hfTimelineBuilder(P, { log, normalize: (raw) => normalizeTimeline(raw, raw.fps) })
   : { get state() { return planTimeline().state; }, build: () => {} };
-const player = CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
+const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
 // size and frame rate of a project's video (a Short is 1080×1920), measured once per file — by ffprobe in the background
@@ -146,10 +151,12 @@ function meta() {
   refreshProxy();
   const video = pickVideo(P);
   const snapshot = B ? readJson(SNAP, null) : null;
-  const render = video ? stamp(video) : null, pr = probe(video);
+  const render = video ? stamp(video) : null, pr0 = probe(video);
+  const hc = HFP ? hfComposition(P.hf.projet, P.hf.index) : null;   // a HyperFrames project: its root composition's size and rate
+  const pr = HFP && hc && !video ? { size: [hc.width, hc.height], fps: hc.fps } : pr0;
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: G && exportAvailable(P).ok }, exportWhy: G ? exportAvailable(P).why : null, exportOptions: G && exportAvailable(P).ok ? exportOptions(P) : [],
-    composition: G ? P.remotion.composition : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: XP && exportAvailable(P).ok }, exportWhy: XP ? exportAvailable(P).why : null, exportOptions: XP && exportAvailable(P).ok ? exportOptions(P) : [],
+    composition: G ? P.remotion.composition : HFP ? hc?.id ?? null : null, engine: B || G ? 'remotion' : HFP ? 'hyperframes' : null, hfVersion: HFP ? hfFor(P.hf.projet)?.version ?? null : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
     snapshotMatches: !!(snapshot?.video && render && snapshot.video.size === render.size),
@@ -192,11 +199,11 @@ function watchExport() {
   if (x && x.state !== 'running' && exportHolds) { exportHolds = false; unhold(); }
   setTimeout(watchExport, x?.state === 'running' ? 1000 : 4000).unref();
 }
-if (G) watchExport();
+if (XP) watchExport();
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, export: G ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
+    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -344,7 +351,7 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/favicon.png') return sendFile(req, res, path.join(HERE, 'favicon.png'), 'image/png');
     // ---- the « after » image of a 2D staging (a run): its own preview with the offsets, photographed (lib/stage-shot.mjs) ----
     if (pn === '/api/stage-shot' && req.method === 'POST') {
-      if (!G) return json(res, { ok: false, why: t('srv.noCode') }, 400);
+      if (!G && !HFP) return json(res, { ok: false, why: t('srv.noCode') }, 400);
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
       const w = Math.round(+b.w || 0), h = Math.round(+b.h || 0), f = Math.max(0, Math.round(+b.frame || 0));
       if (!(w > 0 && h > 0 && w <= 8192 && h <= 8192) || !Array.isArray(b.edits)) return json(res, { ok: false, why: 'w, h, edits' }, 400);
@@ -441,18 +448,34 @@ const server = http.createServer(async (req, res) => {
       return json(res, { ok: true });
     }
     // ---- live preview ----
+    if (pn === '/player.html' && HFP) {
+      const comp = hfComposition(P.hf.projet, P.hf.index), hf = hfFor(P.hf.projet);
+      if (!hf?.runtime || !comp) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t(hf ? 'hf.noComp' : 'hf.none')); }
+      const html = fs.readFileSync(path.join(P.hf.projet, P.hf.index), 'utf8');
+      const cfg = { ...comp, index: P.hf.index, version: hf.version };
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return res.end(injectHead(html, `<base href="/hf/"><script>window.__COULISSES_HF = ${JSON.stringify(cfg).replace(/</g, '\\u003c')};</script><script src="/hf-runtime.js?v=${encodeURIComponent(hf.version)}"></script><script type="module" src="/hf-player.js?v=${player.state.version}"></script>`));
+    }
+    if (HFP && pn === '/hf-runtime.js') return sendFile(req, res, hfFor(P.hf.projet)?.runtime ?? null, 'text/javascript; charset=utf-8');
+    if (HFP && pn === '/hf-player.js') return sendFile(req, res, path.join(HERE, 'player', 'hf-player.js'), 'text/javascript; charset=utf-8');
+    if (HFP && (pn === '/hf-stage2d.js' || pn === '/hf-keys.js')) {   // the 2D staging of the Remotion runs, its types stripped (no build)
+      const src = fs.readFileSync(path.join(HERE, 'player', pn === '/hf-keys.js' ? 'keys.ts' : 'stage2d.ts'), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return res.end(stripTypeScriptTypes(src, { mode: 'strip' }).replace(/from '\.\/keys'/g, "from '/hf-keys.js'"));
+    }
+    if (HFP && pn.startsWith('/hf/')) return sendFile(req, res, inside(P.hf.projet, decodeURIComponent(pn.slice(4))));
     if (pn === '/player.html') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(fs.readFileSync(path.join(HERE, 'player', 'player.html'), 'utf8').replace('__V__', String(player.state.version)));
     }
     if (pn === '/player.js') return sendFile(req, res, player.state.file, 'text/javascript; charset=utf-8');
-    if (pn.startsWith('/public/')) return sendFile(req, res, inside(path.join(P.remotionDir, 'public'), pn.slice(8)));
+    if (pn.startsWith('/public/') && P.remotionDir) return sendFile(req, res, inside(path.join(P.remotionDir, 'public'), pn.slice(8)));
     // ---- multi-track timeline + waveforms ----
     if (pn === '/api/timeline') return json(res, { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error, data: timeline.state.data });
     if (pn === '/api/peaks') {   // ?src=<path in 06_Remotion/public> | @mix (the rendered MP4's sound)
       const src = url.searchParams.get('src') ?? '';
       if (src === '@mix' && held) { res.writeHead(503); return res.end('video being replaced'); }
-      const file = src === '@mix' ? pickVideo(P) : inside(CODE ? path.join(P.remotionDir, 'public') : P.EP, src);   // a project: its own files
+      const file = src === '@mix' ? pickVideo(P) : inside(CODE && P.remotionDir ? path.join(P.remotionDir, 'public') : P.hf?.projet ?? P.EP, src);   // a project: its own files
       if (!file || !fs.existsSync(file)) { res.writeHead(404); return res.end('no audio'); }
       const pk = await peaksOf(file);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });
@@ -484,14 +507,14 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/updates') { const u = await updatesFor(url.searchParams.get('agent'), url.searchParams.has('fresh')); return json(res, { line: u.line, ok: u.ok, md: u.updates ? updatesMarkdown(u.updates, { cli: `node "${CLI_FILE}"`, target: P.target }).join('\n') : '', ...u.updates }); }
     // ---- « Exporter » a run of a Remotion pipeline: the project's script, started here, on the user's order ----
     if (pn === '/api/export' && req.method === 'POST') {
-      if (!G) return json(res, { ok: false, why: t('srv.exportOnly') });
+      if (!XP) return json(res, { ok: false, why: t('srv.exportOnly') });
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
       try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     if (pn === '/api/export/stop' && req.method === 'POST') {
       try { return json(res, { ok: true, ...stopExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
-    if (pn === '/api/export/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(G ? exportLog(P) : ''); }
+    if (pn === '/api/export/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(XP ? exportLog(P) : ''); }
     // ---- the full re-render (asked here, run by Claude: studio-cli.mjs render) ----
     if (pn.startsWith('/api/render') && pn !== '/api/render/log' && !B) return json(res, { ok: false, why: t('lot.err.noRender') });
     if (pn === '/api/render' && req.method === 'POST') {
@@ -588,5 +611,5 @@ process.on('exit', () => { try { if (readJson(LOCK, null)?.pid === process.pid) 
 for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, () => process.exit(0));
 const first = [];
 if (!B) { const v = pickVideo(P); if (v) first.push(probeNow(v, probeKey(v))); }
-if (G && exportAvailable(P).ok) first.push(exportOptionsReady(P));
+if (XP && exportAvailable(P).ok) first.push(exportOptionsReady(P));
 Promise.all(first).catch(() => {}).finally(() => server.listen(port, '127.0.0.1'));

@@ -182,7 +182,7 @@
         { id: 'freeCam', label: () => T(staging && D2() ? 'st.bar.cam2d' : 'st.bar.cam'), key: () => SC.show('freeCam'), disabled: () => (stageWhy() ?? (staging ? false : T('menu.why.notStaging'))), run: toggleFreeCam },
         { id: 'source', label: T('menu.source'), key: () => SC.show('source'), disabled: () => srcWhy() ?? false, run: () => { if (staging) setStaging(false); setMode(mode === 'video' ? 'code' : 'video'); } },
         // « Exporter ▸ »: a run's export script (its variants), an episode's full render (asked to the agent), else nothing
-        { id: 'export', label: T('menu.export'), disabled: () => (META?.kind === 'remotion' ? (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false)
+        { id: 'export', label: T('menu.export'), disabled: () => (LIVEP() ? (!META.features?.export ? (META.exportWhy ?? T('menu.why.notRemotion')) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : false)
           : !PROJ ? (renderBusy() ? T('menu.why.renderBusy') : false) : T('menu.why.noExport')),
           items: () => (PROJ ? exportOpts().map((o, i) => ({ id: `export-${o.id ?? i}`, label: o.label, run: () => startExportUI(o.id, o.label) })) : [{ id: 'render', label: T('menu.render'), run: launchRender }]) },
         { id: 'stopExport', label: T('menu.stopExport'), disabled: () => (PROJ ? (STATUS.export?.state === 'running' ? false : T('menu.why.noExportRunning'))
@@ -193,7 +193,7 @@
         { id: 'verify', label: T('menu.verify'), disabled: () => (META?.coulissesFile ? false : T('menu.why.noCoulisses')), run: verifyMenu },
         { id: 'log', label: T('menu.log'), items: () => [
           { id: 'logStudio', label: T('menu.logStudio'), run: showServerLog },
-          { id: 'logExport', label: T('menu.logExport'), disabled: () => (PROJ && META?.kind !== 'remotion' ? T('menu.why.noExport') : false), run: () => (PROJ ? showExportLog() : showRenderLog()) },
+          { id: 'logExport', label: T('menu.logExport'), disabled: () => (PROJ && !LIVEP() ? T('menu.why.noExport') : false), run: () => (PROJ ? showExportLog() : showRenderLog()) },
         ] },
       ] },
       { id: 'help', label: T('menu.help'), items: [
@@ -216,7 +216,7 @@
   // the top bar's main action, white (user request, 09/10/2026, after the reference's « Export »): an episode's
   // « Lancer le rendu » (asked to the agent), a run's « Exporter » (its export script, the first of its variants); a
   // project with neither: no button. Busy (a render or an export running): it shows where it goes, in « Envois »
-  const goKind = () => (!META ? null : !PROJ ? 'render' : META.kind === 'remotion' && META.features?.export ? 'export' : null);
+  const goKind = () => (!META ? null : !PROJ ? 'render' : LIVEP() && META.features?.export ? 'export' : null);
   const goBusy = () => (goKind() === 'render' ? (renderBusy() ? T('menu.why.renderBusy') : null) : STATUS.export?.state === 'running' ? T('menu.why.exportRunning') : null);
   function markGo() {
     const b = $('#hdrGo'), k = goKind();

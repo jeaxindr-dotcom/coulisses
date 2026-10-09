@@ -24,6 +24,8 @@ import { renderState } from './lib/render.mjs';
 import { registry, importProject, removeProject, project, revueOf, folderOf, setFolder, renameFolder } from './lib/projects.mjs';
 import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
 import { workspace, startInstall, installState, createProject, projectsRoot, FORMATS } from './lib/new-project.mjs';
+import { hfFor } from './lib/hyperframes.mjs';
+import { homeUpdates, runHomeUpdate, homeUpdateState } from './lib/updates.mjs';
 import { DATA } from './lib/place.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
@@ -72,7 +74,8 @@ function projects() {
     const st = studios.get(id), live = st ? { url: st.url, paused: !!st.paused } : null;
     try {
       const p = project(revue), v = p.summary.video;
-      return { id, project: true, kind: p.kind, channel: p.summary.channel ?? null, folder: folderOf(id, p.summary.channel ?? null), coulisses: p.coulisses ?? null, format: p.summary.format, title: p.title, root: p.EP, revue, video: v, thumb: !!v,
+      const engine = p.kind === 'remotion' ? 'remotion' : p.kind === 'hyperframes' ? 'hyperframes' : null;   // the home screen's tag (09/10/2026)
+      return { id, project: true, kind: p.kind, engine, channel: p.summary.channel ?? null, folder: folderOf(id, p.summary.channel ?? null), coulisses: p.coulisses ?? null, format: p.summary.format, title: p.title, root: p.EP, revue, video: v, thumb: !!v,
         duration: v ? durationOf(p.summary.videoPath, v) : null, ...reviewStats(revue), studio: live };
     } catch (e) { return { id, project: true, missing: true, revue, folder: folderOf(id, null), title: path.basename(path.dirname(revue)), why: e.message, studio: live }; }
   });
@@ -106,7 +109,7 @@ function episodes() {
     const render = R && (R.state === 'running' || ((R.state === 'rendered' || R.state === 'blocked' || R.state === 'failed') && Date.now() - Date.parse(R.updatedAt) < 3 * 86400e3))
       ? { state: R.state, phase: R.phase, pct: R.render?.stage === 'frames' ? Math.floor(R.render.pct) : null } : null;
     return {
-      render, channel: theatreChannel(), folder: folderOf(id, theatreChannel()), dir: folder,
+      render, engine: 'remotion', channel: theatreChannel(), folder: folderOf(id, theatreChannel()), dir: folder,
       id, title: folder.replace(/^E\d+ - /i, ''), video, duration: snap ? snap.frames / (snap.fps || 30) : null,
       notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
       thumb: fs.existsSync(path.join(dir, 'thumbnail.jpg')) || !!video, reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null,
@@ -227,14 +230,25 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/favicon.png') return send(res, 200, 'image/png', fs.readFileSync(path.join(STUDIO, 'favicon.png')));
     if (pn === '/api/ping') return json(res, { hub: true, installed: INSTALLED, episodesDir: O.episodesDir, studios: Object.fromEntries([...studios].map(([k, s]) => [k, { url: s.url, paused: s.paused }])) });
     // ---- « Nouveau projet »: an empty 3D scene, built live with the agent (lib/new-project.mjs) ----
-    if (req.method !== 'POST' && pn === '/api/new') return json(res, { workspace: workspace(), formats: Object.keys(FORMATS), channels: [...new Set([...projects().map((x) => x.channel), theatreInfo().name].filter(Boolean))].sort() });
+    // ---- « Mises à jour » (Remotion and HyperFrames): checked once a day by the page, updated on the user's click ----
+    if (pn === '/api/home-updates' && req.method !== 'POST') {
+      const dirs = [{ label: theatreChannel(), dir: O.remotionDir }, { label: t('upd.home.newProjects'), dir: projectsRoot() },
+        ...registry().projects.map(({ revue }) => { try { const p = project(revue); return p.kind === 'remotion' && p.remotionDir ? { label: p.title, dir: p.remotionDir } : null; } catch { return null; } }).filter(Boolean)];
+      return json(res, { ...(await homeUpdates({ fresh: url.searchParams.has('fresh'), remotionDirs: dirs })), job: homeUpdateState() });
+    }
+    if (pn === '/api/home-updates/run' && req.method === 'POST') {
+      const b = await readBody(req);
+      try { return json(res, { ok: true, job: runHomeUpdate(String(b.what ?? ''), Array.isArray(b.names) ? b.names.map(String) : [], { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/home-updates/job') return json(res, homeUpdateState() ?? { state: 'idle' });
+    if (req.method !== 'POST' && pn === '/api/new') return json(res, { workspace: workspace(), hf: hfFor(null)?.version ?? null, formats: Object.keys(FORMATS), channels: [...new Set([...projects().map((x) => x.channel), theatreInfo().name].filter(Boolean))].sort() });
     if (req.method === 'POST' && pn === '/api/new/install') return json(res, { ok: true, ...startInstall(projectsRoot(), { log }) });
     if (pn === '/api/new/install') return json(res, installState() ?? { state: 'idle' });
     if (req.method === 'POST' && pn === '/api/new') {
-      const b = await readBody(req), ws = workspace();
-      if (!ws.ready) return json(res, { ok: false, needInstall: true, root: ws.root, missing: ws.missing });
+      const b = await readBody(req), ws = workspace(), hf = b.engine === 'hyperframes';
+      if (!hf && !ws.ready) return json(res, { ok: false, needInstall: true, root: ws.root, missing: ws.missing });   // HyperFrames: nothing to install
       try {
-        const { file } = createProject({ nom: b.nom, chaine: b.chaine || null, format: b.format, duree: b.duree, fps: b.fps });
+        const { file } = createProject({ nom: b.nom, chaine: b.chaine || null, format: b.format, duree: b.duree, fps: b.fps, engine: hf ? 'hyperframes' : 'remotion' });
         const p = importProject(file);
         log(t('hubsrv.newProject', { title: p.title, file }));
         return json(res, { ok: true, id: p.id, file });
@@ -291,7 +305,7 @@ const server = http.createServer(async (req, res) => {
       catch (e) { return send(res, 500, 'text/html; charset=utf-8', page(t('hubsrv.noStart', { id }), e.message)); }
     }
     if (pn === '/import') {   // a folder or a video dropped on the app's icon: import, then open it
-      try { const r = doImport(url.searchParams.get('path') ?? ''); res.writeHead(302, { Location: r.video || r.episode || r.kind === 'remotion' ? `/go/${r.id}` : '/' }); return res.end(); }
+      try { const r = doImport(url.searchParams.get('path') ?? ''); res.writeHead(302, { Location: r.video || r.episode || r.kind === 'remotion' || r.kind === 'hyperframes' ? `/go/${r.id}` : '/' }); return res.end(); }
       catch (e) { return send(res, 400, 'text/html; charset=utf-8', page(t('hubsrv.importFail'), e.message)); }
     }
     if (req.method === 'POST' && pn === '/api/import/pick') { const b = await readBody(req); const p = await pick(b.what); return json(res, p ? { ok: true, path: p } : { ok: false, cancelled: true }); }
@@ -321,6 +335,6 @@ server.on('listening', () => {
   if (opt('--lock')) fs.writeFileSync(opt('--lock'), JSON.stringify({ pid: process.pid, port, url: hubUrl, studio: STUDIO }));
   console.log(`HUB_READY ${hubUrl}`);
   if (opt('--episode')) open(opt('--episode').toUpperCase()).catch(() => {});
-  if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion') open(r.id).catch(() => {}); } catch (e) { log(t('hubsrv.importLog', { msg: e.message })); } }
+  if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion' || r.kind === 'hyperframes') open(r.id).catch(() => {}); } catch (e) { log(t('hubsrv.importLog', { msg: e.message })); } }
 });
 server.listen(port, '127.0.0.1');

@@ -41,6 +41,16 @@ It was born as the review tool of the *Brambleshire Theatre* channel (a 3D paper
 | **French or English** | Everything you see, and what the agent reads, follows one setting (see below). |
 | **A menu bar** | File · Edit · Tools · Help, like any desktop app (see below). |
 
+## HyperFrames, a second engine
+
+Coulisses also reviews **HyperFrames** projects (a video = an HTML composition and its GSAP timeline), next to Remotion. It ships nothing of HyperFrames: it uses the tool already on the PC (npx's cache), in the version the project pins.
+
+- **In the project list**, each project shows its engine next to its title: **Remotion** or **HyperFrames**.
+- **New project**: the choice between Remotion (the empty 3D scene) and HyperFrames (an empty HTML composition, made by `hyperframes init`, with nothing to install).
+- **The studio** plays the composition live, at its size; the timeline comes from `hyperframes timeline`; a click names the element aimed at by its `id`; the 2D staging works as on a Remotion run; a change of the code reloads the preview by itself.
+- **Export** (the white button) runs `hyperframes render`: the normal video, a quick draft or the best quality, into `renders\`.
+- **Updates** (a home-screen button, with a badge): Remotion (its latest version against your projects', its skills) and HyperFrames (the PC's tool against the latest, its skills). Checked by itself once a day; a skill or the HyperFrames tool is updated only on your click. Remotion itself is updated with the channel's agent (it runs its tests again). Test: `node tests\hyperframes.mjs`.
+
 ## Requirements
 
 - Windows 10 or 11.

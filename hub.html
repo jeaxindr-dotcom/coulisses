@@ -43,7 +43,11 @@
   .id { position: absolute; left: 14px; top: 14px; z-index: 1; height: 26px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; background: rgba(9,11,18,.6); backdrop-filter: blur(10px); font: 600 12px var(--font-d); border: 1px solid var(--stroke-2); }
   .live { position: absolute; right: 14px; top: 14px; z-index: 1; height: 26px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; background: var(--lime); color: #10140a; font: 600 11.5px var(--font-d); }
   .body { padding: 16px 18px 18px; }
-  .title { font: 600 19px var(--font-d); margin: 0 0 4px; }
+  .title { font: 600 19px var(--font-d); margin: 0 0 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* the project's engine, next to its title (user request, 09/10/2026): Remotion or HyperFrames */
+  .eng { height: 20px; padding: 0 8px; border-radius: 6px; display: inline-flex; align-items: center; font: 600 10.5px var(--font-d); letter-spacing: .02em; border: 1px solid var(--stroke-2); white-space: nowrap; }
+  .eng.remotion { color: #8fb8ff; background: rgba(110, 150, 255, 0.12); border-color: rgba(110, 150, 255, 0.3); }
+  .eng.hyperframes { color: #ffb38a; background: rgba(255, 150, 100, 0.12); border-color: rgba(255, 150, 100, 0.3); }
   .meta { color: var(--s9); font-size: 12.5px; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
   .chip { height: 24px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font: 600 11.5px var(--font-d); background: rgba(255,255,255,.08); color: var(--s11); }
@@ -91,6 +95,20 @@
   .topbar { display: flex; align-items: center; gap: 10px; margin: 0 4px; }
   .topbar h2 { margin: 8px 0; }
   .topbar .grow { flex: 1; }
+  /* « Mises à jour » (09/10/2026): the badge, the window */
+  #updBtn { position: relative; }
+  #updBtn .badge { display: none; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--lime); color: #10140a; font: 700 11px/18px var(--font-d); text-align: center; }
+  #updBtn.todo .badge { display: inline-block; }
+  .upd h3 { margin: 14px 0 6px; font: 600 15px var(--font-d); display: flex; align-items: center; gap: 8px; }
+  .upd h3:first-child { margin-top: 0; }
+  .upd .ln { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--s11); margin: 4px 0; flex-wrap: wrap; }
+  .upd .ok { color: var(--mint); font-weight: 600; } .upd .todo { color: var(--amber); font-weight: 600; }
+  .upd .note { font-size: 12px; color: var(--s9); margin: 6px 0; line-height: 1.5; }
+  .upd .acts { display: flex; gap: 8px; margin: 8px 0 4px; flex-wrap: wrap; }
+  .upd .acts button { height: 30px; font-size: 12px; }
+  .upd .log { white-space: pre-wrap; font: 11.5px/1.5 var(--mono, monospace); color: var(--s9); max-height: 160px; overflow: auto; background: rgba(0,0,0,.25); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+  .upd .log:empty { display: none; }
+  .upd .foot { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--s9); margin-top: 14px; }
   button.soft { background: rgba(255,255,255,.08); color: var(--s12); box-shadow: none; border: 1px solid var(--stroke-2); }
   .folder { margin-top: 18px; }
   .folder > h2.fh { margin: 8px 4px 14px; user-select: none; }
@@ -154,7 +172,7 @@
 </header>
 <main>
   <div class="topbar"><h2>{{hub.projects}} <span class="n" id="nproj"></span></h2><span class="grow"></span>
-    <button class="soft" id="scanBtn" title="{{hub.scan.buttonTitle}}">{{hub.scan.button}}</button><button id="newBtn" title="{{hub.new.buttonTitle}}">{{hub.new.button}}</button></div>
+    <button class="soft" id="updBtn" title="{{hub.upd.buttonTitle}}">{{hub.upd.button}}<span class="badge" id="updN"></span></button><button class="soft" id="scanBtn" title="{{hub.scan.buttonTitle}}">{{hub.scan.button}}</button><button id="newBtn" title="{{hub.new.buttonTitle}}">{{hub.new.button}}</button></div>
   <div id="folders"><div class="empty">{{hub.loading}}</div></div>
   <section id="addSec"><h2>{{hub.add}}</h2>
   <div class="grid" id="pgrid"></div></section>
@@ -174,8 +192,9 @@
   let busy = null, last = '';
   const KIND = { aitelier: 'AItelier', folder: T('hub.kind.folder'), video: T('hub.kind.video'), remotion: 'Remotion', run: 'Run' };
   // a run of a Remotion pipeline (.coulisses) opens on its code, before any export
-  const openable = (e) => !e.missing && (!!e.video || e.kind === 'remotion');
-  const kindOf = (e) => (e.kind === 'run' ? (e.channel || 'Run') : e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : T('hub.liveCode')}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : T('hub.long')) : ''}` : KIND[e.kind] ?? T('hub.kind.project'));
+  const openable = (e) => !e.missing && (!!e.video || e.kind === 'remotion' || e.kind === 'hyperframes');
+  const engineTag = (e) => (e.engine ? `<span class="eng ${e.engine}" title="${esc(T('hub.engine.title', { e: T('hub.engine.' + e.engine) }))}">${esc(T('hub.engine.' + e.engine))}</span>` : '');
+  const kindOf = (e) => (e.kind === 'run' ? (e.channel || 'Run') : e.kind === 'remotion' ? `${e.channel || 'Remotion'}${e.video ? '' : T('hub.liveCode')}` : e.kind === 'hyperframes' ? `${e.channel || 'HyperFrames'}${e.video ? '' : T('hub.liveCode')}` : e.kind === 'aitelier' ? `AItelier${e.format ? ' · ' + (e.format === 'short' ? 'Short' : T('hub.long')) : ''}` : KIND[e.kind] ?? T('hub.kind.project'));
   function chipsOf(e) {
     const R = e.render;
     return [
@@ -189,9 +208,9 @@
   }
   function card(e) {
     const c = document.createElement('div'); c.className = 'card' + (openable(e) ? '' : ' off'); c.dataset.id = e.id;
-    const what = e.project ? (e.video ? T('hub.exported', { day: esc(day(e.video.mtime)) }) : e.missing ? T('hub.missingFolder') : e.kind === 'remotion' ? T('hub.notExported') : e.kind === 'run' ? T('hub.waitingExport') : T('hub.noVideo')) : (e.video ? T('hub.rendered', { day: esc(day(e.video.mtime)) }) : T('hub.notRendered'));
+    const what = e.project ? (e.video ? T('hub.exported', { day: esc(day(e.video.mtime)) }) : e.missing ? T('hub.missingFolder') : e.kind === 'remotion' || e.kind === 'hyperframes' ? T('hub.notExported') : e.kind === 'run' ? T('hub.waitingExport') : T('hub.noVideo')) : (e.video ? T('hub.rendered', { day: esc(day(e.video.mtime)) }) : T('hub.notRendered'));
     c.innerHTML = `<div class="thumb" style="${e.thumb ? `background-image:url('/thumb/${e.id}?v=${encodeURIComponent(e.video?.mtime ?? '')}')` : ''}"><span class="id">${esc(e.project ? (e.missing ? T('hub.badge.missing') : T('hub.badge.project')) : e.id)}</span>${e.studio && !e.studio.paused ? `<span class="live">${T('hub.badge.open')}</span>` : ''}${e.project && !e.missing ? `<span class="kind">${esc(kindOf(e))}</span>` : ''}</div>
-      <div class="body"><div class="title">${esc(e.title)}</div>
+      <div class="body"><div class="title"><span>${esc(e.title)}</span>${e.missing ? '' : engineTag(e)}</div>
         <div class="meta">${[e.video ? dur(e.duration) : '', what, e.reviewed ? T('hub.reviewed', { day: esc(day(e.reviewed)) }) : ''].filter(Boolean).join(' · ')}</div>
         ${e.project ? `<div class="meta" title="${esc(e.root ?? e.revue)}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.root ?? e.why ?? '')}</div>` : ''}
         <div class="chips">${chipsOf(e)}</div>
@@ -379,14 +398,17 @@
     const info = await (await fetch('/api/new', { cache: 'no-store' })).json().catch(() => null) ?? {};
     npD = dlg({ title: T('hub.new.title'), html: '<div class="np"></div>', buttons: [{ label: T('hub.new.cancel') }], onClose: () => { npD = null; clearTimeout(npTimer); } });
     const box = npD.querySelector('.np');
-    box.innerHTML = `<p>${T('hub.new.intro')}</p>
+    // the engine (user request, 09/10/2026): Remotion, the empty 3D scene; HyperFrames, an empty HTML composition
+    box.innerHTML = `<label>${T('hub.new.engine')}<span class="seg" id="npEng"><button data-e="remotion" class="on">Remotion</button><button data-e="hyperframes" ${info.hf ? '' : 'disabled'} title="${esc(info.hf ? 'HyperFrames ' + info.hf : T('hf.noneShort'))}">HyperFrames</button></span></label>
+      <p id="npIntro">${T('hub.new.intro')}</p>
       <label>${T('hub.new.name')}<input id="npName" placeholder="${esc(T('hub.new.namePh'))}" spellcheck="false"></label>
       <label>${T('hub.new.channel')}<input id="npChan" list="npChans" placeholder="${esc(T('hub.new.channelPh'))}"><datalist id="npChans">${(info.channels ?? []).map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>
       <label>${T('hub.new.format')}<span class="seg" id="npFmt">${(info.formats ?? ['16:9', '9:16', '1:1']).map((f, i) => `<button data-f="${f}" class="${i ? '' : 'on'}">${f}</button>`).join('')}</span></label>
       <label>${T('hub.new.length')}<input id="npDur" type="number" min="1" max="3600" value="10"></label>
       <div id="npInstall"></div>
       <div class="row2"><span class="why" id="npWhy"></span><span class="grow"></span><button id="npGo">${T('hub.new.create')}</button></div>`;
-    let fmt = (info.formats ?? ['16:9'])[0];
+    let fmt = (info.formats ?? ['16:9'])[0], engine = 'remotion';
+    box.querySelectorAll('#npEng button').forEach((b) => b.onclick = () => { if (b.disabled) return; engine = b.dataset.e; box.querySelectorAll('#npEng button').forEach((x) => x.classList.toggle('on', x === b)); box.querySelector('#npIntro').textContent = T(engine === 'hyperframes' ? 'hub.new.introHf' : 'hub.new.intro'); box.querySelector('#npInstall').innerHTML = ''; });
     box.querySelectorAll('#npFmt button').forEach((b) => b.onclick = () => { fmt = b.dataset.f; box.querySelectorAll('#npFmt button').forEach((x) => x.classList.toggle('on', x === b)); });
     box.querySelector('#npName').focus();
     const why = (m) => { box.querySelector('#npWhy').textContent = m ?? ''; };
@@ -394,7 +416,7 @@
       why('');
       const nom = box.querySelector('#npName').value.trim(); if (!nom) { why(T('hub.new.needName')); box.querySelector('#npName').focus(); return; }
       const b = box.querySelector('#npGo'); b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.new.creating')}`;
-      const r = await postJSON('/api/new', { nom, chaine: box.querySelector('#npChan').value.trim(), format: fmt, duree: +box.querySelector('#npDur').value || 10 });
+      const r = await postJSON('/api/new', { nom, chaine: box.querySelector('#npChan').value.trim(), format: fmt, duree: +box.querySelector('#npDur').value || 10, engine });
       b.disabled = false; b.textContent = T('hub.new.create');
       if (r?.ok) { location.href = '/go/' + r.id; return; }
       if (r?.needInstall) { askInstall(box, r, go); return; }
@@ -422,6 +444,58 @@
     if (st.state === 'done') then();
   }
   $('#newBtn').onclick = openNew;
+  // ---------- « Mises à jour »: Remotion and HyperFrames, their versions and their skills (user request, 09/10/2026) ----------
+  // checked by itself when the home screen opens (the server keeps the answers a day), now with « Vérifier maintenant »;
+  // a skill or HyperFrames' CLI is updated only on a click; Remotion's packages are only shown (its channel's agent does it)
+  let UPD = null, updD = null, updTimer = null;
+  const markUpd = () => { const n = UPD?.count ?? 0; $('#updBtn').classList.toggle('todo', n > 0); $('#updN').textContent = n ? String(n) : ''; $('#updBtn').title = n ? T('hub.upd.badgeTitle', { n }) : T('hub.upd.buttonTitle'); };
+  async function loadUpd(fresh = false) {
+    UPD = await (await fetch('/api/home-updates' + (fresh ? '?fresh' : ''), { cache: 'no-store' })).json().catch(() => null);
+    markUpd(); if (updD) drawUpd();
+  }
+  const skillsHtml = (S, fam) => !S.installed ? `<div class="ln">${esc(T('hub.upd.noSkills', { repo: S.repo }))}</div>`
+    : `<div class="ln">${esc(T('hub.upd.skills', { repo: S.repo, n: S.installed }))} · ${S.updates.length ? `<span class="todo">${esc(T('hub.upd.skillsTodo', { n: S.updates.length }))}</span> ${esc(S.updates.map((x) => x.name).join(', '))}` : S.checked ? `<span class="ok">${esc(T('hub.upd.allOk'))}</span>` : esc(T('hub.upd.offline'))}</div>
+      ${S.updates.length ? `<div class="acts"><button data-run="skills-${fam}" data-names="${esc(S.updates.map((x) => x.name).join(' '))}">${esc(T('hub.upd.updSkills', { n: S.updates.length }))}</button></div>` : ''}`;
+  function drawUpd() {
+    const box = updD?.querySelector('.upd'); if (!box) return;
+    if (!UPD) { box.innerHTML = `<p>${esc(T('hub.upd.checking'))}</p>`; return; }
+    const R = UPD.remotion, H = UPD.hyperframes, J = UPD.job, running = J?.state === 'running';
+    box.innerHTML = `<h3><span class="eng remotion">Remotion</span></h3>
+      <div class="ln">${esc(R.latest ? T('hub.upd.latest', { v: R.latest }) : T('hub.upd.latestUnknown'))}</div>
+      ${R.projects.map((p) => `<div class="ln">${esc(p.label)} : ${esc(p.installed)} · ${p.outdated ? `<span class="todo">${esc(T('hub.upd.available', { v: R.latest }))}</span>` : `<span class="ok">${esc(T('hub.upd.upToDate'))}</span>`}</div>`).join('')}
+      ${R.projects.some((p) => p.outdated) ? `<div class="note">${esc(T('hub.upd.remNote'))}</div>` : ''}
+      ${skillsHtml(R.skills, 'remotion')}
+      <h3><span class="eng hyperframes">HyperFrames</span></h3>
+      <div class="ln">${esc(H.installed ? T('hub.upd.cli', { v: H.installed }) : T('hub.upd.noCli'))} · ${H.latest ? (H.outdated ? `<span class="todo">${esc(T('hub.upd.available', { v: H.latest }))}</span>` : H.installed ? `<span class="ok">${esc(T('hub.upd.upToDate'))}</span>` : '') : esc(T('hub.upd.latestUnknown'))}</div>
+      ${H.outdated || (!H.installed && H.latest) ? `<div class="acts"><button data-run="hf-cli">${esc(T('hub.upd.getCli', { v: H.latest }))}</button></div><div class="note">${esc(T('hub.upd.cliNote'))}</div>` : ''}
+      ${skillsHtml(H.skills, 'hyperframes')}
+      ${J ? `<div class="note">${esc(T(running ? 'hub.upd.running' : J.state === 'done' ? 'hub.upd.done' : 'hub.upd.failed'))}</div><div class="log">${esc((J.log ?? []).join('\n'))}</div>` : ''}
+      ${UPD.errors?.length ? `<div class="note">${esc(UPD.errors.join(' · '))}</div>` : ''}
+      <div class="foot"><span>${esc(T('hub.upd.checkedAt', { date: day(UPD.at) }))}</span><span class="grow" style="flex:1"></span><button class="soft" id="updNow" ${running ? 'disabled' : ''}>${esc(T('hub.upd.checkNow'))}</button></div>`;
+    box.querySelectorAll('[data-run]').forEach((b) => { b.disabled = running; b.onclick = async () => {
+      const what = b.dataset.run, names = (b.dataset.names ?? '').split(' ').filter(Boolean);
+      const line = what === 'hf-cli' ? 'npx --yes hyperframes@latest --version' : `npx --yes skills update -g -y ${names.join(' ')}`;
+      if (!confirm(T('hub.upd.confirm', { line }))) return;
+      const r = await postJSON('/api/home-updates/run', { what, names });
+      if (!r?.ok) { alert(r?.why ?? T('hub.error')); return; }
+      UPD.job = r.job; drawUpd(); followUpd();
+    }; });
+    box.querySelector('#updNow').onclick = () => { UPD = null; drawUpd(); loadUpd(true); };
+  }
+  async function followUpd() {
+    clearTimeout(updTimer);
+    const j = await (await fetch('/api/home-updates/job', { cache: 'no-store' })).json().catch(() => null);
+    if (UPD && j) UPD.job = j.state === 'idle' ? null : j;
+    drawUpd();
+    if (j?.state === 'running') { updTimer = setTimeout(followUpd, 1000); return; }
+    if (j && j.state !== 'idle') loadUpd(true);   // done: checked again
+  }
+  function openUpdates() {
+    updD = dlg({ title: T('hub.upd.title'), html: '<div class="upd"></div>', onClose: () => { updD = null; clearTimeout(updTimer); } });
+    drawUpd(); if (UPD?.job?.state === 'running') followUpd();
+  }
+  $('#updBtn').onclick = openUpdates;
+  loadUpd();   // the check of the day (the server answers from its memory when it checked less than a day ago)
   let timer = null, impCard = null;
   async function load(once) {
     try {
@@ -468,7 +542,7 @@
     const imp = await postJSON('/api/import', { path: r.path });
     if (!imp?.ok) { impErr(imp?.why ?? T('hub.import.failed')); return; }
     const p = imp.project;
-    if (open && (p.episode || p.video || p.kind === 'remotion')) { location.href = '/go/' + p.id; return; }
+    if (open && (p.episode || p.video || p.kind === 'remotion' || p.kind === 'hyperframes')) { location.href = '/go/' + p.id; return; }
     last = ''; await load(true);
     document.querySelector(`.card[data-id="${p.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -534,7 +608,7 @@
       { id: 'stopExport', label: T('menu.stopExport'), disabled: inStudio },
       { id: 'compare', label: T('menu.compare'), disabled: inStudio },
       '-',
-      { id: 'updates', label: T('menu.updates'), disabled: inStudio },
+      { id: 'updates', label: T('menu.updates'), run: openUpdates },
       { id: 'verify', label: T('menu.verify'), disabled: inStudio },
       { id: 'log', label: T('menu.log'), items: () => [{ id: 'logHub', label: T('menu.logHub'), run: showLog }] },
     ] },

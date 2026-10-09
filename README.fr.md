@@ -150,6 +150,16 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 - **Exporter** (le bouton blanc en haut à droite, ou l'onglet « Envois ») : quand la relecture est finie, le bouton « Exporter la vidéo » lance le script d'export du projet de la chaîne (`scripts\coulisses-rendu.mjs`, contrat dans la fiche). L'avancement s'affiche dans la carte, avec « Arrêter l'export » et le journal (`revue\export.log`). L'export continue même si Coulisses est fermé, et la nouvelle vidéo est chargée seule à la fin. Test : `node tests\coulisses-export.mjs`.
 - **Un exemple complet** : `node tests\coulisses-fixture.mjs` (le projet d'essai). Test : `node tests\coulisses.mjs`.
 
+## HyperFrames, un deuxième moteur
+
+Coulisses relit aussi les projets **HyperFrames** (une vidéo = une composition HTML et sa timeline GSAP), à côté de Remotion. Il ne fournit rien de HyperFrames : il se sert de l'outil déjà sur le PC (le cache de `npx`), dans la version que le projet épingle.
+
+- **Dans la liste des projets**, chaque projet porte son moteur à côté de son titre : **Remotion** ou **HyperFrames**.
+- **Nouveau projet** : le choix entre Remotion (la scène 3D vide) et HyperFrames (une composition HTML vide, créée par `hyperframes init`, sans rien installer).
+- **Le studio** joue la composition en direct, à sa taille ; la timeline vient de `hyperframes timeline` ; un clic nomme l'élément visé par son `id` ; la mise en scène 2D marche comme sur un run Remotion ; un changement du code recharge l'aperçu seul.
+- **Exporter** (le bouton blanc) lance `hyperframes render` : vidéo normale, brouillon rapide ou qualité maximale, dans `renders\`.
+- **Mises à jour** (bouton de l'accueil, avec une pastille) : Remotion (sa dernière version face à celle de tes projets, ses skills) et HyperFrames (l'outil du PC face au dernier, ses skills). Vérifiées seules une fois par jour ; un skill ou l'outil HyperFrames ne se met à jour que sur ton clic. Remotion lui-même se met à jour avec l'agent de la chaîne (il relance ses tests). Test : `node tests\hyperframes.mjs`.
+
 ## Projets importés (L'AItelier, n'importe quelle vidéo)
 
 - **Importer un projet**, sur l'accueil, à la manière du gestionnaire de projets de DaVinci Resolve. Trois façons :

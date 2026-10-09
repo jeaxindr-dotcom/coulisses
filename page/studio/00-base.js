@@ -12,6 +12,8 @@
   let META = null, SNAP = null, LIVE = null, FPS = 30, FRAMES = 0, DUR = 0, MAXQ = 10;
   let CW = 1920, CH = 1080;                    // the frame's pixels (1920×1080 for an episode; a project: its video's): every mark is stored in these
   let PROJ = false;                            // an imported project (AItelier run, any video), not a Brambleshire episode
+  // a project whose code is played live and exported from the studio: a Remotion run, or a HyperFrames project (09/10/2026)
+  const LIVEP = () => META?.kind === 'remotion' || META?.kind === 'hyperframes';
   let notes = [], sel = null, loopId = null, stopAt = null, rangeStart = null;
   let REPLIES = { notes: {} };
   let STATUS = { lots: [], agent: {}, code: {}, timeline: {} };

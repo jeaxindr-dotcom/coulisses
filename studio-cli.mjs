@@ -112,7 +112,7 @@ if (cmd === 'medias') {
 }
 if (!cmd || !epArg) die(t('cli.usage'));
 const P = resolveTarget(epArg, optionsFrom(argv));
-const B = P.kind === 'brambleshire', CODE = B || P.kind === 'remotion';   // CODE: a live preview of the code exists
+const B = P.kind === 'brambleshire', CODE = B || P.kind === 'remotion' || P.kind === 'hyperframes';   // CODE: a live preview of the code exists
 const FPS = B ? readJson(P.SNAP, {})?.fps ?? 30 : (stillSource(P) ? probeVideo(stillSource(P)).fps : 30);   // a Remotion run with no export yet: frames are the code's
 const replies = () => { const r = readJson(P.REPLIES, { notes: {} }); r.notes ??= {}; r.lots ??= {}; return r; };
 const notesById = () => Object.fromEntries((readJson(P.NOTES, { notes: [] }).notes ?? []).map((n) => [n.id, n]));

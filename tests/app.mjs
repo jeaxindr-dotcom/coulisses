@@ -38,13 +38,13 @@ try {
   const ev = async (expr) => (await send('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true })).result.value;
   const until = async (expr, ms = 60000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await ev(`return !!(${expr})`)) return true; } catch { /* navigating */ } await sleep(300); } return false; };
   await until(`document.querySelectorAll('.card').length > 0`);
-  const cards = await ev(`return [...document.querySelectorAll('.card .title')].map((e) => e.textContent)`);
+  const cards = await ev(`return [...document.querySelectorAll('.card .title > span:first-child')].map((e) => e.textContent)`);   // the title, without the engine's tag (09/10/2026)
   check(cards.includes('The Secret Garden'), `episodes listed: ${cards.join(', ')}`);
   await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
   const shot = async (f) => { const { data } = await send('Page.captureScreenshot', { format: 'png' }); fs.mkdirSync(path.join(CACHE, 'shots'), { recursive: true }); fs.writeFileSync(path.join(CACHE, 'shots', f), Buffer.from(data, 'base64')); };
   await sleep(1500); await shot('app-1-home.png');
   // open E03
-  await ev(`[...document.querySelectorAll('.card')].find((c) => c.querySelector('.title').textContent === 'The Secret Garden').click(); return 1`);
+  await ev(`[...document.querySelectorAll('.card')].find((c) => c.querySelector('.title > span:first-child')?.textContent === 'The Secret Garden').click(); return 1`);
   const inStudio = await until(`location.port !== '' && document.querySelector('#v') && document.querySelector('#v').readyState >= 2`, 90000);
   check(inStudio, `the studio of E03 opens in the same window (${await ev('return location.href')})`);
   await sleep(2000); await shot('app-2-studio.png');

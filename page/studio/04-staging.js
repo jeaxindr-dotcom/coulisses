@@ -49,7 +49,11 @@
       setSave(T('st.stage.ready'), 'ok');
       stUnsub?.(); stUnsub = SP.stage.on(onStageEvent); SP.stage.setMode(stMode);
       try { codeEl.contentWindow.focus(); } catch { /* */ }
-    } else { SP?.stage.enable(false); freeCamOn = false; stSel = null; }
+    } else {
+      SP?.stage.enable(false); freeCamOn = false; stSel = null;
+      // the keyboard back to the studio (it was the preview's while staging): N, Espace, the arrows work again at once
+      try { codeEl.blur(); window.focus(); } catch { /* */ }
+    }
     staging = on;
     media.classList.toggle('staging', on); $('#stage').classList.toggle('staging', on); $('#bStage').classList.toggle('on', on); $('#viewer').classList.toggle('staging', on);
     if (on) setTab('scene');

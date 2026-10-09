@@ -94,6 +94,16 @@ Since October 2026, these three channels edit their runs in Remotion. The run's 
 - **The channel's skill sets the rest**: its checks after a fix (tsc, `controler-scene.mjs`, text-audit…), and its rules.
 - **I never export.** The user starts the export from Coulisses (Batches tab, or Tools › Export in the menu bar: the channel's export script). The studio loads the new video by itself at the end, and offers "Compare before / after".
 
+## A HyperFrames project
+
+Since 09/10/2026, Coulisses also reviews **HyperFrames** projects (a video = an HTML composition: a root element with `data-composition-id`, clips with `data-start` / `data-duration`, one GSAP timeline per composition). Its `.coulisses` says `"moteur": "hyperframes"`, and the line to paste starts with `Coulisses · <title> · batch N`. What changes:
+
+- **The files to fix** are the composition: `index.html` and the sub-compositions (`compositions\*.html`), their CSS and their GSAP timeline. Each edit names the element aimed at by its `id` (`#title`), else by its clip or its composition.
+- **The eyes**: `frame … --source code` takes the frame from the code with `hyperframes snapshot` (this PC's HyperFrames, the one the project pins in its `package.json`), and `sheet` shows before / after.
+- **After the fix**: `npx hyperframes lint` (and `check`), then `reply` and `done`. The project's guide (`CLAUDE.md` / `AGENTS.md`) and the `/hyperframes` skill apply.
+- **I never export.** The user starts the export from Coulisses (the Export button: `hyperframes render`, into `renders\`). The studio loads the new video by itself at the end.
+- **Nothing is installed or updated** without the user's consent, neither the HyperFrames tool nor its skills (the home screen has an « Updates » button for that).
+
 ## A render request
 
 The "Start the render" button of the Batches tab (or Tools › Start the render) sends a **render request**: a batch with no edit (`"kind": "render"`). It arrives like the others: through the pasted line `Coulisses · E03 · render (batch N) → …`, or through `wait`, which then prints `DEMANDE DE RENDU (lot N) REÇUE (render request N received)`. Its `.md` says what the render carries, that is the batches sent since the current video, with their state and the files touched. It also says whether the engine changed.

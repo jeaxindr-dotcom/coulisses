@@ -81,6 +81,16 @@ Depuis octobre 2026, ces trois chaînes montent leurs runs en Remotion. Le `.cou
 - **Le skill de la chaîne fixe le reste** : ses contrôles après une correction (tsc, `controler-scene.mjs`, text-audit…), et ses règles.
 - **Je n'exporte jamais.** L'utilisateur lance lui-même l'export depuis Coulisses (onglet Envois, bouton du script d'export de la chaîne). Le studio charge seul la nouvelle vidéo à la fin, et propose « Comparer avant / après ».
 
+## Un projet HyperFrames
+
+Depuis le 09/10/2026, Coulisses relit aussi les projets **HyperFrames** (une vidéo = une composition HTML : un élément racine `data-composition-id`, des clips `data-start` / `data-duration`, une timeline GSAP par composition). Le `.coulisses` dit `"moteur": "hyperframes"`, et la ligne à coller commence par `Coulisses · <titre> · lot N`. Ce qui change :
+
+- **Les fichiers à corriger** sont la composition : `index.html` et les sous-compositions (`compositions\*.html`), leur CSS et leur timeline GSAP. Chaque modif nomme l'élément visé par son `id` (`#title`), sinon par son clip ou sa composition.
+- **Les yeux** : `frame … --source code` prend l'image dans le code avec `hyperframes snapshot` (le HyperFrames de ce PC, celui que le projet épingle dans son `package.json`), et `sheet` montre avant / après.
+- **Après la correction** : `npx hyperframes lint` (et `check`), puis `reply` et `done`. Le guide du projet (`CLAUDE.md` / `AGENTS.md`) et le skill `/hyperframes` s'appliquent.
+- **Je n'exporte jamais.** L'utilisateur lance l'export depuis Coulisses (bouton Exporter : `hyperframes render`, dans `renders\`). Le studio charge seul la nouvelle vidéo à la fin.
+- **Rien n'est installé ni mis à jour** sans l'accord de l'utilisateur, ni l'outil HyperFrames ni ses skills (l'accueil a un bouton « Mises à jour » pour cela).
+
 ## Une demande de rendu
 
 Le bouton « Lancer le rendu » de l'onglet Envois envoie une **demande de rendu** : c'est un lot sans modif (`"kind": "render"`). Elle arrive comme les autres : par la ligne collée `Coulisses · E03 · rendu (lot N) → …`, ou par `wait`, qui imprime alors « DEMANDE DE RENDU (lot N) REÇUE ». Son `.md` dit ce que le rendu emporte, c'est-à-dire les lots envoyés depuis la vidéo actuelle, avec leur état et les fichiers touchés. Il signale aussi si le moteur a changé.
