@@ -190,6 +190,8 @@
     <div class="bar"><b>{{st.cg.scenes}}</b><span class="grow"></span><span class="muted" id="cgSceneN"></span></div>
     <div class="scroll" id="cgSceneList"></div>
   </section>
+  <!-- under the image, as DaVinci Resolve's Color page: the Primaries (bars and wheels), the curves (or the filters), the scopes -->
+  <div id="cgBottom">
   <section id="cgPanel" class="glass cgp">
     <div class="cgbar"><b id="cgSceneName">—</b><span class="muted" id="cgSceneSub"></span><span class="grow"></span>
       <button class="soft" id="cgBypass" title="{{st.cg.bypassTitle}}">{{st.cg.bypass}}</button>
@@ -199,13 +201,20 @@
     <div class="cgbody">
       <!-- as DaVinci Resolve's Primaries: a bar of settings above the four wheels, another under them -->
       <div class="cgmain"><div class="cgstrip top" id="cgTop"></div><div class="cgwheels" id="cgWheels"></div><div class="cgstrip bot" id="cgBot"></div></div>
-      <div class="cgcol" id="cgFxCtl"></div>
     </div>
+  </section>
+  <!-- the curves (DaVinci's « Curves - Custom »: Y, R, G, B, the frame's histogram behind), or the filters -->
+  <section id="cgCurves" class="glass cgp">
+    <div class="bar"><span class="seg" id="cgMidSeg"><button data-m="curves" class="on">{{st.cg.curves}}</button><button data-m="fx">{{st.cg.filters}}</button></span><span class="grow"></span>
+      <button class="soft icon" id="cgCurveReset" title="{{st.cg.curvesReset}}" aria-label="{{st.cg.curvesReset}}"><i data-ic="reset"></i></button></div>
+    <div class="cvbody" id="cgCurveBody"><div class="cvwrap"><canvas id="cgCurve" title="{{st.cg.curveHow}}"></canvas></div><div class="cvside" id="cgCurveSide"></div></div>
+    <div class="cgcol fxc" id="cgFxCtl"></div>
   </section>
   <section id="cgScopes" class="glass cgp">
     <div class="bar"><span class="seg" id="cgScopeSeg"><button data-s="wave" class="on">{{st.cg.waveform}}</button><button data-s="parade">{{st.cg.parade}}</button></span><span class="grow"></span><span class="muted" id="cgScopeSrc"></span></div>
     <canvas id="cgScope"></canvas>
   </section>
+  </div>
 </div>
 <svg id="cgDefs" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <div class="menu" id="menu"></div>

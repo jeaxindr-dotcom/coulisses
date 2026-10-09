@@ -504,7 +504,7 @@
      the settings and the filters, and the scopes (waveform, RGB parade) ---------- */
   header .pages button { height: 28px; padding: 0 13px; font-size: 12.5px; backdrop-filter: none; background: transparent; }
   header .pages button.on { background: #f4f5fa; color: #11131c; }
-  .cgp, #cgStrip, #cgWipe { display: none; }
+  .cgp, #cgStrip, #cgWipe, #cgBottom { display: none; }
   #cgFx { position: absolute; top: 0; bottom: 0; right: 0; left: 0; display: none; overflow: hidden; pointer-events: none; z-index: 1; }
   #cgVig, #cgGrain { position: absolute; top: 0; height: 100%; left: 0; width: 100%; }
   #cgGrain { mix-blend-mode: overlay; display: none; image-rendering: pixelated; }
@@ -514,8 +514,32 @@
   body.cg #cgLooks { grid-column: 2; grid-row: 1; }
   body.cg #viewer { grid-column: 4; grid-row: 1; }
   body.cg #cgScenes { grid-column: 6; grid-row: 1; }
-  body.cg #cgPanel { grid-column: 2 / 5; grid-row: 3; }
-  body.cg #cgScopes { grid-column: 6; grid-row: 3; }
+  /* under the image, as DaVinci's Color page: the Primaries, the curves (or the filters), the scopes */
+  body.cg #cgBottom { display: flex; grid-column: 2 / -1; grid-row: 3; gap: 12px; min-width: 0; min-height: 0; }
+  body.cg #cgPanel { flex: 1 1 0; }
+  body.cg #cgCurves { flex: 0 0 clamp(330px, 24vw, 560px); }
+  body.cg #cgScopes { flex: 0 0 330px; }
+  /* the curves: the graph, and on its right the channel edited and each curve's intensity (DaVinci's « Edit ») */
+  .cvbody { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 0 12px 12px; }
+  .cvwrap { flex: 1; min-width: 0; min-height: 0; position: relative; }
+  #cgCurve { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; border-radius: 10px; }
+  .cvside { flex: 0 0 112px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; padding-top: 10px; }
+  .cvch { display: flex; gap: 3px; }
+  .cvch button { width: 25px; height: 24px; padding: 0; justify-content: center; border-radius: 6px; font: 600 11.5px var(--font-d); background: rgba(0, 0, 0, 0.3); position: relative; }
+  .cvch button.y.on { background: #f4f5fa; color: #11131c; } .cvch button.r.on { background: #ff5a5a; color: #1a0606; }
+  .cvch button.g.on { background: #4fe07a; color: #061a0c; } .cvch button.b.on { background: #5a8dff; color: #060c1a; }
+  .cvch button.mod::after { content: ""; position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
+  .cvh { font: 600 11px var(--font-d); color: var(--s9); letter-spacing: .05em; text-transform: uppercase; margin-top: 4px; }
+  .cvi { display: flex; align-items: center; gap: 5px; }
+  .cvi .dot.y { background: #f4f5fa; } .cvi .dot.r { background: #ff5a5a; } .cvi .dot.g { background: #4fe07a; } .cvi .dot.b { background: #5a8dff; }
+  .cvi .cgf input { width: 50px; }
+  .cvi .rs, #cgCurveReset { width: 22px; height: 22px; padding: 0; justify-content: center; border-radius: 6px; background: transparent; border-color: transparent; color: var(--s9); }
+  .cvi .rs svg.ic, #cgCurveReset svg.ic { width: 13px; height: 13px; }
+  .cvi .rs:hover, #cgCurveReset:hover { color: var(--s12); background: var(--glass-3); }
+  .cvi.moved .rs, #cgCurveReset.moved { color: var(--amber); }
+  #cgMidSeg button { height: 26px; font-size: 12px; padding: 0 11px; }
+  .cgcol.fxc { flex: 1; padding: 4px 16px 12px; }
+  .cgf .u.cr { background: #ff5a5a; } .cgf .u.cg { background: #4fe07a; } .cgf .u.cb { background: #5a8dff; }
   .cgp .bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px 6px; min-height: 44px; }
   .cgp .bar b { font: 600 15px var(--font-d); }
   .cgp .bar .grow { flex: 1; }
@@ -558,12 +582,17 @@
   #cgWipe.split b { display: block; }
   /* the controls */
   .cgbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px 18px; min-width: 0; }
-  .cgbar b { font: 600 15px var(--font-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .cgbar b { font: 600 15px var(--font-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 70px; flex: 0 1 auto; }
+  /* a narrow Primaries panel (a 1600 px window, the curves beside it): the scene's frames go, the bars' labels above their boxes */
+  #cgPanel { container-type: inline-size; }
+  @container (max-width: 860px) { #cgSceneSub { display: none; } }
+  .cgstrip { container-type: inline-size; }
+  @container (max-width: 900px) { .cgf { flex-direction: column; gap: 3px; } .cgf .l { font-size: 10.5px; } }
   .cgbar .muted { font-size: 12px; white-space: nowrap; }
   .cgbar .grow { flex: 1; }
   .cgbar button { height: 30px; font-size: 12px; }
   #cgBypass.on { background: var(--grad-amber); color: #2a1a05; border-color: transparent; }
-  .cgbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; padding: 2px 18px 12px; }
+  .cgbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 2px 18px 12px; }
   /* the wheels between two bars of settings, as in DaVinci Resolve's Primaries (user request, 09/10/2026) */
   .cgmain { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .cgstrip { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 14px; padding: 6px 4px; flex: none; }

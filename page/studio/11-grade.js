@@ -17,11 +17,15 @@
   const CG_WHEELS = ['lift', 'gamma', 'gain', 'offset'];
   // a wheel: h = hue (degrees, 0 red · 120 green · 240 blue), s = strength (0…1), m = master (−1…1: darker / brighter)
   const cgWheel0 = () => ({ h: 0, s: 0, m: 0 });
+  // the curves (DaVinci's « Curves - Custom », user request, 09/10/2026): Y (on R, G, B together), R, G, B, each a list of
+  // points [x, y] in 0…1 (its two ends at x = 0 and x = 1), and its intensity (0…1: how much of it is applied)
+  const cgCurve0 = () => [[0, 0], [1, 1]];
+  const cgCurves0 = () => ({ y: cgCurve0(), r: cgCurve0(), g: cgCurve0(), b: cgCurve0(), iy: 1, ir: 1, ig: 1, ib: 1 });
   // the bars above and under the wheels, as in DaVinci Resolve's Primaries (user request, 09/10/2026): exposure,
   // temperature, tint, contrast, pivot, mid/detail; colour boost, shadows, highlights, saturation, hue, lum mix
   const cgNeutral = () => ({ look: null, amount: 1, lift: cgWheel0(), gamma: cgWheel0(), gain: cgWheel0(), offset: cgWheel0(),
     exposure: 0, contrast: 1, pivot: 0.435, saturation: 1, temperature: 0, tint: 0,
-    midDetail: 0, boost: 0, shadows: 0, highlights: 0, hue: 0, lumMix: 1,
+    midDetail: 0, boost: 0, shadows: 0, highlights: 0, hue: 0, lumMix: 1, curves: cgCurves0(),
     vignette: 0, grain: 0, halo: 0, shH: 30, shS: 0, hiH: 200, hiS: 0 });
   // a grade made before a setting existed (kept in this browser, or waiting in the queue): the setting at its neutral value
   const cgNorm = (g) => (g ? { ...cgNeutral(), ...g } : g);
@@ -70,6 +74,7 @@
   //   1. a table per channel: exposure, temperature / tint, Lift / Gamma / Gain / Offset (their colour, and the share of
   //      their master the Lum Mix leaves to R, G, B), contrast around the pivot, shadows / highlights;
   //   2. the masters' other share on the luma only (Lum Mix 100 = all of it, as DaVinci): Y → Y', the same shift on R, G, B;
+  //   2b. the curves: Y (on R, G, B together), then R, G, B, each at its intensity;
   //   3. saturation; 4. hue (all the hues turned); 5. colour boost (the dull colours saturated, not the vivid ones);
   //   6. the tinted shadows / highlights; 7. mid/detail (local contrast: the image minus its blur); 8. the glow.
   // a hue's direction in colour, its luma taken away (a wheel pushes towards it without changing the brightness)
@@ -91,6 +96,7 @@
     E.saturation = lin('saturation', 1) * u.saturation; E.temperature = lin('temperature', 0) + u.temperature; E.tint = lin('tint', 0) + u.tint;
     E.midDetail = lin('midDetail', 0) + u.midDetail; E.boost = lin('boost', 0) + u.boost; E.hue = lin('hue', 0) + u.hue;
     E.shadows = lin('shadows', 0) + u.shadows; E.highlights = lin('highlights', 0) + u.highlights; E.lumMix = clamp01(u.lumMix);
+    E.curves = { ...cgCurves0(), ...(u.curves ?? {}) };
     E.vignette = Math.min(1, lin('vignette', 0) + u.vignette); E.grain = Math.min(1, lin('grain', 0) + u.grain); E.halo = Math.min(1, lin('halo', 0) + u.halo);
     // the tinted shadows / highlights: the user's if set, else the look's at its amount
     E.sh = u.shS > 0 ? { h: u.shH, s: u.shS } : { h: L.shH, s: L.shS * t };
@@ -119,6 +125,39 @@
     return v - y;
   }
   const cgLumaOn = (E) => E.lumMix > 0.001 && CG_WHEELS.some((k) => Math.abs(E[k].m) > 1e-4);
+  // a curve through its points: a monotone cubic (Fritsch–Carlson: smooth, never overshooting between two points)
+  function cgCurveFn(pts) {
+    const P = [...(pts ?? [])].filter((p) => Array.isArray(p) && p.length === 2).sort((a, b) => a[0] - b[0]), n = P.length;
+    if (n < 2) return (x) => x;
+    const xs = P.map((p) => clamp01(p[0])), ys = P.map((p) => clamp01(p[1])), d = [], m = new Array(n).fill(0);
+    for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / Math.max(1e-6, xs[i + 1] - xs[i]));
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (Math.abs(d[i]) < 1e-9) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / d[i], b = m[i + 1] / d[i], q = a * a + b * b;
+      if (q > 9) { const t = 3 / Math.sqrt(q); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+    }
+    return (x) => {
+      if (x <= xs[0]) return ys[0]; if (x >= xs[n - 1]) return ys[n - 1];
+      let i = 0; while (i < n - 2 && x > xs[i + 1]) i++;
+      const h = Math.max(1e-6, xs[i + 1] - xs[i]), t = (x - xs[i]) / h, t2 = t * t, t3 = t2 * t;
+      return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h * m[i + 1];
+    };
+  }
+  const CV_KEYS = ['y', 'r', 'g', 'b'];
+  const cgCurveFlat = (pts) => !pts || (pts.length === 2 && pts[0][0] === 0 && pts[0][1] === 0 && pts[1][0] === 1 && pts[1][1] === 1);
+  const cgCurvesOn = (C) => !!C && CV_KEYS.some((k) => !cgCurveFlat(C[k]) && (C['i' + k] ?? 1) > 0.001);
+  const N_CURVE = 96;
+  // step 2b as one table per channel: the Y curve at its intensity, then the channel's own
+  function cgCurveTables(E) {
+    const C = E.curves; if (!cgCurvesOn(C)) return null;
+    const fy = cgCurveFn(C.y), fc = [cgCurveFn(C.r), cgCurveFn(C.g), cgCurveFn(C.b)], ic = [C.ir ?? 1, C.ig ?? 1, C.ib ?? 1], iy = C.iy ?? 1;
+    return [0, 1, 2].map((c) => Array.from({ length: N_CURVE + 1 }, (_, i) => {
+      const x = i / N_CURVE, v = clamp01(x + iy * (clamp01(fy(x)) - x));
+      return clamp01(v + ic[c] * (clamp01(fc[c](v)) - v));
+    }));
+  }
   const N_TABLE = 48;
   const cgTables = (E) => [0, 1, 2].map((c) => Array.from({ length: N_TABLE + 1 }, (_, i) => cgChannel(E, c, i / N_TABLE)));
   const cgLumaTable = (E) => Array.from({ length: N_TABLE + 1 }, (_, i) => clamp01(cgLumaShift(E, i / N_TABLE) / 2 + 0.5));   // signed, as 0.5 ± shift / 2
@@ -154,6 +193,8 @@
         `<feComponentTransfer in="ly" result="ld">${rgbFuncs([Y, Y, Y])}</feComponentTransfer>`);
       step(`<feComposite in="${last}" in2="ld" operator="arithmetic" k2="1" k3="2" k4="-1" result="lm"/>`, 'lm');
     }
+    const CT = cgCurveTables(E);
+    if (CT) step(`<feComponentTransfer in="${last}" result="cv">${rgbFuncs(CT)}</feComponentTransfer>`, 'cv');   // 2b. the curves
     step(`<feColorMatrix in="${last}" type="saturate" values="${f4(Math.max(0, E.saturation))}" result="s"/>`, 's');   // 3.
     if (Math.abs(E.hue) > 1e-4) step(`<feColorMatrix in="${last}" type="hueRotate" values="${f4(E.hue * 180)}" result="hr"/>`, 'hr');   // 4.
     if (Math.abs(E.boost) > 1e-4) {   // 5. lerp(image, image more saturated, how dull it is)
@@ -203,15 +244,17 @@
     return a;
   }
   // the same maths on pixels (the looks' cards, the scopes, the images of a note): an RGBA array, w × h -> RGB floats
-  function cgPixels(data, w, h, E) {
+  function cgPixels(data, w, h, E, preCurves = false) {
     const T3 = cgTables(E), S = cgSplit(E), L = T3.map((t) => { const out = new Float32Array(256); for (let i = 0; i < 256; i++) out[i] = cgTab(t, i / 255); return out; });
-    const luma = cgLumaOn(E) ? cgLumaTable(E) : null, M = satM(Math.max(0, E.saturation)), Hm = Math.abs(E.hue) > 1e-4 ? hueM(E.hue * 180) : null;
+    const luma = cgLumaOn(E) ? cgLumaTable(E) : null, CT = cgCurveTables(E), M = satM(Math.max(0, E.saturation)), Hm = Math.abs(E.hue) > 1e-4 ? hueM(E.hue * 180) : null;
     const boost = Math.abs(E.boost) > 1e-4, Mb = satM(Math.max(0, 1 + E.boost));
     const mat = (m, r, g, b) => [clamp01(m[0] * r + m[1] * g + m[2] * b), clamp01(m[3] * r + m[4] * g + m[5] * b), clamp01(m[6] * r + m[7] * g + m[8] * b)];
     let out = new Float32Array(w * h * 3);
     for (let i = 0, p = 0; i < data.length; i += 4, p += 3) {
       let R = L[0][data[i]], G = L[1][data[i + 1]], B = L[2][data[i + 2]];
       if (luma) { const d = 2 * cgTab(luma, 0.2126 * R + 0.7152 * G + 0.0722 * B) - 1; R = clamp01(R + d); G = clamp01(G + d); B = clamp01(B + d); }
+      if (preCurves) { out[p] = R; out[p + 1] = G; out[p + 2] = B; continue; }
+      if (CT) { R = cgTab(CT[0], R); G = cgTab(CT[1], G); B = cgTab(CT[2], B); }
       [R, G, B] = mat(M, R, G, B);
       if (Hm) [R, G, B] = mat(Hm, R, G, B);
       if (boost) {
@@ -225,6 +268,7 @@
       }
       out[p] = R; out[p + 1] = G; out[p + 2] = B;
     }
+    if (preCurves) return out;
     if (Math.abs(E.midDetail) > 1e-4) {   // the image minus its blur
       const k = E.midDetail * DETAIL_K, bl = cgBlur(out, w, h, Math.max(0.5, w * DETAIL_BLUR));
       for (let i = 0; i < out.length; i++) out[i] = clamp01((1 + k) * out[i] - k * bl[i]);
@@ -384,7 +428,8 @@
     try {
       const src = await cgSource(), g = cgGradeAt(curFrame());
       if (!src) { if (mode === 'video' && v.seeking) cgScopeSoon(150); return; }
-      cgDrawScope(src, g && !cgIsNeutral(g) && !CG.bypass ? cgEffective(g) : null);
+      const E = g && !cgIsNeutral(g) && !CG.bypass ? cgEffective(g) : null;
+      cgDrawScope(src, E); cgHist(src, E);
       $('#cgScopeSrc').textContent = src ? T(src.from === 'video' ? 'st.cg.srcVideo' : 'st.cg.srcCode', { f: src.f }) : '';
       if (src && src.f !== CG.cardsF && M.paused) cgDrawCards(src);
     } finally { cgScopeBusy = false; }
@@ -476,20 +521,21 @@
     FLD('saturation', (x) => x * 50, (y) => y / 50, 0.25, 2, 0, 100, 'rainbow'), FLD('hue', (x) => 50 + x * 50, (y) => (y - 50) / 50, 0.25, 2, 0, 100, 'rainbow'),
     FLD('lumMix', x100, d100, 0.25, 2, 0, 100, 'grey')];
   const CG_FIELDS = [...CG_TOP, ...CG_BOT];
+  const cgFieldOf = (k) => CG_FIELDS.find((x) => x.key === k) ?? Object.values(CV_FLD).find((x) => x.key === k);
   const fldShow = (f, x) => dec((+f.show(x)).toFixed(f.dp));
   const fldParse = (f, s) => { const v = parseFloat(String(s).replace(',', '.').replace(/[^\d.+-]/g, '')); return Number.isFinite(v) ? f.unshow(Math.max(f.min, Math.min(f.max, v))) : null; };
   function fieldsHtml(list) {
-    return list.map((f) => `<label class="cgf" data-k="${f.key}" title="${esc(T('st.cg.ft.' + f.key))} · ${esc(T('st.cg.fieldHow'))}"><span class="l">${esc(T('st.cg.f.' + f.key))}</span>`
+    return list.map((f) => `<label class="cgf" data-k="${f.key}" title="${esc(f.tip ?? T('st.cg.ft.' + f.key))} · ${esc(T('st.cg.fieldHow'))}">${f.label === '' ? '' : `<span class="l">${esc(f.label ?? T('st.cg.f.' + f.key))}</span>`}`
       + `<span class="bx"><input type="text" inputmode="decimal" spellcheck="false" autocomplete="off" data-k="${f.key}"><i class="u ${f.u}"></i></span></label>`).join('');
   }
   function fieldWire(lab) {
-    const f = CG_FIELDS.find((x) => x.key === lab.dataset.k), inp = lab.querySelector('input');
-    const set = (x) => cgEdit((g) => { g[f.key] = x; });
+    const f = cgFieldOf(lab.dataset.k), inp = lab.querySelector('input'), get = (g) => (f.get ? f.get(g) : g[f.key]);
+    const set = (x) => cgEdit((g) => { if (f.put) f.put(g, x); else g[f.key] = x; });
     let drag = null;
     inp.addEventListener('pointerdown', (e) => {
       if (document.activeElement === inp) return;   // typing: the field's own cursor
       e.preventDefault(); inp.setPointerCapture(e.pointerId);
-      drag = { x0: e.clientX, v0: +f.show(cgCurrent()?.[f.key] ?? cgNeutral()[f.key]), moved: false };
+      drag = { x0: e.clientX, v0: +f.show(get(cgCurrent() ?? cgNeutral())), moved: false };
     });
     inp.addEventListener('pointermove', (e) => {
       if (!drag) return;
@@ -507,9 +553,9 @@
     inp.addEventListener('blur', () => {
       const cancel = inp.dataset.cancel; delete inp.dataset.cancel;
       const x = cancel ? null : fldParse(f, inp.value);
-      if (x !== null && Math.abs(x - (cgCurrent()?.[f.key] ?? cgNeutral()[f.key])) > 1e-9) set(x); else cgSync();
+      if (x !== null && Math.abs(x - get(cgCurrent() ?? cgNeutral())) > 1e-9) set(x); else cgSync();
     });
-    lab.addEventListener('dblclick', (e) => { e.preventDefault(); inp.blur(); set(cgNeutral()[f.key]); });
+    lab.addEventListener('dblclick', (e) => { e.preventDefault(); inp.blur(); set(get(cgNeutral())); });
   }
   const SL = (key, min, max, step, fmt = (x) => dec(x.toFixed(2))) => ({ key, min, max, step, fmt });
   const CG_FX = [SL('vignette', 0, 1, 0.01), SL('grain', 0, 1, 0.01), SL('halo', 0, 1, 0.01), SL('shH', 0, 360, 1, (x) => `${Math.round(x)}°`), SL('shS', 0, 1, 0.01), SL('hiH', 0, 360, 1, (x) => `${Math.round(x)}°`), SL('hiS', 0, 1, 0.01)];
@@ -521,6 +567,7 @@
     $('#cgTop').innerHTML = fieldsHtml(CG_TOP); $('#cgBot').innerHTML = fieldsHtml(CG_BOT);
     document.querySelectorAll('#cgTop .cgf, #cgBot .cgf').forEach(fieldWire);
     $('#cgFxCtl').innerHTML = `<h3>${esc(T('st.cg.filters'))}</h3>${slidersHtml(CG_FX)}`;
+    cgBuildCurveSide(); cgSetMid(CG.mid);
     for (const inp of document.querySelectorAll('#cgFxCtl input')) {
       inp.addEventListener('input', () => cgEdit((g) => { g[inp.dataset.k] = +inp.value; }));
       inp.addEventListener('dblclick', () => cgEdit((g) => { g[inp.dataset.k] = cgNeutral()[inp.dataset.k]; }));
@@ -533,11 +580,16 @@
     $('#cgSceneName').textContent = sc ? sc.name : '—';
     $('#cgSceneSub').textContent = sc ? T(CG.grades[sc.key] ? 'st.cg.subEditing' : d ? 'st.cg.subQueued' : 'st.cg.subNone', { a: sc.from, b: sc.to }) : '';
     for (const el of document.querySelectorAll('#cgWheels .cgw')) drawWheel(el, g[el.dataset.w]);
-    for (const inp of document.querySelectorAll('#cgTop input, #cgBot input')) {
-      const f = CG_FIELDS.find((x) => x.key === inp.dataset.k);
-      if (document.activeElement !== inp) inp.value = fldShow(f, g[f.key]);
-      inp.closest('.cgf').classList.toggle('moved', Math.abs(g[f.key] - n0[f.key]) > 1e-6);
+    for (const inp of document.querySelectorAll('#cgTop input, #cgBot input, #cgCurveSide input')) {
+      const f = cgFieldOf(inp.dataset.k), get = (x) => (f.get ? f.get(x) : x[f.key]);
+      if (document.activeElement !== inp) inp.value = fldShow(f, get(g));
+      inp.closest('.cgf').classList.toggle('moved', Math.abs(get(g) - get(n0)) > 1e-6);
     }
+    const C = { ...cgCurves0(), ...(g.curves ?? {}) };
+    document.querySelectorAll('#cgCurveSide .cvch button').forEach((b) => { b.classList.toggle('on', b.dataset.ch === CV.ch); b.classList.toggle('mod', !cgCurveFlat(C[b.dataset.ch])); });
+    document.querySelectorAll('#cgCurveSide .cvi').forEach((r) => r.classList.toggle('moved', !cgCurveFlat(C[r.dataset.ch]) || (C['i' + r.dataset.ch] ?? 1) !== 1));
+    $('#cgCurveReset').classList.toggle('moved', cgCurvesOn(C));
+    cgDrawCurves();
     for (const inp of document.querySelectorAll('#cgFxCtl input')) {
       if (document.activeElement !== inp) inp.value = g[inp.dataset.k];
       $(`[data-n="${inp.dataset.k}"]`).textContent = CG_FX.find((x) => x.key === inp.dataset.k).fmt(+g[inp.dataset.k]);
@@ -550,6 +602,116 @@
     $('#cgAdd').querySelector('.t').textContent = ed > 1 ? T('st.cg.addN', { n: ed }) : T('st.cg.add');
     $('#cgBypass').classList.toggle('on', CG.bypass);
     cgRenderScenes();
+  }
+  // ---------- the curves (DaVinci's « Curves - Custom », user request, 09/10/2026: « rajoute les courbes au centre »):
+  // the active curve and its points over the frame's histogram (the frame as it comes into the curves); a click adds a
+  // point, a drag moves it, a double-click or a right-click takes it away (an end goes back to its corner) ----------
+  const CV = { ch: 'y', drag: null, hist: null, hover: -1 };
+  const CV_COL = { y: '#f4f5fa', r: '#ff5a5a', g: '#4fe07a', b: '#5a8dff' };
+  const curveCv = $('#cgCurve');
+  const cvCurves = () => ({ ...cgCurves0(), ...((cgCurrent() ?? cgNeutral()).curves ?? {}) });
+  function cvGeom() { const r = curveCv.getBoundingClientRect(), pad = 12; return { r, pad, w: Math.max(10, r.width - 2 * pad), h: Math.max(10, r.height - 2 * pad) }; }
+  const cvToPx = (G, p) => [G.pad + p[0] * G.w, G.pad + (1 - p[1]) * G.h];
+  const cvFromPx = (G, x, y) => [clamp01((x - G.pad) / G.w), clamp01(1 - (y - G.pad) / G.h)];
+  function cgDrawCurves() {
+    if (!CG.on || CG.mid !== 'curves') return;
+    const G = cvGeom(), dpr = window.devicePixelRatio || 1, W2 = Math.round(G.r.width * dpr), H2 = Math.round(G.r.height * dpr);
+    if (W2 < 40 || H2 < 40) return;
+    if (curveCv.width !== W2 || curveCv.height !== H2) { curveCv.width = W2; curveCv.height = H2; }
+    const g = curveCv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, G.r.width, G.r.height);
+    g.fillStyle = '#0b0d14'; g.fillRect(G.pad, G.pad, G.w, G.h);
+    const H = CV.hist;   // the histogram: what the curve shapes
+    if (H) {
+      const area = (arr, col) => {
+        let mx = 1; for (let i = 2; i < 254; i++) mx = Math.max(mx, arr[i]);
+        g.beginPath(); g.moveTo(G.pad, G.pad + G.h);
+        for (let i = 0; i < 256; i++) g.lineTo(G.pad + (i / 255) * G.w, G.pad + G.h - Math.min(1, arr[i] / mx) * G.h * 0.9);
+        g.lineTo(G.pad + G.w, G.pad + G.h); g.closePath(); g.fillStyle = col; g.fill();
+      };
+      if (CV.ch === 'y') area(H.y, 'rgba(255,255,255,0.11)');
+      else { area(H.y, 'rgba(255,255,255,0.05)'); area(H[CV.ch], { r: 'rgba(255,90,90,0.18)', g: 'rgba(80,224,122,0.16)', b: 'rgba(90,141,255,0.2)' }[CV.ch]); }
+    }
+    g.strokeStyle = 'rgba(255,255,255,0.07)'; g.lineWidth = 1;   // the quarters
+    for (let q = 1; q < 4; q++) {
+      const x = Math.round(G.pad + (G.w * q) / 4) + 0.5, y = Math.round(G.pad + (G.h * q) / 4) + 0.5;
+      g.beginPath(); g.moveTo(x, G.pad); g.lineTo(x, G.pad + G.h); g.moveTo(G.pad, y); g.lineTo(G.pad + G.w, y); g.stroke();
+    }
+    g.strokeStyle = 'rgba(255,255,255,0.14)'; g.strokeRect(G.pad + 0.5, G.pad + 0.5, G.w - 1, G.h - 1);
+    const C = cvCurves();
+    const line = (k, alpha, width) => {
+      const fn = cgCurveFn(C[k]); g.beginPath();
+      for (let i = 0; i <= 160; i++) { const x = i / 160, [px, py] = cvToPx(G, [x, clamp01(fn(x))]); if (i) g.lineTo(px, py); else g.moveTo(px, py); }
+      g.globalAlpha = alpha; g.strokeStyle = CV_COL[k]; g.lineWidth = width; g.stroke(); g.globalAlpha = 1;
+    };
+    for (const k of CV_KEYS) if (k !== CV.ch && !cgCurveFlat(C[k])) line(k, 0.45, 1.25);   // the other curves, faint
+    line(CV.ch, 1, 1.75);
+    for (const [i, p] of C[CV.ch].entries()) {
+      const [px, py] = cvToPx(G, p); g.beginPath(); g.arc(px, py, i === CV.hover || CV.drag?.i === i ? 5.5 : 4.5, 0, Math.PI * 2);
+      g.fillStyle = '#0b0d14'; g.fill(); g.lineWidth = 1.75; g.strokeStyle = CV_COL[CV.ch]; g.stroke();
+    }
+  }
+  const cvHit = (G, C, x, y) => { let best = -1, bd = 10; for (const [i, p] of C[CV.ch].entries()) { const [px, py] = cvToPx(G, p), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = i; } } return best; };
+  const cvPut = (pts) => cgEdit((g) => { g.curves = { ...cgCurves0(), ...(g.curves ?? {}), [CV.ch]: pts }; });
+  curveCv.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const G = cvGeom(), x = e.clientX - G.r.left, y = e.clientY - G.r.top, C = cvCurves(), pts = C[CV.ch].map((p) => [...p]);
+    let i = cvHit(G, C, x, y);
+    if (i < 0) {   // a new point where the click is, between its neighbours
+      const p = cvFromPx(G, x, y); if (p[0] <= 0.01 || p[0] >= 0.99) return;
+      p[0] = +p[0].toFixed(4); p[1] = +p[1].toFixed(4);
+      pts.push(p); pts.sort((a, b) => a[0] - b[0]); i = pts.indexOf(p); cvPut(pts);
+    }
+    CV.drag = { i }; curveCv.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  curveCv.addEventListener('pointermove', (e) => {
+    const G = cvGeom(), x = e.clientX - G.r.left, y = e.clientY - G.r.top, C = cvCurves();
+    if (!CV.drag) { const h = cvHit(G, C, x, y); if (h !== CV.hover) { CV.hover = h; curveCv.style.cursor = h >= 0 ? 'grab' : 'crosshair'; cgDrawCurves(); } return; }
+    const pts = C[CV.ch].map((p) => [...p]), i = CV.drag.i, n = pts.length; if (i < 0 || i >= n) return;
+    let [px, py] = cvFromPx(G, x, y);
+    if (i === 0) px = 0; else if (i === n - 1) px = 1; else px = Math.max(pts[i - 1][0] + 0.01, Math.min(pts[i + 1][0] - 0.01, px));
+    pts[i] = [+px.toFixed(4), +py.toFixed(4)]; cvPut(pts);
+  });
+  curveCv.addEventListener('pointerup', () => { CV.drag = null; cgDrawCurves(); });
+  function cvRemove(e) {
+    const G = cvGeom(), C = cvCurves(), i = cvHit(G, C, e.clientX - G.r.left, e.clientY - G.r.top); if (i < 0) return;
+    const pts = C[CV.ch].map((p) => [...p]);
+    if (i === 0) pts[0] = [0, 0]; else if (i === pts.length - 1) pts[i] = [1, 1]; else pts.splice(i, 1);
+    cvPut(pts);
+  }
+  curveCv.addEventListener('dblclick', (e) => { e.preventDefault(); cvRemove(e); });
+  curveCv.addEventListener('contextmenu', (e) => { e.preventDefault(); cvRemove(e); });
+  new ResizeObserver(() => cgDrawCurves()).observe(curveCv);
+  // the side: the channel edited (Y R G B, as DaVinci's « Edit »), each curve's intensity (100 = all of it) and its reset
+  const CV_FLD = Object.fromEntries(CV_KEYS.map((k) => [k, { ...FLD('i' + k, x100, d100, 0.5, 0, 0, 100, k === 'y' ? 'grey' : 'c' + k), label: '',
+    tip: T('st.cg.intensityTip', { ch: k.toUpperCase() }), get: (g) => (g.curves ?? cgCurves0())['i' + k] ?? 1, put: (g, x) => { g.curves = { ...cgCurves0(), ...(g.curves ?? {}), ['i' + k]: x }; } }]));
+  function cgBuildCurveSide() {
+    $('#cgCurveSide').innerHTML = `<div class="cvch">${CV_KEYS.map((k) => `<button data-ch="${k}" class="${k}" title="${esc(T('st.cg.cv.' + k))}">${k.toUpperCase()}</button>`).join('')}</div>`
+      + `<div class="cvh">${esc(T('st.cg.intensity'))}</div>`
+      + CV_KEYS.map((k) => `<div class="cvi" data-ch="${k}"><i class="dot ${k}"></i>${fieldsHtml([CV_FLD[k]])}<button class="rs" data-reset="${k}" title="${esc(T('st.cg.curveReset'))}" aria-label="${esc(T('st.cg.curveReset'))}">${ic('reset')}</button></div>`).join('');
+    $('#cgCurveSide').querySelectorAll('.cvch button').forEach((b) => b.onclick = () => { CV.ch = b.dataset.ch; CV.hover = -1; cgSync(); });
+    $('#cgCurveSide').querySelectorAll('.cgf').forEach(fieldWire);
+    $('#cgCurveSide').querySelectorAll('[data-reset]').forEach((b) => b.onclick = () => cgEdit((g) => { const k = b.dataset.reset; g.curves = { ...cgCurves0(), ...(g.curves ?? {}), [k]: cgCurve0(), ['i' + k]: 1 }; }));
+  }
+  $('#cgCurveReset').onclick = () => cgEdit((g) => { g.curves = cgCurves0(); });
+  // the centre panel: the curves, or the filters
+  CG.mid = store.get('cg.mid', 'curves') === 'fx' ? 'fx' : 'curves';
+  function cgSetMid(m) {
+    CG.mid = m; store.set('cg.mid', m);
+    $('#cgMidSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
+    $('#cgCurveBody').style.display = m === 'curves' ? '' : 'none'; $('#cgFxCtl').style.display = m === 'fx' ? '' : 'none';
+    $('#cgCurveReset').style.visibility = m === 'curves' ? '' : 'hidden';
+    cgDrawCurves();
+  }
+  $('#cgMidSeg').querySelectorAll('button').forEach((b) => b.onclick = () => cgSetMid(b.dataset.m));
+  // the histogram of the frame shown, as it comes into the curves (the primaries done)
+  function cgHist(src, E) {
+    if (!src) return;
+    const px = E ? cgPixels(src.data, src.w, src.h, E, true) : null, H = { y: new Float32Array(256), r: new Float32Array(256), g: new Float32Array(256), b: new Float32Array(256) };
+    for (let p = 0, i = 0; p < src.w * src.h; p++, i += 4) {
+      const R = px ? px[p * 3] : src.data[i] / 255, G2 = px ? px[p * 3 + 1] : src.data[i + 1] / 255, B = px ? px[p * 3 + 2] : src.data[i + 2] / 255;
+      H.r[Math.round(R * 255)]++; H.g[Math.round(G2 * 255)]++; H.b[Math.round(B * 255)]++; H.y[Math.round(clamp01(0.2126 * R + 0.7152 * G2 + 0.0722 * B) * 255)]++;
+    }
+    CV.hist = H; cgDrawCurves();
   }
   let cgScenesKey = '';
   function cgRenderScenes() {
@@ -582,6 +744,8 @@
     if (L) o.push(T('st.cg.wLook', { name: T('st.cg.look.' + L.id), pct: Math.round((g.amount ?? 1) * 100), emo: T('st.cg.emo.' + L.emotion) }));
     for (const k of CG_WHEELS) if (g[k].s > 0.001 || Math.abs(g[k].m) > 0.001) o.push(T('st.cg.wWheel', { w: T('st.cg.w.' + k), h: Math.round(g[k].h), s: dec(g[k].s.toFixed(2)), m: (g[k].m >= 0 ? '+' : '') + dec(g[k].m.toFixed(2)) }));
     for (const f of CG_FIELDS) if (Math.abs(g[f.key] - n0[f.key]) > 1e-4) o.push(`${T('st.cg.f.' + f.key)} ${fldShow(f, g[f.key])}`);
+    const C = { ...cgCurves0(), ...(g.curves ?? {}) }, cv = CV_KEYS.filter((k) => !cgCurveFlat(C[k]) && (C['i' + k] ?? 1) > 0.001);
+    if (cv.length) o.push(T('st.cg.wCurves', { list: cv.map((k) => `${k.toUpperCase()}${(C['i' + k] ?? 1) < 0.999 ? ` ${Math.round(C['i' + k] * 100)} %` : ''}`).join(', ') }));
     for (const s of CG_FX) if (Math.abs(g[s.key] - n0[s.key]) > 1e-4 && !(/H$/.test(s.key) && !(g[s.key.replace(/H$/, 'S')] > 0))) o.push(`${T('st.cg.s.' + s.key)} ${s.fmt(+g[s.key])}`);
     return o.join(FR ? ' ; ' : '; ');
   }

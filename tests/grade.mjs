@@ -41,6 +41,8 @@ try {
     const dull = (c) => c[0] - c[2], b0 = [px(140, 120, 100, {}), px(230, 40, 40, {})], b1 = [px(140, 120, 100, { boost: 1 }), px(230, 40, 40, { boost: 1 })];
     const lm1 = px(150, 100, 50, { gain: { h: 0, s: 0, m: 0.5 }, lumMix: 1 }), lm0 = px(150, 100, 50, { gain: { h: 0, s: 0, m: 0.5 }, lumMix: 0 });
     const sh = px(40, 40, 40, { shadows: 1 }), hl = px(215, 215, 215, { highlights: -1 });
+    const CV0 = __grade.neutral().curves, cvY = px(128, 128, 128, { curves: { ...CV0, y: [[0, 0], [0.5, 0.65], [1, 1]] } }), cvR = px(128, 128, 128, { curves: { ...CV0, r: [[0, 0], [0.5, 0.35], [1, 1]] } });
+    const cvOff = px(128, 128, 128, { curves: { ...CV0, y: [[0, 0], [0.5, 0.65], [1, 1]], iy: 0 } }), cvHalf = px(128, 128, 128, { curves: { ...CV0, y: [[0, 0], [0.5, 0.65], [1, 1]], iy: 0.5 } });
     // the filter, as the browser applies it (a canvas drawn through it), against the pixel maths
     const W0 = 96, H0 = 54, cv = document.createElement('canvas'); cv.width = W0; cv.height = H0;
     const g0 = cv.getContext('2d', { willReadFrequently: true });
@@ -55,9 +57,10 @@ try {
       let sum = 0, mx = 0; for (let i = 0, j = 0; j < b.length; i += 4, j += 3) for (let c = 0; c < 3; c++) { const e = Math.abs(a[i + c] - b[j + c] * 255); sum += e; mx = Math.max(mx, e); }
       return [+(sum / (b.length)).toFixed(2), Math.round(mx)];
     };
-    const same1 = cmp({ look: 'tealorange', amount: 1, temperature: 0.2, tint: -0.1, contrast: 1.1, shadows: 0.4, highlights: -0.3, hue: 0.1, boost: 0.6, lift: { h: 200, s: 0.3, m: 0.05 }, gain: { h: 40, s: 0.2, m: 0.1 }, gamma: { h: 0, s: 0, m: -0.05 }, shS: 0.3, shH: 220 });
+    const same1 = cmp({ look: 'tealorange', amount: 1, temperature: 0.2, tint: -0.1, contrast: 1.1, shadows: 0.4, highlights: -0.3, hue: 0.1, boost: 0.6, lift: { h: 200, s: 0.3, m: 0.05 }, gain: { h: 40, s: 0.2, m: 0.1 }, gamma: { h: 0, s: 0, m: -0.05 }, shS: 0.3, shH: 220,
+      curves: { ...CV0, y: [[0, 0.04], [0.3, 0.24], [0.7, 0.8], [1, 0.97]], b: [[0, 0.06], [1, 0.94]], ib: 0.8 } });
     const same2 = cmp({ midDetail: 0.6, halo: 0.4 });
-    return { hue, b0, b1, boostDull: dull(b1[0]) / Math.max(1, dull(b0[0])), boostVivid: dull(b1[1]) / Math.max(1, dull(b0[1])), lm1, lm0, sh, hl, same1, same2, same, ident, blueLift: [...blueLift], bright: [...bright], bwGrey: [0, 1, 2].every((k) => Math.abs(bw[k * 3] - bw[k * 3 + 1]) < 0.02 && Math.abs(bw[k * 3 + 1] - bw[k * 3 + 2]) < 0.02), looks: __grade.lookIds().length }`);
+    return { cvY, cvR, cvOff, cvHalf, hue, b0, b1, boostDull: dull(b1[0]) / Math.max(1, dull(b0[0])), boostVivid: dull(b1[1]) / Math.max(1, dull(b0[1])), lm1, lm0, sh, hl, same1, same2, same, ident, blueLift: [...blueLift], bright: [...bright], bwGrey: [0, 1, 2].every((k) => Math.abs(bw[k * 3] - bw[k * 3 + 1]) < 0.02 && Math.abs(bw[k * 3 + 1] - bw[k * 3 + 2]) < 0.02), looks: __grade.lookIds().length }`);
   check(m.same && m.ident, 'a neutral grade changes nothing: identity tables, the same pixels');
   check(m.blueLift[2] > m.blueLift[0] + 0.05, `Lift towards blue: the shadows go blue (R ${m.blueLift[0].toFixed(3)} · B ${m.blueLift[2].toFixed(3)})`);
   check(m.bright[0] > 200 / 255 + 0.05, `Gain master +0.5: the highlights brighter (${(m.bright[0] * 255).toFixed(0)} > 200)`);
@@ -66,7 +69,10 @@ try {
   check(m.boostDull > 1.25 && m.boostVivid < m.boostDull, `Color Boost: a dull colour gains more saturation (×${m.boostDull.toFixed(2)}) than a vivid one (×${m.boostVivid.toFixed(2)})`);
   check(Math.abs((m.lm1[0] - m.lm1[2]) - 100) <= 3 && (m.lm0[0] - m.lm0[2]) > 115, `Lum Mix 100: the master Gain brightens without saturating (R−B ${m.lm1[0] - m.lm1[2]}); Lum Mix 0: on R, G, B (R−B ${m.lm0[0] - m.lm0[2]})`);
   check(m.sh[0] > 50 && m.hl[0] < 205, `Ombres +100 opens the dark tones (40 → ${m.sh[0]}), Hautes lumières −100 recovers the bright ones (215 → ${m.hl[0]})`);
-  check(m.same1[0] < 2.5 && m.same1[1] <= 10, `the SVG filter (the preview, what the agent writes) = the pixel maths (cards, scopes, images): mean ${m.same1[0]}, max ${m.same1[1]} / 255`);
+  check(m.cvY[0] > 150 && m.cvY[0] === m.cvY[1] && m.cvY[1] === m.cvY[2], `the Y curve raised in the middle brightens a mid grey on R, G, B together (128 → ${m.cvY[0]})`);
+  check(m.cvR[0] < 105 && m.cvR[1] === 128 && m.cvR[2] === 128, `the R curve lowered: only the red goes down (${m.cvR.join(', ')})`);
+  check(m.cvOff[0] === 128 && m.cvHalf[0] > 133 && m.cvHalf[0] < m.cvY[0], `a curve's intensity: 0 = none (${m.cvOff[0]}), 50 = half way (${m.cvHalf[0]})`);
+  check(m.same1[0] < 2.5 && m.same1[1] <= 10, `the SVG filter (the preview, what the agent writes) = the pixel maths (cards, scopes, images), curves included: mean ${m.same1[0]}, max ${m.same1[1]} / 255`);
   check(m.same2[0] < 3, `the same with Mid/Detail and the glow (blurs): mean ${m.same2[0]} / 255 (max ${m.same2[1]})`);
   // ---- G: the page ----
   await p.key('g', 'KeyG', 'g');
@@ -125,6 +131,30 @@ try {
   await p.eval(`for (const k of ['contrast', 'temperature']) document.querySelector('.cgf[data-k="' + k + '"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1`); await sleep(200);
   const c2 = await p.eval(`const g = Object.values(__grade.state().grades)[0]; return [g.contrast, g.temperature, document.querySelector('.cgf[data-k="hue"] input').value, document.querySelector('.cgf[data-k="saturation"] input').value, document.querySelector('.cgf[data-k="lumMix"] input').value]`);
   check(c2[0] === 1 && c2[1] === 0 && c2[2] === '50,00' && c2[3] === '50,00' && c2[4] === '100,00', `double-click: back to neutral; Hue ${c2[2]}, Saturation ${c2[3]}, Lum Mix ${c2[4]} as in DaVinci`);
+  // ---- the curves in the centre (DaVinci's « Curves - Custom »): a point, a channel, the tab of the filters ----
+  const vis = (sel) => p.eval(`const e = document.querySelector('${sel}'); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0`);
+  const order = await p.eval(`const x = (s) => document.querySelector(s).getBoundingClientRect().left; return x('#cgPanel') < x('#cgCurves') && x('#cgCurves') < x('#cgScopes')`);
+  check(order && await vis('#cgCurve') && !(await vis('#cgFxCtl')), 'under the image: the wheels, the curves in the centre, the scopes');
+  const gr = await p.eval(`const r = document.querySelector('#cgCurve').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }`);
+  const at = (u, v) => [gr.x + 12 + u * (gr.w - 24), gr.y + 12 + (1 - v) * (gr.h - 24)];
+  const [ax, ay] = at(0.5, 0.5), [cx2, cy3] = at(0.5, 0.68);
+  await p.mouse("mousePressed", ax, ay); for (let i = 1; i <= 6; i++) await p.mouse("mouseMoved", ax, ay + (cy3 - ay) * i / 6); await p.mouse("mouseReleased", cx2, cy3);
+  await sleep(300);
+  const cy = await p.eval(`return Object.values(__grade.state().grades)[0].curves`);
+  check(cy.y.length === 3 && Math.abs(cy.y[1][0] - 0.5) < 0.02 && Math.abs(cy.y[1][1] - 0.68) < 0.03, `a click on the Y curve, dragged up: a point at (${cy.y[1].map((v) => v.toFixed(2)).join(', ')})`);
+  const mod = await p.eval(`return [document.querySelector('#cgCurveSide .cvch .y').classList.contains('mod'), document.querySelector('#cgCurveReset').classList.contains('moved')]`);
+  await p.eval(`document.querySelector('#cgCurveSide .cvch .r').click(); return 1`); await sleep(150);
+  const rOn = await p.eval(`return document.querySelector('#cgCurveSide .cvch .r').classList.contains('on') && !document.querySelector('#cgCurveSide .cvch .y').classList.contains('on')`);
+  check(mod[0] && mod[1] && rOn, 'the Y channel marked as changed; R chosen to edit its own curve');
+  await p.eval(`document.querySelector('#cgCurveSide .cvch .y').click(); return 1`); await sleep(150);
+  const [qx, qy] = at(0.5, 0.68);
+  await p.eval(`document.querySelector('#cgCurve').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: ${qx}, clientY: ${qy} })); return 1`); await sleep(250);
+  const cy2 = await p.eval(`return Object.values(__grade.state().grades)[0].curves.y.length`);
+  check(cy2 === 2, 'a double-click on the point takes it away: the Y curve straight again');
+  await p.eval(`document.querySelector('#cgMidSeg button[data-m="fx"]').click(); return 1`); await sleep(200);
+  const fxv = (await vis('#cgFxCtl')) && !(await vis('#cgCurve'));
+  await p.eval(`document.querySelector('#cgMidSeg button[data-m="curves"]').click(); return 1`); await sleep(200);
+  check(fxv && await vis('#cgCurve'), 'the centre panel\'s tab « Filtres » shows the vignette, grain, glow…, « Courbes » the curves again');
   // ---- a wheel's reset ↺ ----
   const lw = await p.eval(`const c = document.querySelector('.cgw[data-w="lift"] canvas').getBoundingClientRect(); return [c.left + c.width / 2, c.top + c.height * 0.3]`);
   await p.mouse('mousePressed', lw[0], lw[1]); await p.mouse('mouseReleased', lw[0], lw[1]); await sleep(200);
