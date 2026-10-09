@@ -8,10 +8,13 @@ import path from 'node:path';
 const isTest = (texts, t) => texts.some((x) => (x instanceof RegExp ? x.test(t ?? '') : x === t));
 
 // the test's own notes, out of the list (the studio of the sandbox must be running on `port`)
+// An EMPTY pending note goes too (09/10/2026: one made by hand in the sandbox with N, never written — no text, no mark,
+// no image, no offset — kept « Envoyer à l'agent » greyed, and three suites waited for a batch that never left)
+const emptyDraft = (n) => n.draft && !String(n.text ?? '').trim() && !n.mark && !n.images?.length && !n.stage && !n.thread?.length && n.kind !== 'prompt';
 export async function removeTestNotes(port, texts) {
   const u = `http://localhost:${port}/api/notes`;
   const nb = await (await fetch(u)).json();
-  const keep = nb.notes.filter((n) => !isTest(texts, n.text));
+  const keep = nb.notes.filter((n) => !isTest(texts, n.text) && !emptyDraft(n));
   if (keep.length === nb.notes.length) return 0;
   const n = nb.notes.length - keep.length;
   nb.notes = keep;

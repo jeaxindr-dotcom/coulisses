@@ -126,7 +126,7 @@ try {
   // the visible text of the page: text nodes and the titles / placeholders, minus the user's own data
   const SCAN = `(() => {
     // the user's and the projects' own words: notes, replies, titles, paths, the export script's own labels
-    const SKIP = 'textarea, input, .msg, .msg2, .ctx, .hit, #context, .title, #foot, .meta[title], #title, #render, .when, .gest .obj, #mLine, .mb-dlg .body.pre, #langs, #hoverTag, .lot .msg2, #insp dd, .card .gest, .tipr kbd, kbd, svg, #kindTag, .kind, .exGo, .mb-item[data-id^="export-"]';
+    const SKIP = 'textarea, input, .msg, .msg2, .ag .me, .ag .it, .ctx, .hit, #context, .title, #foot, .meta[title], #title, #render, .when, .gest .obj, #mLine, .mb-dlg .body.pre, #langs, #hoverTag, .lot .msg2, #insp dd, .card .gest, .tipr kbd, kbd, svg, #kindTag, .kind, .exGo, .mb-item[data-id^="export-"]';
     const out = [];
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n; (n = walk.nextNode());) {

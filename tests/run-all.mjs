@@ -16,6 +16,8 @@ const SCR = path.join(STUDIO, '.cache', 'run-all'); fs.mkdirSync(SCR, { recursiv
 // the servers this runner starts: the tests' own settings and media, the French texts the suites check
 const ENV = { ...process.env, COULISSES_LANG: 'fr', COULISSES_SETTINGS: path.join(SCR, 'settings.json'), COULISSES_MEDIAS: path.join(SCR, 'medias') };
 fs.writeFileSync(ENV.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));
+// the sandbox studio's port: 4174, or COULISSES_TEST_SANDBOX_PORT when the workshop's own studio is open on 4174
+const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4174) || 4174;
 const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
 // [suite, what it needs]: self = starts its own servers; sandbox = a studio on 4174; render = a studio on 4180 on its copy
 const SUITES = [
@@ -59,8 +61,8 @@ try {
     if (need !== 'sandbox' && box) { kill(box); box = null; await sleep(1000); }
     if (need === 'sandbox') {
       if (!fs.existsSync(path.join(SANDBOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }
-      box ??= await studioOn(SANDBOX, 4174, 'sandbox-server.log');
-      env = { STUDIO_PORT: '4174' };
+      box ??= await studioOn(SANDBOX, BOX_PORT, 'sandbox-server.log');
+      env = { STUDIO_PORT: String(BOX_PORT) };
     }
     if (need === 'render') {
       if (!fs.existsSync(path.join(RENDER_BOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }

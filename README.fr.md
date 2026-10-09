@@ -4,6 +4,16 @@
 
 Coulisses est le studio de revue de toutes les chaînes : relire et annoter une vidéo, **avant ou après son export**, et envoyer les notes à l'agent. Il est né de l'outil de revue de Brambleshire (`06_Remotion\review\`), enrichi de ce qui est bien fait dans HyperFrames Studio. Il fonctionne sous Windows et s'appuie sur Remotion. Tout ce que faisait l'outil actuel est conservé ; seul changement de comportement, un clic sur l'image ne lance plus la lecture : on joue avec **Espace** ou le bouton Lecture. Les corrections sont faites par **ton agent** (aujourd'hui une session Claude Code, demain Codex/GPT si tu veux), celui qui a fabriqué la vidéo et qui en a tout le contexte. Le studio dit « l'agent », jamais « Claude ».
 
+## En images
+
+![Le studio : la colonne de l'agent à gauche (Agent · Modifs · Envois), l'image au centre avec ses outils et la lecture dessous, les notes à droite, la timeline multipiste sur toute la largeur](docs/screenshots/studio-fr.jpg)
+
+*Le studio. À gauche, la colonne de l'agent : ce que tu lui écris, les modifs en attente, les lots envoyés. Au centre, le MP4 rendu ou le code en direct, avec dessous les outils sur l'image et la lecture. À droite : Médias · Notes · Scène · Inspecteur. En bas, la timeline multipiste, sur toute la largeur. En haut à droite, l'action principale (Lancer le rendu, ou Exporter).*
+
+![La mise en scène : un personnage choisi dans le théâtre de papier 3D, la caméra libre active](docs/screenshots/staging-fr.jpg)
+
+*La mise en scène (**M**) : tu choisis un objet dans l'aperçu vivant et tu le déplaces toi-même. Sous l'image, les outils de la mise en scène remplacent ceux de l'image : Déplacer · Tourner · Taille, et la **Caméra libre** (**C**) pour regarder la scène d'où tu veux. Le décalage part à l'agent, qui l'écrit dans le code.*
+
 ## L'application (`.exe`)
 
 - **`Coulisses.exe`** est l'application, installée dans `C:\Users\owner\AppData\Local\Programs\Coulisses\`. Raccourcis « Coulisses » sur le Bureau et dans le menu Démarrer. **Un double-clic sur un fichier `.coulisses`** l'ouvre sur ce projet (association de fichier pour ton compte, sans droits administrateur).
@@ -18,7 +28,7 @@ Coulisses est le studio de revue de toutes les chaînes : relire et annoter une 
   - Il refuse d'écraser des fichiers modifiés directement dans le pipeline, sauf si tu confirmes.
   - `/silent` fait la même chose sans fenêtre (journal : `%LOCALAPPDATA%\Coulisses\setup.log`).
 - **Compilation** : `pwsh -File app\build.ps1` utilise le compilateur C# fourni avec Windows (`csc.exe`, .NET Framework 4.8), sans rien installer. Les sources sont dans `app\` : `Launcher.cs`, `Setup.cs`, l'icône (`make-icon.ps1`) et le manifeste.
-- **Tous les tests, en une commande** : `node tests\run-all.mjs` (`--quick` sans les trois plus lents ; `--only a,b`, `--skip a,b`). Il démarre lui-même les studios du bac à sable dont les tests ont besoin, avec leurs propres réglages et bibliothèque (jamais les tiens), affiche une ligne par suite et un bilan, et garde le journal de chacune dans `.cache\run-all\`. Ce qui n'est pas dans le dépôt (les `node_modules` d'un projet Remotion, le théâtre d'Uchu-chan et son Short 12, la vraie vidéo d'E03) est trouvé par `tests\where.mjs` : sur un autre PC, `COULISSES_TEST_REMOTION`, `COULISSES_TEST_UCHU`, `COULISSES_TEST_SHORT12`, `COULISSES_TEST_E03` ; une suite dont la ressource manque se saute. `COULISSES_TEST_SLOW=2` double les attentes fixes sur un PC plus lent.
+- **Tous les tests, en une commande** : `node tests\run-all.mjs` (`--quick` sans les trois plus lents ; `--only a,b`, `--skip a,b`). Il démarre lui-même les studios du bac à sable dont les tests ont besoin, avec leurs propres réglages et bibliothèque (jamais les tiens), affiche une ligne par suite et un bilan, et garde le journal de chacune dans `.cache\run-all\`. Ce qui n'est pas dans le dépôt (les `node_modules` d'un projet Remotion, le théâtre d'Uchu-chan et son Short 12, la vraie vidéo d'E03) est trouvé par `tests\where.mjs` : sur un autre PC, `COULISSES_TEST_REMOTION`, `COULISSES_TEST_UCHU`, `COULISSES_TEST_SHORT12`, `COULISSES_TEST_E03` ; une suite dont la ressource manque se saute. `COULISSES_TEST_SLOW=2` double les attentes fixes sur un PC plus lent ; `COULISSES_TEST_SANDBOX_PORT=4198` met le studio du bac à sable sur un autre port quand le studio de l'atelier est ouvert sur 4174. Avant une suite, le bac à sable garde tout ce qui n'est pas aux tests (tes propres essais), sauf une note en attente vide, qui griserait « Envoyer ».
 - **Test de l'application** : `node tests\app.mjs`. Il ouvre la vraie fenêtre, rendue invisible, sur le bac à sable.
 
 ## Langue : français ou anglais
@@ -120,8 +130,8 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
   - **W** déplacer, **E** tourner, **R** échelle ;
   - les flèches et **Pg↑** / **Pg↓** poussent l'objet de 0,05 (**Maj** : 0,25, **Alt** : 0,01) ;
   - ou saisir les valeurs dans l'onglet Scène.
-- **Caméra libre** : glisser pour tourner autour (sur le vide ou sur un objet qui n'est pas choisi), clic droit pour se déplacer, molette pour avancer. Elle ne change jamais le rendu.
-- **Réinitialiser la caméra** (onglet Scène, toujours là) : revient à la caméra du plan. La caméra libre reste active, à partir de ce point de vue. En 2D, il enlève le recadrage.
+- **Caméra libre** : le bouton « Caméra libre » sous l'image, ou **C**. Glisser pour tourner autour (sur le vide ou sur un objet qui n'est pas choisi), clic droit pour se déplacer, molette pour avancer ; un rappel s'affiche sur l'image. Elle ne change jamais le rendu.
+- **Réinitialiser la caméra** (la flèche à côté de « Caméra libre », ou l'onglet Scène) : revient à la caméra du plan. La caméra libre reste active, à partir de ce point de vue. En 2D, il enlève le recadrage.
 - **Portée** : la scène en cours, « à partir d'ici jusqu'à la fin de la scène », toute la vidéo, ou une plage d'images.
 - **Ajouter à la file** crée une modif qui contient l'objet, le décalage exact, sa portée et une image « après », prise par la caméra du plan. Tant qu'elle attend dans la file, l'aperçu garde l'objet déplacé.
 - **Rien n'est écrit dans le projet** : ni le moteur ni les images clés ne changent. L'agent reçoit le décalage dans le lot et l'écrit dans la config du décor ou dans la timeline, sans toucher au minutage (`AGENT.md`, « Une modif de mise en scène »).
