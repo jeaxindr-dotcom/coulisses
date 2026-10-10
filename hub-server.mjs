@@ -19,7 +19,7 @@ import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { optionsFrom, readJson, stamp } from './lib/episode.mjs';
 import { STUDIO, INSTALLED, CACHE } from './lib/place.mjs';
-import { ffmpeg } from './lib/frames.mjs';
+import { ffmpeg, sweepStaleTemp } from './lib/frames.mjs';
 import { renderState } from './lib/render.mjs';
 import { registry, importProject, removeProject, project, revueOf, folderOf, setFolder, renameFolder } from './lib/projects.mjs';
 import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
@@ -44,6 +44,10 @@ const logFile = fs.createWriteStream(path.join(LOGS, 'hub.log'), { flags: 'a' })
 const ring = logRing();   // Tools › Log in the menu bar
 const log = (m) => { const line = `${new Date().toLocaleString()}  ${m}`; logFile.write(line + '\n'); ring.push(line); console.log(line); };
 process.on('uncaughtException', (e) => log(t('hubsrv.ignored', { msg: e.stack || e.message })));
+// Remotion's stale temp folders left by any render (lib/frames.mjs; 09/10/2026: 1.2 TB, the disk full): a while after the
+// start, then every hour while Coulisses is open (one Coulisses process at a time: the stamp)
+{ const sweep = () => { const n = sweepStaleTemp(path.join(CACHE, 'temp-sweep.txt')); if (n) log(t('srv.tempSwept', { n }).trim()); };
+  setTimeout(sweep, 30000).unref(); setInterval(sweep, 3600e3).unref(); }
 
 // ---------- episodes and imported projects ----------
 // ids: E03 (an episode), P1a2b3c4d (an imported project, lib/projects.mjs)

@@ -23,7 +23,8 @@ import path from 'node:path';
 import { exec, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJson, writeJson, nowIso } from './lib/episode.mjs';
-import { videoFrame, codeFrame } from './lib/frames.mjs';
+import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/frames.mjs';
+import crypto from 'node:crypto';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
@@ -281,6 +282,11 @@ async function updatesFor(chosen, fresh = false) {
 process.on('unhandledRejection', (e) => console.error(`  ${time()}  ${t('srv.ignored', { msg: e?.message ?? e })}`));
 
 const FRAME_CACHE = path.join(CACHE, 'frames', ep);
+// the frames kept (/api/frame): the newest `max`
+function keepFew(dir, max) { try { const l = fs.readdirSync(dir).map((n) => ({ n, t: fs.statSync(path.join(dir, n)).mtimeMs })).sort((a, b) => b.t - a.t); for (const x of l.slice(max)) fs.rmSync(path.join(dir, x.n), { force: true }); } catch { /* gone */ } }
+// Remotion's stale temp folders (lib/frames.mjs): a while after the start, then every hour (one Coulisses process a time)
+{ const sweep = () => { const n = sweepStaleTemp(path.join(CACHE, 'temp-sweep.txt')); if (n) log(t('srv.tempSwept', { n })); };
+  setTimeout(sweep, 20000).unref(); setInterval(sweep, 3600e3).unref(); }
 // the « Médias » tab: the library of the project's channel (lib/medias.mjs), made on first use
 // a Theatre episode: the channel its own .coulisses names (the user's), else « Theatre »
 const episodeChannel = () => { try { const f = fs.readdirSync(P.EP).find((x) => x.toLowerCase().endsWith('.coulisses')); return (f && readJson(path.join(P.EP, f), null)?.chaine) || 'Theatre'; } catch { return 'Theatre'; } };   // a folder name: the same in both languages
@@ -486,6 +492,11 @@ const server = http.createServer(async (req, res) => {
       const f = Math.max(0, Math.round(+(url.searchParams.get('f') ?? 0))), source = url.searchParams.get('source') === 'code' ? 'code' : 'video';
       const w = Math.min(1920, +(url.searchParams.get('w') ?? 0) || 0);
       const out = path.join(FRAME_CACHE, `${source}-${f}-${w || 'full'}-${Date.now().toString(36)}.jpg`);
+      // the same frame of the same code (or video) asked again within a few minutes: the one already made (09/10/2026:
+      // every frame of the code is a render; the grading page's scopes and scenes asked them again and again)
+      const sig = source === 'code' ? (P.kind === 'hyperframes' ? null : codeSignature(P)) : (() => { try { const s = fs.statSync(stillSource(P)); return `${s.size}-${Math.round(s.mtimeMs)}`; } catch { return null; } })();
+      const kept = sig ? path.join(FRAME_CACHE, 'kept', `${crypto.createHash('sha1').update(`${source}|${f}|${w}|${sig}`).digest('hex').slice(0, 24)}.jpg`) : null;
+      if (kept) { try { if (Date.now() - fs.statSync(kept).mtimeMs < (source === 'code' ? 600e3 : 3600e3)) { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache', 'X-Frame': String(f), 'X-Source': source, 'X-Kept': '1' }); return fs.createReadStream(kept).pipe(res); } } catch { /* not kept */ } }
       if (source === 'code' && !CODE) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t('srv.noCode')); }
       if (source === 'code') {
         await codeFrame(P, f, out, { log });
@@ -494,6 +505,7 @@ const server = http.createServer(async (req, res) => {
         if (held) { res.writeHead(503); return res.end('video being replaced'); }
         await videoFrame(stillSource(P), f, meta().fps, out, { width: w || undefined });
       }
+      if (kept) { try { fs.mkdirSync(path.dirname(kept), { recursive: true }); fs.copyFileSync(out, kept); keepFew(path.dirname(kept), 300); } catch { /* not kept */ } }
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache', 'X-Frame': String(f), 'X-Source': source });
       return fs.createReadStream(out).on('close', () => fs.rm(out, { force: true }, () => {})).pipe(res);
     }
