@@ -184,7 +184,7 @@
       }
     }
     for (const n of sorted()) {
-      const x = tx((n.frame + 0.5) / FPS); if (x < -2 || x > W + 2) continue;
+      const x = tx(n.frame / FPS); if (x < -2 || x > W + 2) continue;
       g.fillStyle = n.id === sel ? 'rgba(201,242,107,0.10)' : 'rgba(255,255,255,0.025)';
       if (n.end !== null) g.fillRect(tx(n.frame / FPS), Y.top, Math.max(1, tx((n.end + 1) / FPS) - tx(n.frame / FPS)), H - Y.top);
       else { g.fillStyle = n.id === sel ? 'rgba(201,242,107,0.5)' : 'rgba(255,255,255,0.07)'; g.fillRect(x - 0.5, Y.top, 1, H - Y.top); }
@@ -221,7 +221,7 @@
       shapes.push({ kind: 'range', id: n.id, x0, x1, y0: y, y1: y + rH });
     }
     for (const n of points) {
-      const x = tx((n.frame + 0.5) / FPS); if (x < -10 || x > W + 10) continue;
+      const x = tx(n.frame / FPS); if (x < -10 || x > W + 10) continue;
       const done = statusOf(n) === 'done', isSel = n.id === sel, col = colorOf(n, done, isSel, '#ffd27f');
       g.fillStyle = col; g.globalAlpha = isSel ? 1 : 0.55; g.fillRect(x - 0.5, n0 + 17, 1, n1 - n0 - 17); g.globalAlpha = 1;
       g.beginPath(); g.arc(x, n0 + 10, 8, 0, Math.PI * 2); g.fill();
@@ -235,7 +235,9 @@
       g.fillStyle = C.acc; g.fillRect(tx(a / FPS), n0, 1, H - n0);
     }
     g.fillStyle = 'rgba(255,255,255,0.06)'; g.fillRect(0, n1, W, 1);
-    const px = tx((curFrame() + 0.5) / FPS);
+    // the playhead at the START of its frame, where a clip that begins on it begins (as DaVinci; 10/10/2026: drawn at the
+    // frame's middle, it stood half a frame beside every cut, and never on it)
+    const px = tx(curFrame() / FPS);
     if (px >= -2 && px <= W + 2) {
       g.save(); g.shadowColor = 'rgba(255,255,255,0.7)'; g.shadowBlur = 10;
       g.fillStyle = C.head; g.fillRect(px - 0.75, 0, 1.5, H);
@@ -390,13 +392,34 @@
   // ---------- transport ----------
   const play = () => { if (M.paused) M.play(); else M.pause(); };
   $('#bPlay').onclick = play;
+  // the edit points (as DaVinci's ↑ / ↓): every clip's start and end, a set's arrival and leaving, a 3D shot's ends
+  function editPoints() {
+    const s = new Set([0, Math.max(0, FRAMES - 1)]);
+    const add = (t) => { if (Number.isFinite(t)) s.add(Math.max(0, Math.min(FRAMES - 1, Math.round(t * FPS)))); };
+    for (const tr of LIVE?.tracks ?? []) for (const c of tr.clips ?? []) { add(c.t0); add(c.t1); }
+    for (const w of SNAP?.sets ?? LIVE?.sets ?? []) { add(w.inT); add(w.inT + (w.inDur ?? 0)); if (w.outT !== null && w.outT !== undefined) { add(w.outT); add(w.outT + (w.outDur ?? 0)); } }
+    for (const c of SNAP?.cutaways ?? LIVE?.cutaways ?? []) { add(c.t); add(c.t + c.dur); }
+    return [...s].sort((a, b) => a - b);
+  }
+  function toEdit(dir) {
+    const f = curFrame(), pts = editPoints();
+    const t = dir > 0 ? pts.find((x) => x > f) : [...pts].reverse().find((x) => x < f);
+    if (t !== undefined) { M.pause(); seekFrame(t); }
+  }
   $('#bPrev').onclick = () => { M.pause(); seekFrame(curFrame() - 1); };
   $('#bNext').onclick = () => { M.pause(); seekFrame(curFrame() + 1); };
   $('#bNote').onclick = () => { M.pause(); addNote(curFrame()); };
   $('#bRange').onclick = () => markRange();
   $('#bFit').onclick = () => { view = { a: 0, b: DUR }; draw(); };
   // the zoom (the keys + / - and the buttons over the timeline): around the middle of what is shown
-  function zoomBy(k) { if (!DUR) return; const c = (view.a + view.b) / 2, s = Math.max(40 / FPS, Math.min(DUR, (view.b - view.a) * k)); view.a = c - s / 2; view.b = c + s / 2; clampView(); draw(); }
+  // zoom around the playhead when it is in view (it keeps its place, as DaVinci), else around the middle of the view
+  function zoomBy(k) {
+    if (!DUR) return;
+    const s = Math.max(40 / FPS, Math.min(DUR, (view.b - view.a) * k)), t = curFrame() / FPS;
+    if (t >= view.a && t <= view.b) { const u = (t - view.a) / (view.b - view.a); view.a = t - u * s; view.b = view.a + s; }
+    else { const c = (view.a + view.b) / 2; view.a = c - s / 2; view.b = c + s / 2; }
+    clampView(); draw();
+  }
   $('#bZoomIn').onclick = () => zoomBy(1 / 1.5);
   $('#bZoomOut').onclick = () => zoomBy(1.5);
   function showZoom(span) { const el = $('#zoomPct'), z = `${Math.round((DUR / span) * 100)}${FR ? ' %' : '%'}`; if (el && el.textContent !== z) el.textContent = z; }
@@ -460,6 +483,8 @@
     const f = curFrame();
     if (f !== lastF || !M.paused) {
       if (f !== lastF) { if (pickPt && pickPt.frame !== f) { pickPt = null; $('#pickBtn').style.display = 'none'; } hideHover(); }
+      // a jump out of the view (↑ / ↓ to a cut, a frame step at its edge, a note chosen): the view follows the playhead
+      if (f !== lastF && M.paused && !drag && DUR) { const t = f / FPS, span = view.b - view.a; if (t < view.a || t >= view.b) { view.a = t - span / 2; view.b = view.a + span; clampView(); } }
       lastF = f; updateHud(); draw(); drawOv(); showShot();
     }
     if (window.__cgReady) cgTick();   // the grade of the scene shown (part 11, evaluated after this first tick)

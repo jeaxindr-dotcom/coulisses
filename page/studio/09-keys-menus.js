@@ -70,6 +70,8 @@
       M.pause(); seekFrame(curFrame() + dir);
       holdKey = e.key; holdCode = e.code || null; holdT = setTimeout(() => { if (holdKey === e.key) startShuttle(dir); }, HOLD_MS);
     }
+    else if (on('editPrev')) { e.preventDefault(); toEdit(-1); }   // ↑: the previous edit point (a cut), as DaVinci
+    else if (on('editNext')) { e.preventDefault(); toEdit(1); }    // ↓: the next one
     else if (on('secBack')) { e.preventDefault(); M.pause(); seekFrame(curFrame() - FPS); }
     else if (on('secFwd')) { e.preventDefault(); M.pause(); seekFrame(curFrame() + FPS); }
     else if (on('toStart')) { e.preventDefault(); seekFrame(0); }

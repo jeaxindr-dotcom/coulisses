@@ -27,6 +27,8 @@
     { g: 'play', id: 'frameFwd', keys: ['ArrowRight', '.'] },
     { g: 'play', id: 'secBack', keys: ['Shift+ArrowLeft'] },
     { g: 'play', id: 'secFwd', keys: ['Shift+ArrowRight'] },
+    { g: 'play', id: 'editPrev', keys: ['ArrowUp'] },
+    { g: 'play', id: 'editNext', keys: ['ArrowDown'] },
     { g: 'play', id: 'toStart', keys: ['Home'] },
     { g: 'play', id: 'toEnd', keys: ['End'] },
     { g: 'image', id: 'toolSelect', keys: ['V'] },

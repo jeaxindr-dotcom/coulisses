@@ -163,6 +163,19 @@ try {
   check((await p.eval('return __studio.state().frame')) === 1201, 'stepping works on the code view');
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
+  // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête
+  // de lecture pile poil sur cette jonction de clip »); the playhead drawn at the start of its frame, where the cut is
+  await p.eval(`document.querySelector('#v').currentTime = 9050.5/30; return 1`); await sleep(800);
+  // the cuts of the plan (the sets' arrivals and leavings, the 3D shots), as the page reads them
+  const cuts = await p.eval(`const r = await (await fetch('/api/meta')).json(), S = r.snapshot, F = r.fps || 30, s = new Set(), add = (t) => { if (Number.isFinite(t)) s.add(Math.round(t * F)); };
+    for (const w of S.sets) { add(w.inT); add(w.inT + (w.inDur ?? 0)); if (w.outT !== null && w.outT !== undefined) { add(w.outT); add(w.outT + (w.outDur ?? 0)); } }
+    for (const c of S.cutaways ?? []) { add(c.t); add(c.t + c.dur); } return [...s].sort((a, b) => a - b)`);
+  await p.key('ArrowDown', 'ArrowDown'); await sleep(500);
+  const nx = await p.eval('return __studio.state().frame');
+  await p.key('ArrowUp', 'ArrowUp'); await sleep(500);
+  const pv = await p.eval('return __studio.state().frame');
+  const wantN = cuts.find((x) => x > 9050), wantP = [...cuts].reverse().find((x) => x < wantN);
+  check(nx === wantN && pv === wantP, `↓ from frame 9050: exactly on the next cut (${nx}); ↑: on the cut before (${pv})`);
 } finally {
   const errs = p.logs.filter((l) => /exception|\[error\]/.test(l) && !/WebGL|X4000/.test(l));
   if (errs.length) console.log('page errors:\n' + errs.slice(0, 5).join('\n'));
