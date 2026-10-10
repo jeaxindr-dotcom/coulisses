@@ -464,8 +464,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (HFP && pn === '/hf-runtime.js') return sendFile(req, res, hfFor(P.hf.projet)?.runtime ?? null, 'text/javascript; charset=utf-8');
     if (HFP && pn === '/hf-player.js') return sendFile(req, res, path.join(HERE, 'player', 'hf-player.js'), 'text/javascript; charset=utf-8');
-    if (HFP && (pn === '/hf-stage2d.js' || pn === '/hf-keys.js')) {   // the 2D staging of the Remotion runs, its types stripped (no build)
-      const src = fs.readFileSync(path.join(HERE, 'player', pn === '/hf-keys.js' ? 'keys.ts' : 'stage2d.ts'), 'utf8');
+    if (HFP && (pn === '/hf-stage2d.js' || pn === '/hf-keys.js' || pn === '/hf-ready.js')) {   // the 2D staging of the Remotion runs, the frame-ready watch: their types stripped (no build)
+      const src = fs.readFileSync(path.join(HERE, 'player', { '/hf-keys.js': 'keys.ts', '/hf-ready.js': 'ready.ts' }[pn] ?? 'stage2d.ts'), 'utf8');
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(stripTypeScriptTypes(src, { mode: 'strip' }).replace(/from '\.\/keys'/g, "from '/hf-keys.js'"));
     }

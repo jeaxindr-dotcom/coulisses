@@ -6,8 +6,11 @@
   const bus = new EventTarget();
   const fire = (t) => bus.dispatchEvent(new Event(t));
   const M = {
-    get currentTime() { return mode === 'code' && SP ? (SP.frame() + 0.5) / FPS : v.currentTime; },
-    set currentTime(t) { if (mode === 'code' && SP) SP.seek(Math.floor(t * FPS)); v.currentTime = t; },
+    get currentTime() { return mode === 'code' && SP ? ((pendF ?? SP.frame()) + 0.5) / FPS : v.currentTime; },
+    set currentTime(t) {
+      if (mode === 'code' && SP) { const f = Math.floor(t * FPS); if (!SP.isPlaying() && !shuttle && f !== (pendF ?? SP.frame())) codeStep(f); else { pendF = null; cwSeq++; SP.seek(f); } }
+      v.currentTime = t;
+    },
     get paused() { return mode === 'code' && SP ? !SP.isPlaying() : v.paused; },
     play() { if (mode === 'code' && SP) { v.pause(); SP.play(); } else { const r = v.play(); r?.catch?.(() => {}); } },
     pause() { if (mode === 'code' && SP) { SP.pause(); v.currentTime = (SP.frame() + 0.5) / FPS; } v.pause(); },
@@ -53,8 +56,11 @@
         SP = sp; codeVer = ver;
         if (!META.render && sp.durationInFrames) adoptCode(sp);
         sp.setVolume(vol); sp.setRate(rate);
+        codeWait(false);
         sp.on((ev) => {
-          if (mode !== 'code' || SP !== sp) return;
+          if (SP !== sp) return;
+          if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading'); return; }
+          if (mode !== 'code') return;
           if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
           if (ev.type === 'ended') fire('pause');
         });
@@ -123,12 +129,32 @@
     else el.textContent = '';
     const e = $('#codeErr'); e.style.display = c.status === 'error' ? 'block' : 'none'; e.textContent = c.status === 'error' ? T('st.code.errorLong', { err: c.error }) : '';
   }
+  // the live preview's frame not complete (player/ready.ts: a video of the frame still loading or seeking): covered and
+  // said, so that a loading state is never taken for a defect of the video (fiche du 10/10/2026, long04's junctions)
+  const codeWaitEl = $('#codeWait');
+  function codeWait(on) { codeWaitEl.classList.toggle('on', !!on && mode === 'code'); }
+  // a step of the paused preview (← →, ↑ ↓, a click on the timeline): the veil is asked first — it shows after 90 ms
+  // unless the frame is complete by then (the CSS delay runs on the compositor: even while the preview is busy mounting
+  // the next chapter's page, 1.3 s for long04, the screen never shows the frame before with the new frame's number) —,
+  // the seek one frame later, and the veil goes once the preview says the frame asked is complete (player/ready.ts)
+  let pendF = null, cwSeq = 0;
+  function codeStep(f) {
+    const sp = SP, my = ++cwSeq; pendF = f;
+    codeWaitEl.classList.add('pend');
+    requestAnimationFrame(() => {
+      if (my !== cwSeq || SP !== sp) return;
+      pendF = null; sp.seek(f);
+      const done = () => { if (my === cwSeq) codeWaitEl.classList.remove('pend'); };
+      Promise.resolve(sp.whenFrameReady?.()).then(done, done);
+    });
+  }
   async function setMode(m) {
     if (m === mode) return;
     const f = curFrame(), was = !M.paused; M.pause();
     if (m === 'code' && !(await loadCode())) return;
     if (m === 'video' && SP) SP.pause();
     mode = m;
+    codeWait(m === 'code' && SP?.frameLoading?.()); codeWaitEl.classList.remove('pend'); pendF = null; cwSeq++;
     SP?.sleep?.(m !== 'code');   // drawn only while it is on screen (Remotion's 3D canvas draws at every frame, even paused)
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');

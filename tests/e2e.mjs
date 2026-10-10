@@ -161,6 +161,16 @@ try {
   check((await p.eval('return __studio.state().frame')) === 1200, 'code view opens on the same frame');
   await p.key('ArrowRight', 'ArrowRight'); await sleep(600);
   check((await p.eval('return __studio.state().frame')) === 1201, 'stepping works on the code view');
+  // a frame not complete is covered and said (fiche du 10/10/2026: long04's chapter junctions showed a grey board the
+  // render never has): a video of the frame that is not loaded yet — the preview waits, the veil shows, then goes
+  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+    v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
+  await p.key('ArrowRight', 'ArrowRight'); await sleep(700);
+  const w1 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity, txt: e.innerText.trim(), ready: document.querySelector('#code').contentWindow.StudioPlayer.frameReady() }`);
+  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  const w2 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity }`);
+  check(w1.on && w1.op > 0.9 && !w1.ready && /Image en cours de chargement/.test(w1.txt) && !w2.on && w2.op < 0.05, `a frame whose video is still loading: covered (« ${w1.txt.split('\n')[0]} »), then shown once complete`);
+  await p.key('ArrowLeft', 'ArrowLeft'); await sleep(600);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
   // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête

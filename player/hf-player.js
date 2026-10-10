@@ -8,6 +8,7 @@
 //   - picking: the element under a point of the frame, named by its id, else its clip or composition, else its tag.
 // Served as a module (/hf-player.js): /hf-stage2d.js is player/stage2d.ts with its types stripped by the server.
 import { createStage2d } from '/hf-stage2d.js';
+import { createReady } from '/hf-ready.js';
 
 const C = window.__COULISSES_HF ?? {};
 const W = C.width || 1920, H = C.height || 1080, FPS = C.fps || 30;
@@ -16,6 +17,8 @@ const listeners = new Set();
 const P = () => window.__player ?? null;
 const frameNow = () => Math.max(0, Math.round((P()?.getTime?.() ?? 0) * FPS));
 const emit = (type) => { const frame = frameNow(); for (const l of listeners) l({ type, frame }); };
+// the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
+const R = createReady({ root: () => document, playing: () => !!P()?.isPlaying?.(), emit });
 let durationInFrames = Math.max(1, Math.round((C.duration || 0) * FPS)) || 1;
 
 // ---------- the composition, whole in the window ----------
@@ -55,8 +58,8 @@ function pickAt(x, y) {
   }
   return hits;
 }
-const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 60))));
-const seekTo = async (f) => { const p = P(); if (!p) return; const t = Math.max(0, Math.min(durationInFrames - 1, Math.round(f))) / FPS; await (p.seek?.(t) ?? null); emit('seeked'); };
+const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 60)))).then(() => R.when());
+const seekTo = async (f) => { const p = P(); if (!p) return; const t = Math.max(0, Math.min(durationInFrames - 1, Math.round(f))) / FPS; await (p.seek?.(t) ?? null); emit('seeked'); R.watch(); };
 
 // ---------- the 2D staging (player/stage2d.ts, as in a Remotion run) ----------
 const stage2d = createStage2d({ W, H, frame: frameNow, root: () => cam });
@@ -99,6 +102,7 @@ window.StudioPlayer = {
   play: () => { const p = P(); if (p && frameNow() >= durationInFrames - 1) p.seek?.(0); p?.play?.(); },
   pause: () => P()?.pause?.(), isPlaying: () => !!P()?.isPlaying?.(),
   frame: frameNow,
+  frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   setVolume: (v) => { const p = P(); if (p?.setVolume) p.setVolume(v); else for (const m of media()) m.volume = v; },
   mute: () => { const p = P(); if (p?.setMuted) p.setMuted(true); else for (const m of media()) m.muted = true; },
   unmute: () => { const p = P(); if (p?.setMuted) p.setMuted(false); else for (const m of media()) m.muted = false; },

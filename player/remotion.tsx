@@ -11,6 +11,7 @@ import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
 import { createStage2d } from './stage2d';
+import { createReady } from './ready';
 // @ts-ignore resolved by lib/player-build.mjs: player/three-stage.ts when the project has @react-three/fiber, else player/no3d.ts
 import { create3d } from '@coulisses-3d';
 // @ts-ignore resolved through esbuild's alias
@@ -27,6 +28,8 @@ const FPS = comp?.fps ?? 30, W = comp?.width ?? 1920, H = comp?.height ?? 1080;
 const listeners = new Set<(ev: { type: string; frame: number }) => void>();
 let ref: PlayerRef | null = null;
 const emit = (type: string) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame }); };
+// the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
+const R = createReady({ root: () => document.getElementById('stage'), playing: () => !!ref?.isPlaying(), emit });
 
 // the composition's (x, y) in its own pixels -> the element there; its nearest ancestor named by data-coulisses
 function pick(x: number, y: number) {
@@ -44,7 +47,7 @@ function pick(x: number, y: number) {
   }
   return hits;
 }
-const settle = async () => { if (s3?.hasScene()) await s3.settle(); await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80)))); };
+const settle = async () => { if (s3?.hasScene()) await s3.settle(); await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80)))); await R.when(); };
 // what is under the point: the 3D objects of a 3D scene first (named by their React components), then the HTML element
 // named data-coulisses
 const pickAll = (x: number, y: number) => [...(s3?.hasScene() ? s3.pick(x, y) : []), ...pick(x, y)];
@@ -98,6 +101,7 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,
+  frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
@@ -118,7 +122,11 @@ const App: React.FC = () => {
   useEffect(() => {
     ref = r.current; if (!ref) return;
     const evs = ['play', 'pause', 'seeked', 'frameupdate', 'ended'] as const;
-    const offs = evs.map((e) => { const h = () => emit(e); ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
+    const offs = evs.map((e) => { const h = () => { emit(e); if (e !== 'frameupdate' || !ref?.isPlaying()) R.watch(); }; ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
+    // the Player's own buffering (a media still loading during the playback)
+    const onWait = () => R.setBuffering(true), onResume = () => R.setBuffering(false);
+    (ref as any).addEventListener('waiting', onWait); (ref as any).addEventListener('resume', onResume);
+    offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
     const q = new URLSearchParams(location.search), start = +(q.get('f') ?? 0);
     if (start) ref.seekTo(start);
     const staged = q.get('stage');
@@ -131,7 +139,7 @@ const App: React.FC = () => {
           .then(() => settle()).then(() => { stage.applyNow(); return settle(); }).then(() => { (window as any).__stageShotReady = true; });
       } catch (e) { console.error('stage', e); (window as any).__stageShotReady = true; }
     }
-    emit('ready');
+    emit('ready'); R.watch();
     return () => offs.forEach((o) => o());
   }, []);
   if (!comp) return <div style={{ color: '#fff', padding: 20, font: '14px sans-serif' }}>Composition « {__COMPOSITION__} » absente de compositions (src/coulisses.ts). Disponibles : {comps.map((c) => c.id).join(', ') || 'aucune'}</div>;

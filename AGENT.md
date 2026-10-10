@@ -81,6 +81,13 @@ Depuis octobre 2026, ces trois chaînes montent leurs runs en Remotion. Le `.cou
 - **Le skill de la chaîne fixe le reste** : ses contrôles après une correction (tsc, `controler-scene.mjs`, text-audit…), et ses règles.
 - **Je n'exporte jamais.** L'utilisateur lance lui-même l'export depuis Coulisses (onglet Envois, bouton du script d'export de la chaîne). Le studio charge seul la nouvelle vidéo à la fin, et propose « Comparer avant / après ».
 
+### L'aperçu vivant et les jonctions (tout projet Remotion)
+
+L'aperçu vivant de Coulisses est le Player de Remotion. Il affiche une image tout de suite, sans attendre ses médias comme le fait un rendu. Quand une image n'est pas encore complète (une vidéo pas chargée, pas positionnée), Coulisses la couvre d'un voile « Image en cours de chargement » : l'utilisateur ne la juge pas. C'est le cas à l'entrée d'une `Sequence` dont les vidéos ne se chargent qu'à sa première image, typiquement à la jonction entre deux chapitres d'une vidéo longue.
+
+- **Pour que les jonctions soient instantanées dans l'aperçu**, une vidéo faite de parties en `Sequence` (chapitres, scènes, plans) donne à chacune `premountFor` (par exemple `premountFor={fps}` : la partie se monte une seconde avant, cachée, et ses vidéos sont prêtes à sa première image). Sans effet sur le rendu ; à proposer quand on écrit ou découpe une vidéo, sans changer le minutage.
+- **Une note sur un « saut » ou un « glitch » à une jonction**, alors que le rendu (`frame … --source code`, l'export) est propre, vient de l'aperçu, pas de la vidéo : le dire dans la réponse, et proposer `premountFor` plutôt que de toucher à l'image.
+
 ## Un projet HyperFrames
 
 Depuis le 09/10/2026, Coulisses relit aussi les projets **HyperFrames** (une vidéo = une composition HTML : un élément racine `data-composition-id`, des clips `data-start` / `data-duration`, une timeline GSAP par composition). Le `.coulisses` dit `"moteur": "hyperframes"`, et la ligne à coller commence par `Coulisses · <titre> · lot N`. Ce qui change :

@@ -97,6 +97,8 @@
         <div id="media">
           <video id="v" preload="auto" playsinline></video>
           <iframe id="code" title="{{st.codeFrame}}"></iframe>
+          <!-- the live preview's frame not complete yet (its videos loading, seeking): covered, and said (player/ready.ts) -->
+          <div id="codeWait"><span class="sp"></span><b>{{st.code.loadingFrame}}</b><span class="s">{{st.code.loadingFrameSub}}</span></div>
           <!-- the grade, shown on the image (page/studio/11-grade.js): the filter on what is behind it, the vignette, the grain;
                its left edge is the before / after wipe -->
           <div id="cgFx"><div id="cgVig"></div><canvas id="cgGrain"></canvas></div>

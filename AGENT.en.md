@@ -94,6 +94,13 @@ Since October 2026, these three channels edit their runs in Remotion. The run's 
 - **The channel's skill sets the rest**: its checks after a fix (tsc, `controler-scene.mjs`, text-audit…), and its rules.
 - **I never export.** The user starts the export from Coulisses (Batches tab, or Tools › Export in the menu bar: the channel's export script). The studio loads the new video by itself at the end, and offers "Compare before / after".
 
+### The live preview and the junctions (any Remotion project)
+
+Coulisses' live preview is Remotion's Player. It shows a frame at once, without waiting for its media as a render does. When a frame is not complete yet (a video not loaded, not sought), Coulisses covers it with a "Frame loading" veil: the user does not judge it. It happens on entering a `Sequence` whose videos only load at its first frame, typically at the junction between two chapters of a long video.
+
+- **For instant junctions in the preview**, a video made of parts in `Sequence` (chapters, scenes, shots) gives each of them `premountFor` (for instance `premountFor={fps}`: the part mounts a second before, hidden, and its videos are ready at its first frame). No effect on the render; to offer when writing or cutting a video, without changing the timing.
+- **A note about a "jump" or a "glitch" at a junction**, while the render (`frame … --source code`, the export) is clean, comes from the preview, not the video: say so in the reply, and offer `premountFor` rather than touching the image.
+
 ## A HyperFrames project
 
 Since 09/10/2026, Coulisses also reviews **HyperFrames** projects (a video = an HTML composition: a root element with `data-composition-id`, clips with `data-start` / `data-duration`, one GSAP timeline per composition). Its `.coulisses` says `"moteur": "hyperframes"`, and the line to paste starts with `Coulisses · <title> · batch N`. What changes:

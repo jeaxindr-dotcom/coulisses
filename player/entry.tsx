@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
 import * as R3F from './r3f';
 import { createStage } from './stage';
+import { createReady } from './ready';
 // @ts-ignore resolved through esbuild's alias "@episode-src" -> 06_Remotion/src
 import { Episode } from '@episode-src/Episode';
 // @ts-ignore
@@ -22,10 +23,12 @@ const durationInFrames = tl ? Math.ceil(tl.duration * FPS) : 1;
 const listeners = new Set<(ev: { type: string; frame: number }) => void>();
 let ref: PlayerRef | null = null;
 const emit = (type: string) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame }); };
+// the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
+const R = createReady({ root: () => document.getElementById('stage'), playing: () => !!ref?.isPlaying(), emit });
 
 // ---- 3D picking: what is under (x, y) of the 1920×1080 frame (player/r3f.ts, shared with the runs' 3D scenes) ----
 const pick = (x: number, y: number) => R3F.pick(x, y, W, H);
-const settle = () => R3F.settle();
+const settle = async () => { await R3F.settle(); await R.when(); };
 
 // « Mise en scène »: move objects in the preview, the offsets go to Claude (player/stage.ts)
 const stage = createStage({
@@ -41,6 +44,7 @@ const stage = createStage({
   seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,
+  frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
@@ -71,10 +75,13 @@ const App: React.FC = () => {
   useEffect(() => {
     ref = r.current; if (!ref) return;
     const evs = ['play', 'pause', 'seeked', 'frameupdate', 'ended'] as const;
-    const offs = evs.map((e) => { const h = () => emit(e); ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
+    const offs = evs.map((e) => { const h = () => { emit(e); if (e !== 'frameupdate' || !ref?.isPlaying()) R.watch(); }; ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
+    const onWait = () => R.setBuffering(true), onResume = () => R.setBuffering(false);
+    (ref as any).addEventListener('waiting', onWait); (ref as any).addEventListener('resume', onResume);
+    offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
     const start = +(new URLSearchParams(location.search).get('f') ?? 0);
     if (start) ref.seekTo(start);
-    emit('ready');
+    emit('ready'); R.watch();
     return () => offs.forEach((o) => o());
   }, []);
   if (!entry) return <div style={{ color: '#fff', padding: 20 }}>Épisode {__EPISODE__} introuvable dans src/episodes/registry.ts</div>;
