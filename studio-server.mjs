@@ -221,6 +221,7 @@ function studioScript() {
   const parts = fs.readdirSync(dir).filter((f) => /^\d\d-[\w-]+\.js$/.test(f)).sort();
   return '(() => {\n' + parts.map((f) => `// ===== page/studio/${f} =====\n${fs.readFileSync(path.join(dir, f), 'utf8')}`).join('\n') + '})();\n//# sourceURL=studio.js\n';
 }
+const RANGE_MAX = 8 * 1024 * 1024;   // a range answer's largest part (sendFile)
 function sendFile(req, res, file, type, track) {
   const st = file && fs.existsSync(file) ? fs.statSync(file) : null;
   if (!st || !st.isFile()) { res.writeHead(404); return res.end('not found'); }
@@ -240,8 +241,25 @@ function sendFile(req, res, file, type, track) {
     if (m && !m[1] && m[2]) { start = size - +m[2]; end = size - 1; }
     end = Math.min(end, size - 1);
     if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
-    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type, 'Cache-Control': 'no-cache', ETag: etag, 'Last-Modified': modified });
-    pipeOut(fs.createReadStream(file, { start, end }), res, track);
+    // at most RANGE_MAX bytes per answer, read then the file CLOSED before sending (14/10/2026: a <video> of the preview
+    // asks « bytes=0- », reads a little and stops; the stream stayed paused with the file open as long as the preview
+    // existed, and Windows refused to replace it: the 4K paper-3D of an export failed one after the other). The browser
+    // asks the next part by itself; a file is open only for the few milliseconds of a read.
+    end = Math.min(end, start + RANGE_MAX - 1);
+    const len = end - start + 1;
+    fs.open(file, 'r', (e, fd) => {
+      if (e) { res.writeHead(404); return res.end('not found'); }
+      const buf = Buffer.allocUnsafe(len);
+      const readAll = (off) => fs.read(fd, buf, off, len - off, start + off, (er, n) => {
+        if (!er && n > 0 && off + n < len) return readAll(off + n);
+        fs.close(fd, () => {});
+        if (er || off + n < len) { res.writeHead(500); return res.end(); }
+        if (res.destroyed) return;
+        res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': len, 'Content-Type': type, 'Cache-Control': 'no-cache', ETag: etag, 'Last-Modified': modified });
+        res.end(buf);
+      });
+      readAll(0);
+    });
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', ETag: etag, 'Last-Modified': modified });
     pipeOut(fs.createReadStream(file), res, track);
