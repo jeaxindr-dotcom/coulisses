@@ -170,6 +170,17 @@
   /* asked at a step: seen only if the frame is not complete within 90 ms (an opacity transition: the compositor runs it) */
   #codeWait.pend { opacity: 1; transition: opacity .06s linear 90ms; }
   #codeWait.on { opacity: 1; transition: none; }
+  /* the speed of the export: a dial ×0,5 – ×2,0, notches of 0,1 (the datalist draws them) */
+  .speedLine { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .speedLine input[type=range] { width: 100%; accent-color: var(--lime); cursor: pointer; margin: 0; }
+  /* its 16 notches (0,5 … 2,0), the one of ×1 taller (a third of the way); 8 px in: the middle of the thumb at each end */
+  .speedLine .dial { position: relative; flex: 1; min-width: 0; display: block; padding-bottom: 7px; }
+  .speedLine .dial .ticks { position: absolute; left: 8px; right: 8px; bottom: 0; height: 4px; pointer-events: none;
+    background: repeating-linear-gradient(to right, rgba(255, 255, 255, 0.32) 0 1px, transparent 1px calc((100% - 1px) / 15)); }
+  .speedLine .dial .one { position: absolute; left: calc(8px + (100% - 17px) / 3); bottom: 0; width: 1px; height: 7px; background: var(--lime); pointer-events: none; }
+  .speedLine #exSpeedVal { min-width: 3.4em; text-align: right; font: 700 calc(13px * var(--iz, 1)) var(--font-d); color: var(--s11); font-variant-numeric: tabular-nums; cursor: default; }
+  .speedLine #exSpeedVal.on { color: var(--lime); }
+  #exSpeedWhat { margin-top: 4px; }
   .gpuLine { display: flex; align-items: center; gap: 7px; margin-top: 10px; cursor: pointer; }
   .gpuLine input { accent-color: var(--lime); margin: 0; }
   #codeWait b { font: 600 calc(15px * var(--iz, 1)) var(--font-d); }

@@ -110,7 +110,7 @@
     const X = STATUS.export;
     if (!META.features?.export) return `<div class="sub2 muted">${T('st.ex.unavailable', { why: esc(META.exportWhy ?? T('st.ex.unavailableWhy')) })}</div>`;
     if (X?.state === 'running') {
-      return `<div class="sub2">${T('st.ex.running', { label: esc(!isDefaultExport(X.label) ? X.label : T('st.ex.export')), date: dayTime(X.started) })}</div>
+      return `<div class="sub2">${T('st.ex.running', { label: esc(!isDefaultExport(X.label) ? X.label : T('st.ex.export')), date: dayTime(X.started) })}${X.vitesse && X.vitesse !== 1 ? ` · ${speedLabel(X.vitesse)}` : ''}</div>
         <div class="rbar"><i style="width:${Math.round(X.pct ?? 0)}%"></i></div>
         <div class="num2"><span id="exNum">${X.pct != null ? T('st.ex.pct', { pct: Math.round(X.pct) }) : T('st.ex.preparing')}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
         <div class="acts"><button class="soft danger" id="exStop">${ic('x')}${T('st.ex.stop')}</button><button class="soft" id="exLog">${T('st.rc.log')}</button></div>`;
@@ -120,7 +120,31 @@
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
     const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
-    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+    return `${last}${speedLine()}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+  }
+  // the speed of the export (user request 14/10/2026: « une molette allant de 0,5 à 2,0, chaque cran de 0,1 »): picture and
+  // sound together (lib/export-run.mjs). The wheel of the mouse moves it a notch, a double click puts it back to ×1; the
+  // choice is kept for this project (this browser). Turning it changes the card in place, never draws it again.
+  const SPEED_MIN = 0.5, SPEED_MAX = 2, speedKey = () => `coulisses.exportSpeed.${META.coulisses ?? META.root ?? META.title ?? ''}`;
+  const notch = (v) => Math.min(SPEED_MAX, Math.max(SPEED_MIN, Math.round(+v * 10) / 10));
+  const speedLabel = (s) => `×${(Number.isInteger(s) ? String(s) : s.toFixed(1)).replace('.', T('st.ex.decimal'))}`;
+  function exportSpeed() { try { const v = localStorage.getItem(speedKey()); return v === null ? 1 : notch(v); } catch { return 1; } }
+  const speedWhat = (v) => (v === 1 ? T('st.ex.speedOne') : T('st.ex.speedWhat', { s: speedLabel(v), n: String(v) }) + (v < 1 ? ' ' + T('st.ex.speedSlow') : ''));
+  function speedLine() {
+    const cur = exportSpeed(), ticks = Array.from({ length: 16 }, (_, i) => (SPEED_MIN + i / 10).toFixed(1));
+    return `<div class="speedLine" title="${esc(T('st.ex.speedTitle'))}"><span class="sub2">${T('st.ex.speed')}</span>
+      <span class="dial"><input type="range" id="exSpeed" min="${SPEED_MIN}" max="${SPEED_MAX}" step="0.1" value="${cur}" list="exSpeedTicks" aria-label="${esc(T('st.ex.speed'))}"><i class="ticks"></i><i class="one" title="×1"></i></span>
+      <datalist id="exSpeedTicks">${ticks.map((t) => `<option value="${t}"></option>`).join('')}</datalist>
+      <b id="exSpeedVal" class="${cur === 1 ? '' : 'on'}">${speedLabel(cur)}</b></div>
+      <div class="sub2 muted" id="exSpeedWhat">${speedWhat(cur)}</div>`;
+  }
+  function setSpeed(v) {
+    v = notch(v);
+    try { localStorage.setItem(speedKey(), String(v)); } catch { /* private window */ }
+    const r = $('#exSpeed'), val = $('#exSpeedVal'), what = $('#exSpeedWhat');
+    if (r && +r.value !== v) r.value = String(v);
+    if (val) { val.textContent = speedLabel(v); val.classList.toggle('on', v !== 1); }
+    if (what) what.textContent = speedWhat(v);
   }
   // the encoder of the exports (lib/gpu.mjs): the GPU by default, a box to go back to the CPU
   function gpuLine() {
@@ -133,14 +157,22 @@
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
     $('#exReveal')?.addEventListener('click', () => revealMenu('export'));
+    const dial = $('#exSpeed');
+    if (dial) {
+      dial.addEventListener('input', () => setSpeed(dial.value));
+      dial.addEventListener('dblclick', () => setSpeed(1));
+      dial.addEventListener('wheel', (e) => { e.preventDefault(); setSpeed(exportSpeed() + (e.deltaY < 0 ? 0.1 : -0.1)); }, { passive: false });
+    }
+    $('#exSpeedVal')?.addEventListener('dblclick', () => setSpeed(1));
     $('#exGpu')?.addEventListener('change', async (e) => {
       const r = await postJson('/api/gpu', { on: e.target.checked });
       if (r?.ok) { META.gpu = r.gpu; rcKey = null; renderRender(); setSave(r.gpu.off ? T('st.ex.gpuNowOff') : T('st.ex.gpuNowOn'), 'ok'); } else setSave(T('st.noAnswer'), 'err');
     });
   }
   async function startExportUI(qualite, label) {
-    if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }))) return;
-    const r = await postJson('/api/export', { qualite });
+    const vitesse = exportSpeed();
+    if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
+    const r = await postJson('/api/export', { qualite, vitesse });
     setSave(r?.ok ? T('st.ex.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }
   async function stopExportUI() {

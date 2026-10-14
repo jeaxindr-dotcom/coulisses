@@ -91,6 +91,16 @@ try {
   const on = await post('/api/gpu', { on: true });
   check(off.ok && off.gpu.off && off.gpu.mode === 'cpu' && sC.ok && dC.state === 'done' && /encodeur : cpu/.test(logC) && x264 && on.ok && !on.gpu.off && on.gpu.mode === want,
     `« Encoder avec le GPU » unticked: the export is told « cpu » (x264 file: ${x264}), ticked again: « ${on.gpu?.mode} »`);
+  // the dial of the speed (lib/export-run.mjs): ×1,5 gives the ×1 file and its copy « -x1.5 »; the studio keeps reviewing
+  // the ×1 one (its frames are the code's); a speed between two notches is refused
+  const sV = await post('/api/export', { qualite: 'test', vitesse: 1.5 });
+  const dV = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'export ×1.5');
+  await sleep(21000);
+  const stV = await get('/api/status');
+  const durV = dV.file ? +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', dV.file], { encoding: 'utf8' }).trim() : 0;
+  const refused = await post('/api/export', { qualite: 'test', vitesse: 1.25 });
+  check(sV.ok && sV.vitesse === 1.5 && dV.state === 'done' && /-x1\.5\.mp4$/.test(dV.file ?? '') && Math.abs(durV - 1 / 1.5) < 0.1 && !/-x/.test(stV.video?.name ?? '-x') && !refused.ok,
+    `×1,5: the copy ${path.basename(dV.file ?? '?')} (${durV.toFixed(2)} s for 1 s), the studio still reviews ${stV.video?.name}; ×1,25 refused (${refused.why ?? ''})`);
   const bad = await post('/api/export', { qualite: 'nope' });
   check(!bad.ok && /inconnue/.test(bad.why), 'an unknown variant is refused');
 

@@ -540,7 +540,7 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/export' && req.method === 'POST') {
       if (!XP) return json(res, { ok: false, why: t('srv.exportOnly') });
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
-      try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+      try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, vitesse: b.vitesse ?? 1, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     // « Encoder avec le GPU » (lib/gpu.mjs, user request 14/10/2026: the GPU by default): settings.json exportGpu
     if (pn === '/api/gpu' && req.method === 'POST') {
