@@ -42,7 +42,10 @@ try {
   await p.type('Test connexion : la lanterne clignote'); await sleep(600);
   await p.eval(`document.activeElement.blur(); document.querySelector('#qsend').click(); return 1`);
   await p.until(`document.querySelector('#modal').style.display === 'flex'`, 60000);
-  check(/Claude Code surveille l'outil : il a déjà reçu ce lot/.test(await p.eval(`return document.querySelector('#mP1').textContent`)), 'modal says the watching agent already has it');
+  // nothing to paste: the line folded away (« Afficher la ligne »), « Fermer » the main button (user report 14/10/2026:
+  // « pourquoi ça me donne un code à coller alors que ça commence automatiquement ? »)
+  const mo = await p.eval(`const m = document.querySelector('#modal'); return { p1: document.querySelector('#mP1').textContent, folded: m.classList.contains('received') && getComputedStyle(document.querySelector('#mLine')).display === 'none' && getComputedStyle(document.querySelector('#mShowLine')).display !== 'none', main: document.querySelector('#mClose').className }`);
+  check(/Claude Code a reçu ce lot : il s'en occupe tout seul, rien à coller/.test(mo.p1) && mo.folded && mo.main === 'primary', `modal: the watching agent already has it, the line folded away, « Fermer » first (${mo.p1})`);
   const upd = await p.eval(`return document.querySelector('#mUpd').textContent`);
   check(/^Mises à jour : /.test(upd) && await p.eval(`return document.querySelector('#mUpd').classList.contains('on')`), `the update check, in the send window (« ${upd.slice(0, 90)}… »)`);
   await Promise.race([exited, sleep(15000)]);

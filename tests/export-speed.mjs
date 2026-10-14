@@ -102,7 +102,6 @@ const { speedOf } = await import('../lib/export.mjs');
 check(speedOf(0.5) === 0.5 && speedOf('1.3') === 1.3 && speedOf(2) === 2 && speedOf(1) === 1 && speedOf(0.4) === null && speedOf(2.1) === null && speedOf(1.25) === null && speedOf('x') === null,
   'the dial: 0,5 · 1,3 · 2,0 accepted; 0,4 · 2,1 · 1,25 (between two notches) refused');
 // the reviewed video is never a sped-up copy
-const pj = fs.readFileSync(path.join(STUDIO, 'lib', 'projects.mjs'), 'utf8');
-const SPED = new RegExp(/const SPED = \/(.+)\/i;/.exec(pj)[1], 'i');
+const { SPED } = await import('../lib/speed.mjs');   // used by lib/projects.mjs and lib/episode.mjs
 check(SPED.test('Die-Glocke-2160p-x1.25.mp4') && SPED.test('short13_4k_final-x1.5.mp4') && SPED.test('film-x0.5.mp4') && SPED.test('film-x2.mp4') && !SPED.test('Die-Glocke-2160p.mp4') && !SPED.test('long04_final.mp4'), 'a « -x1.25 » copy is never the video under review (lib/projects.mjs)');
 console.log(`\n${ok} ok, ${ko} échec(s)`); process.exit(ko ? 1 : 0);

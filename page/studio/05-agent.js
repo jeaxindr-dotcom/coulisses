@@ -29,7 +29,7 @@
       $('#qwords').value = ''; save();
       showModal(T('st.send.title', { lot: res.lot, n: res.count }),
         res.agent?.watching ? T('st.send.gotIt', { name: agentName() }) : T('st.send.paste', { name: agentName() }),
-        res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk });
+        res.line, T('st.send.saved', { md: res.md }), { updates: res.updates, updatesOk: res.updatesOk, received: !!res.agent?.watching });
       setTab('lots');
     } catch (e) { setSave(T('st.send.failed', { msg: e.message }), 'err'); }
     sending = false; renderAll();

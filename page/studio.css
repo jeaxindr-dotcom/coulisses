@@ -181,6 +181,14 @@
   .speedLine #exSpeedVal { min-width: 3.4em; text-align: right; font: 700 calc(13px * var(--iz, 1)) var(--font-d); color: var(--s11); font-variant-numeric: tabular-nums; cursor: default; }
   .speedLine #exSpeedVal.on { color: var(--lime); }
   #exSpeedWhat { margin-top: 4px; }
+  /* « Vitesse » at the bottom of the « Envois » card (every project) */
+  .spBlock { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .spBlock .speedLine { margin-top: 0; }
+  #spJob:not(:empty) { margin-top: 8px; }
+  /* the sent window when the agent already has it: the line folded away */
+  #mShowLine { display: none; background: none; border: 0; padding: 0; margin: 2px 0 8px; color: var(--s11); text-decoration: underline; cursor: pointer; font: inherit; font-size: calc(12.5px * var(--iz, 1)); }
+  #modal.received #mShowLine { display: inline-block; }
+  #modal.received #mLine { display: none; }
   .gpuLine { display: flex; align-items: center; gap: 7px; margin-top: 10px; cursor: pointer; }
   .gpuLine input { accent-color: var(--lime); margin: 0; }
   #codeWait b { font: 600 calc(15px * var(--iz, 1)) var(--font-d); }

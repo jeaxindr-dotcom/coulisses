@@ -4,12 +4,17 @@
   // ---------- modal ----------
   let modalLine = '';
   // updatesOk (from the server, lib/updates.mjs): the update line is calm only when everything is up to date
-  function showModal(title, p1, line, p2, { updates = '', updatesOk = false, pick = false } = {}) {
+  // received: the agent watching the tool already has it — nothing to paste: the line is folded away (« Afficher la
+  // ligne »), « Fermer » is the main button
+  function showModal(title, p1, line, p2, { updates = '', updatesOk = false, pick = false, received = false } = {}) {
     $('#mT').textContent = title; $('#mP1').textContent = p1; $('#mLine').textContent = line; $('#mP2').textContent = p2 || ''; modalLine = line;
+    $('#modal').classList.toggle('received', received && !!line);
+    $('#mClose').className = received ? 'primary' : 'soft'; $('#mCopy').className = received ? 'soft' : 'primary';
     const u = $('#mUpd'); u.textContent = updates || ''; u.className = 'upd' + (updates ? ' on' : '') + (updates && !updatesOk ? ' todo' : '');
     $('#mAgent').classList.toggle('on', pick); markPick();
-    $('#modal').style.display = 'flex'; $('#mCopy').focus();
+    $('#modal').style.display = 'flex'; (received ? $('#mClose') : $('#mCopy')).focus();
   }
+  $('#mShowLine').onclick = () => $('#modal').classList.remove('received');
   async function copy(t) {
     try { await navigator.clipboard.writeText(t); setSave(T('st.copy.done'), 'ok'); }
     catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); setSave(T('st.copy.short'), 'ok'); }

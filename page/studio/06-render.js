@@ -42,8 +42,8 @@
     if (LIVEP() && !cur) {
       box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>${T('st.ex.noExport')}</b><span class="muted">${esc(kindLabel())}</span></div>
         <div class="sub2">${T('st.ex.liveCode', { comp: esc(META.composition ?? ''), w: CW, h: CH, fps: dec(FPS) })}</div>
-        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${shotBlock()}${exportBlock()}</div>`;
-      wireExport(); wireShot();
+        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${shotBlock()}${exportBlock()}${speedBlock()}</div>`;
+      wireExport(); wireShot(); wireSpeed();
       return;
     }
     const where = META.kind === 'run' ? T('st.ex.whereRun', { dir: META.exportDir ? T('st.ex.inDir', { dir: esc(META.exportDir) }) : '' })
@@ -52,10 +52,10 @@
     box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>${T('st.ex.reviewed')}</b><span class="muted">${esc(kindLabel())}</span></div>
       <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>
       <div class="sub2 muted">${where} ${META.kind === 'run' ? T('st.ex.fixRun') : T('st.ex.fixYou')}</div>
-      ${shotBlock()}${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}</div>`;
+      ${shotBlock()}${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}${speedBlock()}</div>`;
     $('#rcCmp')?.addEventListener('click', () => openCompare());
     $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
-    wireExport(); wireShot();
+    wireExport(); wireShot(); wireSpeed();
   }
   // « Rendre ce plan » (user request, 09/10/2026): a 3D shot shown in a Short as a clip (its .coulisses « utilise »): its
   // video made again from the current code and put back in the Short, without the agent (lib/shot-render.mjs). The old
@@ -120,7 +120,7 @@
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
     const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
-    return `${last}${speedLine()}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
   }
   // the speed of the export (user request 14/10/2026: « une molette allant de 0,5 à 2,0, chaque cran de 0,1 »): picture and
   // sound together (lib/export-run.mjs). The wheel of the mouse moves it a notch, a double click puts it back to ×1; the
@@ -129,14 +129,21 @@
   const notch = (v) => Math.min(SPEED_MAX, Math.max(SPEED_MIN, Math.round(+v * 10) / 10));
   const speedLabel = (s) => `×${(Number.isInteger(s) ? String(s) : s.toFixed(1)).replace('.', T('st.ex.decimal'))}`;
   function exportSpeed() { try { const v = localStorage.getItem(speedKey()); return v === null ? 1 : notch(v); } catch { return 1; } }
-  const speedWhat = (v) => (v === 1 ? T('st.ex.speedOne') : T('st.ex.speedWhat', { s: speedLabel(v), n: String(v) }) + (v < 1 ? ' ' + T('st.ex.speedSlow') : ''));
-  function speedLine() {
+  // what the speed does here: the next export (Remotion, HyperFrames) or render (the Theatre) makes its copy too; any
+  // video can get one now (« Créer la copie »); the reviewed video stays the ×1 one
+  const speedWhat = (v) => {
+    if (v === 1) return T('st.ex.speedOne');
+    const next = PROJ ? (META.features?.export ? T('st.sp.export', { s: speedLabel(v), n: String(v) }) : '') : T('st.sp.render', { s: speedLabel(v), n: String(v) });
+    return [next, T('st.ex.speedWhat'), v < 1 ? T('st.ex.speedSlow') : ''].filter(Boolean).join(' ');
+  };
+  function speedBlock() {
     const cur = exportSpeed(), ticks = Array.from({ length: 16 }, (_, i) => (SPEED_MIN + i / 10).toFixed(1));
-    return `<div class="speedLine" title="${esc(T('st.ex.speedTitle'))}"><span class="sub2">${T('st.ex.speed')}</span>
+    spKey = '';
+    return `<div class="spBlock"><div class="speedLine" title="${esc(T('st.ex.speedTitle'))}"><span class="sub2">${T('st.ex.speed')}</span>
       <span class="dial"><input type="range" id="exSpeed" min="${SPEED_MIN}" max="${SPEED_MAX}" step="0.1" value="${cur}" list="exSpeedTicks" aria-label="${esc(T('st.ex.speed'))}"><i class="ticks"></i><i class="one" title="×1"></i></span>
       <datalist id="exSpeedTicks">${ticks.map((t) => `<option value="${t}"></option>`).join('')}</datalist>
       <b id="exSpeedVal" class="${cur === 1 ? '' : 'on'}">${speedLabel(cur)}</b></div>
-      <div class="sub2 muted" id="exSpeedWhat">${speedWhat(cur)}</div>`;
+      <div class="sub2 muted" id="exSpeedWhat">${speedWhat(cur)}</div><div id="spJob"></div></div>`;
   }
   function setSpeed(v) {
     v = notch(v);
@@ -145,6 +152,48 @@
     if (r && +r.value !== v) r.value = String(v);
     if (val) { val.textContent = speedLabel(v); val.classList.toggle('on', v !== 1); }
     if (what) what.textContent = speedWhat(v);
+    speedJob();
+  }
+  // « Créer la copie ×1,3 » of the current video, and the copy being made (STATUS.speed: lib/speed-copy.mjs)
+  let spKey = '';
+  function speedJob() {
+    const box = $('#spJob'); if (!box) return;
+    const v = exportSpeed(), J = STATUS.speed, video = STATUS.video ?? META.render, run = J?.state === 'running';
+    const key = JSON.stringify([v, J?.state, J?.pct, J?.file, J?.ended, video?.name, video?.size]);
+    if (key === spKey) return; spKey = key;
+    const js = J ? speedLabel(J.vitesse) : '';
+    let h = '';
+    if (run) h = `<div class="sub2">${T('st.sp.running', { s: js, name: esc(J.video) })}</div><div class="rbar"><i style="width:${Math.round(J.pct ?? 0)}%"></i></div>
+      <div class="num2"><span>${J.pct != null ? T('st.ex.pct', { pct: Math.round(J.pct) }) : T('st.ex.preparing')}</span></div><div class="acts"><button class="soft danger" id="spStop">${ic('x')}${T('st.sp.stop')}</button><button class="soft" id="spLog">${T('st.rc.log')}</button></div>`;
+    else {
+      if (J?.state === 'done') h += `<div class="ok2">${T('st.sp.done', { s: js, name: esc((J.file ?? '').split(/[\\/]/).pop()) })}</div>`;
+      else if (J?.state === 'failed') h += `<div class="err">${T('st.sp.failed', { s: js, why: esc(J.error ?? '') })}</div>`;
+      else if (J?.state === 'stopped') h += `<div class="sub2 muted">${T('st.sp.stopped', { s: js })}</div>`;
+      const go = v !== 1 && video ? `<button class="soft" id="spGo" title="${esc(T('st.sp.goTitle', { name: video.name, target: video.name.replace(/\.mp4$/i, `-x${v}.mp4`) }))}">${ic('film')}${T('st.sp.go', { s: speedLabel(v) })}</button>` : '';
+      const more = J?.state === 'done' ? `<button class="soft" id="spReveal">${ic('folder')}${T('st.rc.reveal')}</button>` : '';
+      if (go || more || J) h += `<div class="acts">${go}${more}${J ? `<button class="soft" id="spLog">${T('st.rc.log')}</button>` : ''}</div>`;
+    }
+    box.innerHTML = h;
+    $('#spGo')?.addEventListener('click', async () => {
+      const s = exportSpeed(), cur = STATUS.video ?? META.render; if (!cur || s === 1) return;
+      if (!confirm(T('st.sp.confirm', { s: speedLabel(s), name: cur.name, target: cur.name.replace(/\.mp4$/i, `-x${s}.mp4`) }))) return;
+      const r = await postJson('/api/speed/copy', { vitesse: s });
+      setSave(r?.ok ? T('st.sp.started', { s: speedLabel(s) }) : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
+      if (r?.ok) { STATUS.speed = { ...r, pct: 0 }; spKey = ''; speedJob(); }
+    });
+    $('#spStop')?.addEventListener('click', async () => { const r = await postJson('/api/speed/stop'); setSave(r?.ok ? T('st.sp.stoppedNow') : T('st.cannotStop', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err'); });
+    $('#spLog')?.addEventListener('click', async () => { let t = ''; try { t = await (await fetch('/api/speed/log', { cache: 'no-store' })).text(); } catch { /* */ } showModal(T('st.sp.logTitle'), T('st.sp.logWhat'), t || T('st.empty'), ''); });
+    $('#spReveal')?.addEventListener('click', () => revealMenu('speed'));
+  }
+  function wireSpeed() {
+    const dial = $('#exSpeed');
+    if (dial) {
+      dial.addEventListener('input', () => setSpeed(dial.value));
+      dial.addEventListener('dblclick', () => setSpeed(1));
+      dial.addEventListener('wheel', (e) => { e.preventDefault(); setSpeed(exportSpeed() + (e.deltaY < 0 ? 0.1 : -0.1)); }, { passive: false });
+    }
+    $('#exSpeedVal')?.addEventListener('dblclick', () => setSpeed(1));
+    speedJob();
   }
   // the encoder of the exports (lib/gpu.mjs): the GPU by default, a box to go back to the CPU
   function gpuLine() {
@@ -157,13 +206,6 @@
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
     $('#exReveal')?.addEventListener('click', () => revealMenu('export'));
-    const dial = $('#exSpeed');
-    if (dial) {
-      dial.addEventListener('input', () => setSpeed(dial.value));
-      dial.addEventListener('dblclick', () => setSpeed(1));
-      dial.addEventListener('wheel', (e) => { e.preventDefault(); setSpeed(exportSpeed() + (e.deltaY < 0 ? 0.1 : -0.1)); }, { passive: false });
-    }
-    $('#exSpeedVal')?.addEventListener('dblclick', () => setSpeed(1));
     $('#exGpu')?.addEventListener('change', async (e) => {
       const r = await postJson('/api/gpu', { on: e.target.checked });
       if (r?.ok) { META.gpu = r.gpu; rcKey = null; renderRender(); setSave(r.gpu.off ? T('st.ex.gpuNowOff') : T('st.ex.gpuNowOn'), 'ok'); } else setSave(T('st.noAnswer'), 'err');
@@ -187,6 +229,7 @@
   const kindLabel = () => (META.kind === 'run' ? T('st.kind.run', { c: META.channel || 'Run' }) : META.kind === 'remotion' ? `${META.channel || T('st.kind.remotion')}${META.features?.video ? '' : T('st.kind.liveCode')}` : META.kind === 'hyperframes' ? `${META.channel ? META.channel + ' · ' : ''}HyperFrames${META.features?.video ? '' : T('st.kind.liveCode')}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : T('st.kind.long')) : ''}` : META.kind === 'video' ? T('st.kind.video') : T('st.kind.folder'));
   function renderRender() {
     const box = $('#renderCard'); if (!box || !META) return;
+    queueMicrotask(speedJob);   // the copy at another speed: its own part of the card, updated in place
     if (PROJ) return exportCard(box);
     const { st, R, req, cur, since } = renderView();
     const key = JSON.stringify([st, R?.phase, R?.state, R?.startedAt, R?.checks?.map((c) => c.status), R?.render?.stage === 'wait', R?.finish?.steps?.length, req?.lot, req?.claude?.status,
@@ -229,7 +272,8 @@
       const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.again : '';
       h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp + B.reveal : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
     }
-    box.innerHTML = `<div class="rc">${h}</div>`;
+    box.innerHTML = `<div class="rc">${h}${speedBlock()}</div>`;
+    wireSpeed();
     $('#rcGo')?.addEventListener('click', launchRender);
     $('#rcCmp')?.addEventListener('click', () => openCompare());
     $('#rcLog')?.addEventListener('click', showRenderLog);
@@ -288,13 +332,15 @@
     const msg = [T('st.launch.ask', { ep: META.episode }), '', T('st.launch.what')];
     if (d) msg.push('', T('st.launch.drafts', { n: d }));
     if (open.length) msg.push('', T('st.launch.open', { n: open.length, list: open.join(', ') }));
+    const vitesse = exportSpeed();
+    if (vitesse !== 1) msg.push('', T('st.launch.speed', { s: speedLabel(vitesse) }));
     if (!confirm(msg.join('\n'))) return;
-    const r = await postJson('/api/render', { agent: AGENT_PICK });
+    const r = await postJson('/api/render', { agent: AGENT_PICK, vitesse });
     if (!r?.ok) { setSave(T('st.launch.failed', { why: r?.why ?? T('st.launch.noStudio') }), 'err'); return; }
     statusTxt = ''; rcKey = '';
     showModal(T('st.launch.title', { lot: r.lot }),
       r.agent?.watching ? T('st.launch.gotIt', { name: agentName() }) : T('st.launch.paste', { name: agentName() }),
-      r.line, T('st.launch.progress'), { updates: r.updates, updatesOk: r.updatesOk });
+      r.line, T('st.launch.progress'), { updates: r.updates, updatesOk: r.updatesOk, received: !!r.agent?.watching });
     setTab('lots');
   }
   async function stopRender() {

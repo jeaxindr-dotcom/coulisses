@@ -94,12 +94,19 @@ try {
   await p.eval(`window.confirm = () => true; document.querySelector('button[data-tab=lots]').click(); return 1`);
   await until(`document.querySelector('#rcGo')`, 10000);
   check(/1 lot corrigé/.test(await card()), 'the card says what the render will carry (1 lot corrigé)');
+  // the speed of the dial goes with the request (« Vitesse » in « Envois », every project — a Theatre episode too): ×1,5
+  await p.eval(`document.querySelector('#exSpeed').scrollIntoView({ block: 'center' }); return 1`); await sleep(300);
+  const dl = await p.eval(`const r = document.querySelector('#exSpeed').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
+  for (let i = 0; i < 5; i++) { await p.wheel(dl[0], dl[1], -120); await sleep(80); }
+  check((await ev(`return document.querySelector('#exSpeedVal').textContent`)) === '×1,5' && /prochain rendu en fera aussi une copie ×1,5/.test(await card()), 'the dial of « Envois » on a Theatre episode: ×1,5, the next render makes its copy too');
   await p.eval(`document.querySelector('#rcGo').click(); return 1`);
   await until(`document.querySelector('#modal').style.display === 'flex'`, 10000);
   const line = await ev(`return document.querySelector('#mLine').textContent`);
   check(/Coulisses · E03 · rendu \(lot 2\)/.test(line), `the line to paste (${line?.slice(0, 60)}…)`);
   const md = fs.readFileSync(path.join(REVUE, 'lots', '002.md'), 'utf8');
   check(/demande de RENDU/.test(md) && /Lot 1 \(1 modif\) : corrigé/.test(md) && /render E03 --episodes .* 2` \*\*en tâche de fond/.test(md), 'the request tells Claude what it carries and the exact command');
+  check(/Vitesse demandée : ×1,5/.test(md) && JSON.parse(fs.readFileSync(path.join(REVUE, 'lots', '002.json'), 'utf8')).vitesse === 1.5, 'the request carries the speed (×1,5: the copy is made by `render` itself)');
+  await p.eval(`document.querySelector('#exSpeed').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1`);   // back to ×1 for what follows
   await p.eval(`document.querySelector('#mClose').click(); return 1`);
   await until(`/Retirer la demande/.test(document.querySelector('#renderCard').innerText)`, 8000);
   check(await ev(`return document.querySelector('#renderPill').textContent.includes('Rendu demandé')`), 'header: « Rendu demandé »');
@@ -121,6 +128,14 @@ try {
   check(sawHeld, 'while finish-render replaces the video, the page lets go of it (« Le nouveau rendu remplace la vidéo »)');
   await run.done;
   check(run.code === 0 && /RENDU TERMINÉ/.test(run.out) && /Integrated -16 LUFS/.test(run.out) && /done E03 --episodes/.test(run.out), 'the command ends with the loudness and the next step for Claude');
+  // the copy at the speed of the request, next to the new video (the reviewed video stays the ×1 one)
+  {
+    const EPD = path.dirname(REVUE), RJ = JSON.parse(fs.readFileSync(path.join(REVUE, 'render.json'), 'utf8'));
+    const main = fs.readdirSync(EPD).find((f) => /\.mp4$/i.test(f) && !/-x\d/.test(f)), cp = fs.readdirSync(EPD).find((f) => /-x1\.5\.mp4$/i.test(f));
+    const d = (f) => +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(EPD, f)], { encoding: 'utf8' }).trim();
+    check(cp && RJ.speedCopy === cp && Math.abs(d(cp) - d(main) / 1.5) < 0.5 && RJ.finish.steps.some((s) => /copie à ×1,5/.test(s.label)), `at the end of the render, its ×1,5 copy: ${cp ?? '—'} (${cp ? d(cp).toFixed(1) : '?'} s for ${d(main).toFixed(1)} s)`);
+    if (cp) fs.rmSync(path.join(EPD, cp), { force: true });   // the sandbox as it was
+  }
   await until(`window.__studio && __studio.state().video && __studio.state().video !== ${before}`, 40000);
   check(true, 'the page reloaded the new video by itself');
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);

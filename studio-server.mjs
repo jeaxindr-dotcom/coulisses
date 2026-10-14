@@ -26,6 +26,7 @@ import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJs
 import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/frames.mjs';
 import crypto from 'node:crypto';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
+import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed-copy.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
 import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from './lib/shot-render.mjs';
@@ -205,7 +206,7 @@ if (XP) watchExport();
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState };
+    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P) };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -356,6 +357,7 @@ const server = http.createServer(async (req, res) => {
         // review — an episode's render, a run's export —, or the file the last export made
         else if (b.what === 'video') reveal(pickVideo(P), { select: true });
         else if (b.what === 'export') reveal(exportState(P)?.file, { select: true });
+        else if (b.what === 'speed') reveal(speedState(P)?.file, { select: true });
         else if (b.what === 'online') openOnline();
         else return json(res, { ok: false, why: String(b.what) }, 400);
         return json(res, { ok: true });
@@ -548,6 +550,13 @@ const server = http.createServer(async (req, res) => {
       writeSettings({ exportGpu: b.on !== false });
       return json(res, { ok: true, gpu: { ...gpuEncoder({ fresh: true }), off: gpuOff() } });
     }
+    // « Créer la copie ×1,3 » (« Envois », any project): the current video at the speed of the dial, next to it
+    if (pn === '/api/speed/copy' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      try { return json(res, { ok: true, ...startSpeedCopy(P, pickVideo(P), b.vitesse, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/speed/stop' && req.method === 'POST') { try { return json(res, { ok: true, ...stopSpeedCopy(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); } }
+    if (pn === '/api/speed/log') { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(speedLog(P)); }
     if (pn === '/api/export/stop' && req.method === 'POST') {
       try { return json(res, { ok: true, ...stopExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
