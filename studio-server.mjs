@@ -42,7 +42,8 @@ import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/upd
 import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
 import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
-import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
+import { t, lang, langSource, setLang, LANGS, renderPage, writeSettings } from './lib/i18n.mjs';
+import { gpuEncoder, gpuOff } from './lib/gpu.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { execFile } from 'node:child_process';
@@ -156,7 +157,7 @@ function meta() {
   const hc = HFP ? hfComposition(P.hf.projet, P.hf.index) : null;   // a HyperFrames project: its root composition's size and rate
   const pr = HFP && hc && !video ? { size: [hc.width, hc.height], fps: hc.fps } : pr0;
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: XP && exportAvailable(P).ok }, exportWhy: XP ? exportAvailable(P).why : null, exportOptions: XP && exportAvailable(P).ok ? exportOptions(P) : [],
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: XP && exportAvailable(P).ok }, exportWhy: XP ? exportAvailable(P).why : null, gpu: XP ? { ...gpuEncoder(), off: gpuOff() } : null, exportOptions: XP && exportAvailable(P).ok ? exportOptions(P) : [],
     composition: G ? P.remotion.composition : HFP ? hc?.id ?? null : null, engine: B || G ? 'remotion' : HFP ? 'hyperframes' : null, hfVersion: HFP ? hfFor(P.hf.projet)?.version ?? null : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
@@ -540,6 +541,12 @@ const server = http.createServer(async (req, res) => {
       if (!XP) return json(res, { ok: false, why: t('srv.exportOnly') });
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
       try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    // « Encoder avec le GPU » (lib/gpu.mjs, user request 14/10/2026: the GPU by default): settings.json exportGpu
+    if (pn === '/api/gpu' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      writeSettings({ exportGpu: b.on !== false });
+      return json(res, { ok: true, gpu: { ...gpuEncoder({ fresh: true }), off: gpuOff() } });
     }
     if (pn === '/api/export/stop' && req.method === 'POST') {
       try { return json(res, { ok: true, ...stopExport(P, { log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }

@@ -150,6 +150,16 @@ The `.coulisses` must have an `export` folder, otherwise Coulisses does not offe
 
 Coulisses then runs the script again with `--qualite <id>` for the chosen variant. The first element is the main button. The labels are shown as they are: write them in the user's language. Without `--options` (the script does not know it, or returns anything other than an array), Coulisses shows a single button, "Export the video" ("Exporter la vidéo" in French), without `--qualite`.
 
+**The GPU, by default.** Coulisses tells the script which encoder to use, through the environment variable **`COULISSES_GPU`**: `nvenc` (Windows, Linux: an NVIDIA card whose encoder really works, checked by a test encode), `videotoolbox` (macOS), or `cpu` (no GPU encoder, or the user unticked "Encode with the GPU"). A script that does not know it ignores it and works as before. When it is not `cpu`, the script should:
+
+- encode with the GPU: `renderMedia({ …, hardwareAcceleration: 'required', videoBitrate })`, **without `crf`** (a hardware encoder does not take it); suggested bitrate 50 Mbit/s in 4K, 20 Mbit/s in 1080p;
+- capture the frames as **JPEG quality 100** (`imageFormat: 'jpeg', jpegQuality: 100`) rather than PNG: compressing each frame to PNG costs more than everything else;
+- in 4K, render **6 chunks at a time**, each in its own Chrome;
+- if it still encodes by itself with ffmpeg (a 1080p drawn from the 4K…), use `-c:v h264_nvenc -b:v 20M`;
+- **go back to the CPU** (`crf`, x264) if the GPU fails, and say so in its log.
+
+Measured on 14/10/2026 (a 4K Video du monde film, RTX 5090, Ryzen 9 9950X3D, the same frames): PNG + x264, 4 Chromes: 6.5 frames/s; JPEG + NVENC, 4 Chromes: 11.4; 6 Chromes: 14.8; 8 Chromes: 15.9. Quality against Chrome's lossless frames: x264 crf 17 SSIM 0.992, NVENC 50 Mbit/s 0.993.
+
 ## A 3D shot rendered elsewhere and edited in as a video ("utilise")
 
 When a 3D scene is made in another Remotion project (Uchu-chan's theatre, for example), then rendered to MP4 and edited into the run as a video, the run only sees a flat picture. To rework it in 3D:

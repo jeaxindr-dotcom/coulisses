@@ -13,6 +13,7 @@ const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'coulisses-export-test');
 fs.rmSync(SCR, { recursive: true, force: true }); fs.mkdirSync(SCR, { recursive: true });
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json');
+process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json');   // its own settings (« Encoder avec le GPU » is turned off below)
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs)
 const { makeFixture, RUN } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
@@ -73,11 +74,23 @@ try {
   check(st.video?.name === path.basename(done.file), `the studio now reviews the new export (${st.video?.name})`);
   const log = await (await fetch(U + '/api/export/log')).text();
   check(!/COULISSES PROGRES/.test(log) && /COULISSES FIN/.test(log), 'the log keeps the lines that matter (no progress lines)');
+  // the GPU by default (lib/gpu.mjs, user request 14/10/2026): the script is told the encoder found on this PC
+  const { gpuEncoder } = await import('../lib/gpu.mjs');
+  const want = gpuEncoder().mode, meta2 = await get('/api/meta');
+  check(new RegExp(`encodeur : ${want}`).test(log) && done.gpu === want && meta2.gpu?.mode === want && !meta2.gpu.off, `the script is told the encoder: COULISSES_GPU=${want}${want === 'cpu' ? ' (no GPU encoder on this PC)' : ''}`);
 
   // 2b) the test variant: --qualite test (30 frames here)
   const sT = await post('/api/export', { qualite: 'test' });
   const dT = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'test export');
   check(sT.ok && sT.qualite === 'test' && dT.state === 'done' && frames(dT.file) === 30, `the test variant runs with --qualite test (${frames(dT.file ?? '')} frames)`);
+  // « Encoder avec le GPU » unticked: the next export is told « cpu », and its file is x264's; ticked again afterwards
+  const off = await post('/api/gpu', { on: false });
+  const sC = await post('/api/export', { qualite: 'test' });
+  const dC = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'cpu export');
+  const logC = await (await fetch(U + '/api/export/log')).text(), x264 = dC.file && fs.readFileSync(dC.file).includes('x264 - core');
+  const on = await post('/api/gpu', { on: true });
+  check(off.ok && off.gpu.off && off.gpu.mode === 'cpu' && sC.ok && dC.state === 'done' && /encodeur : cpu/.test(logC) && x264 && on.ok && !on.gpu.off && on.gpu.mode === want,
+    `« Encoder avec le GPU » unticked: the export is told « cpu » (x264 file: ${x264}), ticked again: « ${on.gpu?.mode} »`);
   const bad = await post('/api/export', { qualite: 'nope' });
   check(!bad.ok && /inconnue/.test(bad.why), 'an unknown variant is refused');
 

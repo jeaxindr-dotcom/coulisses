@@ -36,7 +36,7 @@
   $('#renderPill').onclick = () => setTab('lots');
   let rcKey = '';
   function exportCard(box) {
-    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape,
+    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape, META.gpu?.mode, META.gpu?.off,
       S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
     if (key === rcKey) return; rcKey = key;
     if (LIVEP() && !cur) {
@@ -120,13 +120,23 @@
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
     const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
-    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>`;
+    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+  }
+  // the encoder of the exports (lib/gpu.mjs): the GPU by default, a box to go back to the CPU
+  function gpuLine() {
+    const g = META.gpu; if (!g) return '';
+    if (!g.off && g.mode === 'cpu') return `<div class="sub2 muted gpuLine">${T('st.ex.gpuNone')}</div>`;
+    return `<label class="sub2 gpuLine" title="${esc(T('st.ex.gpuTitle'))}"><input type="checkbox" id="exGpu" ${g.off ? '' : 'checked'}> ${g.off ? T('st.ex.gpuAsk') : T('st.ex.gpu', { name: esc(g.name ?? 'GPU') })}</label>`;
   }
   function wireExport() {
     for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
     $('#exReveal')?.addEventListener('click', () => revealMenu('export'));
+    $('#exGpu')?.addEventListener('change', async (e) => {
+      const r = await postJson('/api/gpu', { on: e.target.checked });
+      if (r?.ok) { META.gpu = r.gpu; rcKey = null; renderRender(); setSave(r.gpu.off ? T('st.ex.gpuNowOff') : T('st.ex.gpuNowOn'), 'ok'); } else setSave(T('st.noAnswer'), 'err');
+    });
   }
   async function startExportUI(qualite, label) {
     if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }))) return;

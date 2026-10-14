@@ -147,6 +147,16 @@ Le `.coulisses` doit avoir un dossier `export`, sinon Coulisses ne propose pas l
 
 Coulisses relance alors le script avec `--qualite <id>` pour la variante choisie. Le premier élément est le bouton principal. Sans `--options` (le script ne le connaît pas, ou renvoie autre chose qu'un tableau), Coulisses montre un seul bouton, « Exporter la vidéo », sans `--qualite`.
 
+**Le GPU, par défaut.** Coulisses dit au script quel encodeur utiliser, par la variable d'environnement **`COULISSES_GPU`** : `nvenc` (Windows, Linux : une carte NVIDIA dont l'encodeur marche vraiment, vérifié par un encodage d'essai), `videotoolbox` (macOS), ou `cpu` (pas d'encodeur GPU, ou l'utilisateur a décoché « Encoder avec le GPU »). Un script qui ne la connaît pas l'ignore et fait comme avant. Quand elle n'est pas `cpu`, le script devrait :
+
+- encoder avec le GPU : `renderMedia({ …, hardwareAcceleration: 'required', videoBitrate })`, **sans `crf`** (un encodeur matériel ne l'accepte pas) ; débit conseillé 50 Mb/s en 4K, 20 Mb/s en 1080p ;
+- capturer les images en **JPEG qualité 100** (`imageFormat: 'jpeg', jpegQuality: 100`) plutôt qu'en PNG : la compression PNG de chaque image coûte plus que tout le reste ;
+- en 4K, rendre **6 morceaux à la fois**, chacun dans son propre Chrome ;
+- s'il encode encore lui-même avec ffmpeg (une 1080p tirée de la 4K…), utiliser `-c:v h264_nvenc -b:v 20M` ;
+- **repasser au processeur** (`crf`, x264) si le GPU échoue, et le dire dans son journal.
+
+Mesuré le 14/10/2026 (un film 4K de Video du monde, RTX 5090, Ryzen 9 9950X3D, les mêmes images) : PNG + x264, 4 Chrome : 6,5 images/s ; JPEG + NVENC, 4 Chrome : 11,4 ; 6 Chrome : 14,8 ; 8 Chrome : 15,9. Qualité comparée aux images sans perte de Chrome : x264 crf 17 SSIM 0,992, NVENC 50 Mb/s 0,993.
+
 ## Un plan 3D rendu à part et monté en vidéo (« utilise »)
 
 Quand une scène 3D est faite dans un autre projet Remotion (le théâtre d'Uchu-chan, par exemple), puis rendue en MP4 et montée dans le run comme une vidéo, le run ne voit qu'une image plate. Pour la retoucher en 3D :
