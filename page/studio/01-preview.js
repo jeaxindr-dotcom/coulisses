@@ -8,11 +8,18 @@
   const M = {
     get currentTime() { return mode === 'code' && SP ? ((pendF ?? SP.frame()) + 0.5) / FPS : v.currentTime; },
     set currentTime(t) {
-      if (mode === 'code' && SP) { const f = Math.floor(t * FPS); if (!SP.isPlaying() && !shuttle && f !== (pendF ?? SP.frame())) codeStep(f); else { pendF = null; cwSeq++; SP.seek(f); } }
+      if (mode === 'code' && SP) {
+        const f = Math.floor(t * FPS), now = performance.now(), quick = now - lastStep < 250;
+        lastStep = now;
+        // moving (the arrows held, steps in a row, a drag on the timeline): the frames as they come, no veil — the motion is
+        // what is judged; the frame where it stops is watched (codeSettle)
+        if (SP.isPlaying() || shuttle || quick || drag?.mode === 'scrub') { pendF = null; cwSeq++; codeWaitEl.classList.remove('pend', 'pend-key', 'on'); SP.seek(f); if (!SP.isPlaying()) codeSettle(); }
+        else if (f !== (pendF ?? SP.frame())) codeStep(f);
+      }
       v.currentTime = t;
     },
     get paused() { return mode === 'code' && SP ? !SP.isPlaying() : v.paused; },
-    play() { if (mode === 'code' && SP) { v.pause(); SP.play(); } else { const r = v.play(); r?.catch?.(() => {}); } },
+    play() { if (mode === 'code' && SP) { v.pause(); cwSeq++; codeWaitEl.classList.remove('pend', 'pend-key', 'on'); SP.play(); } else { const r = v.play(); r?.catch?.(() => {}); } },   // playing: no veil
     pause() { if (mode === 'code' && SP) { SP.pause(); v.currentTime = (SP.frame() + 0.5) / FPS; } v.pause(); },
     get playbackRate() { return rate; },
     set playbackRate(r) { rate = r; v.playbackRate = r; SP?.setRate(r); },
@@ -59,7 +66,8 @@
         codeWait(false);
         sp.on((ev) => {
           if (SP !== sp) return;
-          if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading'); return; }
+          // (while moving, the preview's « loading » is not shown: the end of the move is watched by codeSettle)
+          if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
           if (mode !== 'code') return;
           if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
           if (ev.type === 'ended') fire('pause');
@@ -137,14 +145,29 @@
   // unless the frame is complete by then (the CSS delay runs on the compositor: even while the preview is busy mounting
   // the next chapter's page, 1.3 s for long04, the screen never shows the frame before with the new frame's number) —,
   // the seek one frame later, and the veil goes once the preview says the frame asked is complete (player/ready.ts)
-  let pendF = null, cwSeq = 0;
+  let pendF = null, cwSeq = 0, lastStep = 0, settleT = null, keyStep = false;
+  // an arrow released before the hold (a tap): its veil at the usual 90 ms from now
+  function keyReleased() { if (codeWaitEl.classList.contains('pend-key')) { codeWaitEl.classList.remove('pend-key'); codeWaitEl.classList.add('pend'); } }
+  // the end of a move: once nothing has moved for 220 ms, a frame not complete is covered until it is
+  function codeSettle() {
+    clearTimeout(settleT);
+    settleT = setTimeout(() => {
+      if (mode !== 'code' || !SP || SP.isPlaying() || shuttle || drag?.mode === 'scrub' || performance.now() - lastStep < 200) { if (shuttle || drag?.mode === 'scrub') codeSettle(); return; }
+      const sp = SP, my = ++cwSeq;
+      if (sp.frameReady?.() !== false) return;
+      codeWaitEl.classList.add('on');
+      Promise.resolve(sp.whenFrameReady?.()).then(() => { if (my === cwSeq) codeWaitEl.classList.remove('on'); }, () => { if (my === cwSeq) codeWaitEl.classList.remove('on'); });
+    }, 220);
+  }
   function codeStep(f) {
     const sp = SP, my = ++cwSeq; pendF = f;
-    codeWaitEl.classList.add('pend');
+    // the first step of an arrow may become a hold (the shuttle at 280 ms): its veil waits 330 ms, never a flash at the
+    // start of a fast forward / rewind; released at once, keyReleased brings it back to 90 ms
+    codeWaitEl.classList.remove('pend', 'pend-key'); codeWaitEl.classList.add(keyStep ? 'pend-key' : 'pend');
     requestAnimationFrame(() => {
       if (my !== cwSeq || SP !== sp) return;
       pendF = null; sp.seek(f);
-      const done = () => { if (my === cwSeq) codeWaitEl.classList.remove('pend'); };
+      const done = () => { if (my === cwSeq) codeWaitEl.classList.remove('pend', 'pend-key'); };
       Promise.resolve(sp.whenFrameReady?.()).then(done, done);
     });
   }
@@ -154,7 +177,7 @@
     if (m === 'code' && !(await loadCode())) return;
     if (m === 'video' && SP) SP.pause();
     mode = m;
-    codeWait(m === 'code' && SP?.frameLoading?.()); codeWaitEl.classList.remove('pend'); pendF = null; cwSeq++;
+    codeWait(m === 'code' && SP?.frameLoading?.()); codeWaitEl.classList.remove('pend', 'pend-key'); pendF = null; cwSeq++;
     SP?.sleep?.(m !== 'code');   // drawn only while it is on screen (Remotion's 3D canvas draws at every frame, even paused)
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');

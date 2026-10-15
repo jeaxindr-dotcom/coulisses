@@ -169,6 +169,8 @@
   #media:not(.code) #codeWait { display: none; }
   /* asked at a step: seen only if the frame is not complete within 90 ms (an opacity transition: the compositor runs it) */
   #codeWait.pend { opacity: 1; transition: opacity .06s linear 90ms; }
+  /* the first step of an arrow (it may be held: the fast forward starts at 280 ms): past the hold */
+  #codeWait.pend-key { opacity: 1; transition: opacity .06s linear 330ms; }
   #codeWait.on { opacity: 1; transition: none; }
   /* the speed of the export: a dial ×0,5 – ×2,0, notches of 0,1 (the datalist draws them) */
   .speedLine { display: flex; align-items: center; gap: 10px; margin-top: 12px; }

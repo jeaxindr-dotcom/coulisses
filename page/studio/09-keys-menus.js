@@ -67,7 +67,7 @@
       e.preventDefault();
       if (e.repeat || holdKey) return;
       const dir = on('frameFwd') ? 1 : -1;
-      M.pause(); seekFrame(curFrame() + dir);
+      M.pause(); keyStep = true; seekFrame(curFrame() + dir); keyStep = false;   // (its veil waits past the hold: codeStep)
       holdKey = e.key; holdCode = e.code || null; holdT = setTimeout(() => { if (holdKey === e.key) startShuttle(dir); }, HOLD_MS);
     }
     else if (on('editPrev')) { e.preventDefault(); toEdit(-1); }   // ↑: the previous edit point (a cut), as DaVinci

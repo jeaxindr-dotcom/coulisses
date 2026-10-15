@@ -171,6 +171,32 @@ try {
   const w2 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity }`);
   check(w1.on && w1.op > 0.9 && !w1.ready && /Image en cours de chargement/.test(w1.txt) && !w2.on && w2.op < 0.05, `a frame whose video is still loading: covered (« ${w1.txt.split('\n')[0]} »), then shown once complete`);
   await p.key('ArrowLeft', 'ArrowLeft'); await sleep(600);
+  // the arrow held (fast rewind ×2): the frames go by, no veil — even with a video of the frame not loaded (user report
+  // 15/10/2026: « ça s'affiche quand je fais avance rapide ou retour rapide… je ne peux pas juger de façon fluide »);
+  // released, the frame where it stops is covered while not complete
+  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+    v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
+  const veilOp = () => p.eval(`return +getComputedStyle(document.querySelector('#codeWait')).opacity`);
+  const f0 = await p.eval('return __studio.state().frame');
+  await p.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', bubbles: true })); return 1`);
+  const seen = []; for (let i = 0; i < 10; i++) { await sleep(150); seen.push(await veilOp()); }
+  await p.eval(`window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', code: 'ArrowLeft', bubbles: true })); return 1`);
+  const f1 = await p.eval('return __studio.state().frame');
+  await sleep(700);
+  const atStop = await veilOp();
+  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  const after = await veilOp();
+  check(f0 - f1 > 20 && seen.slice(3).every((o) => o < 0.05) && atStop > 0.9 && after < 0.05, `the arrow held: ${f0 - f1} frames back with no veil (${seen.map((o) => o.toFixed(1)).join(' ')}); released on a frame still loading: covered, then shown`);
+  // and forward (fast forward ×2: the preview plays), the same
+  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+    v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
+  const g0 = await p.eval('return __studio.state().frame');
+  await p.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return 1`);
+  const seenF = []; for (let i = 0; i < 10; i++) { await sleep(150); seenF.push(await veilOp()); }
+  await p.eval(`window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return 1`);
+  const g1 = await p.eval('return __studio.state().frame');
+  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  check(g1 - g0 > 20 && seenF.slice(3).every((o) => o < 0.05) && (await veilOp()) < 0.05, `the arrow held forward: ${g1 - g0} frames with no veil (${seenF.map((o) => o.toFixed(1)).join(' ')})`);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
   // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête

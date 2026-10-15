@@ -455,7 +455,10 @@
     if (target <= 0) { M.currentTime = 0; stopShuttle(); return; }
     if (!M.seeking) M.currentTime = target;
   }
-  window.addEventListener('keyup', (e) => { if (holdKey && (e.key === holdKey || (holdCode && e.code === holdCode))) stopShuttle(); if (e.key === 'Alt') e.preventDefault(); });
+  window.addEventListener('keyup', (e) => {
+    if (holdKey && (e.key === holdKey || (holdCode && e.code === holdCode))) { if (!shuttle) keyReleased(); stopShuttle(); }
+    if (e.key === 'Alt') e.preventDefault();
+  });
   window.addEventListener('blur', stopShuttle);
 
   let playing = null;
