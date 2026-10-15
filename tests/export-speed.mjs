@@ -3,7 +3,8 @@
 // A test video where a white flash and a 440 Hz beep start together every 2 s (from 1 s); an « export script » that
 // writes it and says COULISSES FIN; then the runner at each speed:
 //   - the ×1 file kept as it is, the copy « -x1.25.mp4 » next to it; the progress lines rescaled, FIN = the copy;
-//   - its length is the length ÷ the speed, picture and sound alike; the frame rate kept (30);
+//   - its length is the length ÷ the speed, picture and sound alike; faster, EVERY frame kept, the frame rate × the speed
+//     (×1,2 = 36 fps, ×2 = 60); slower, 30 fps (frames repeated);
 //   - every flash and its beep still start together (within a frame), at their time ÷ the speed;
 //   - the beep is still 440 Hz (atempo: faster or slower, never higher or lower); a second file of the export (a 1080p drawn from the
 //     4K…) gets its copy too; the reviewed video is never a copy (lib/projects.mjs).
@@ -39,7 +40,7 @@ console.log('COULISSES FIN "' + dir.replace(/\\\\/g, '/') + '/film-2160p.mp4"');
 `);
 const probe = (f) => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,duration,r_frame_rate:format=duration', '-of', 'json', f], { encoding: 'utf8' }));
 // the starts of the flashes (frame times) and of the beeps (sample times)
-function flashes(f) {   // every frame as 16×9 grey pixels (constant 30 fps: frame i is at i / 30 s)
+function flashes(f, fps = 30) {   // every frame as 16×9 grey pixels (a constant frame rate: frame i is at i / fps s)
   const raw = execFileSync('ffmpeg', ['-v', 'error', '-i', f, '-an', '-vf', 'scale=16:9,format=gray', '-f', 'rawvideo', '-'], { maxBuffer: 256e6 });
   const out = [];   // the start of each flash; out.centres: the middle of each (its frames, each 1/30 s long)
   out.centres = [];
@@ -47,8 +48,8 @@ function flashes(f) {   // every frame as 16×9 grey pixels (constant 30 fps: fr
   let prev = 0, i0 = 0;
   for (let i = 0; i <= N; i++) {
     let y = 0; if (i < N) { for (let k = 0; k < 144; k++) y += raw[i * 144 + k]; y /= 144; }
-    if (y > 128 && prev <= 128) { out.push(i / 30); i0 = i; }
-    if (y <= 128 && prev > 128) out.centres.push((i0 + i) / 2 / 30);
+    if (y > 128 && prev <= 128) { out.push(i / fps); i0 = i; }
+    if (y <= 128 && prev > 128) out.centres.push((i0 + i) / 2 / fps);
     prev = y;
   }
   return out;
@@ -78,7 +79,7 @@ function beeps(f, S = 1) {
 const f0 = flashes(SRC), b0 = beeps(SRC);
 check(f0.length === 6 && b0.at.length === 6 && f0.every((t, i) => Math.abs(t - b0.at[i]) < 0.04), `the test video: 6 flashes, 6 beeps, together (${f0.map((t) => t.toFixed(2)).join(' ')})`);
 
-for (const S of [0.5, 1.3, 2]) {   // the two ends of the dial, and a notch between
+for (const S of [0.5, 1.2, 1.3, 2]) {   // the two ends of the dial, and notches between
   console.log(`×${S}`);
   for (const n of fs.readdirSync(OUT)) fs.rmSync(path.join(OUT, n), { force: true });
   const r = spawnSync(process.execPath, [path.join(STUDIO, 'lib', 'export-run.mjs'), String(S), SCR, process.execPath, SCRIPT, SRC, SRC2, OUT], { encoding: 'utf8', timeout: 300000 });
@@ -89,12 +90,15 @@ for (const S of [0.5, 1.3, 2]) {   // the two ends of the dial, and a notch betw
   check(progress.length && progress.every((p, i) => i === 0 || p >= progress[i - 1]) && Math.max(...progress.slice(0, 2)) <= 90 && progress.at(-1) === 100, `the progress: the export within 0-90 %, the copies to 100 % (${progress.join(' ')})`);
   if (!fs.existsSync(copy)) continue;
   const P = probe(copy), v = P.streams.find((s) => s.codec_type === 'video'), a = P.streams.find((s) => s.codec_type === 'audio');
-  check(Math.abs(+P.format.duration - 12 / S) < 0.1 && Math.abs(+v.duration - +a.duration) < 0.06 && v.r_frame_rate === '30/1', `its length ${(+P.format.duration).toFixed(2)} s (= 12 ÷ ${S}), picture ${(+v.duration).toFixed(2)} s, sound ${(+a.duration).toFixed(2)} s, ${v.r_frame_rate} fps`);
-  const f = flashes(copy), b = beeps(copy, S);
+  // faster: every frame kept, the frame rate × the speed (36 fps at ×1,2…; 15/10/2026: one frame in six dropped jumped)
+  const fps = S > 1 ? 30 * S : 30, nFrames = +execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', copy], { encoding: 'utf8' }).trim();
+  const [rn, rd = 1] = v.r_frame_rate.split('/').map(Number);
+  check(Math.abs(+P.format.duration - 12 / S) < 0.1 && Math.abs(+v.duration - +a.duration) < 0.06 && Math.abs(rn / rd - fps) < 0.01 && (S < 1 || nFrames === 360), `its length ${(+P.format.duration).toFixed(2)} s (= 12 ÷ ${S}), picture ${(+v.duration).toFixed(2)} s, sound ${(+a.duration).toFixed(2)} s, ${v.r_frame_rate} fps, ${nFrames} frames${S > 1 ? ' (all 360 kept)' : ''}`);
+  const f = flashes(copy, fps), b = beeps(copy, S);
   // in sync: the middle of each flash and the middle of its beep within one frame (33 ms; a lip sync is seen from ~45 ms)
   const pairs = f.centres.map((t, i) => (b.centres[i] ?? 99) - t);
   check(f.length === 6 && b.at.length === 6 && pairs.every((d) => Math.abs(d) < 1 / 30), `every flash with its beep: the sound ${pairs.map((d) => (d * 1000).toFixed(0)).join(' ')} ms from the picture (within a frame, 33 ms)`);
-  check(f.every((t, i) => Math.abs(t - (1 + 2 * i) / S) < 1 / 30 + 0.01), `at their time ÷ ${S} (${[0, 1, 2, 3, 4, 5].map((i) => ((1 + 2 * i) / S).toFixed(2)).join(' ')})`);
+  check(f.every((t, i) => Math.abs(t - (1 + 2 * i) / S) < 1 / fps + 0.01), `at their time ÷ ${S} (${[0, 1, 2, 3, 4, 5].map((i) => ((1 + 2 * i) / S).toFixed(2)).join(' ')})`);
   check(b.freqs.every((x) => Math.abs(x - 440) < 30), `the beep is still 440 Hz, not higher (${b.freqs.map((x) => Math.round(x)).join(' ')} Hz)`);
 }
 // the notches of the dial (lib/export.mjs speedOf): 0,5 to 2,0 by 0,1, nothing else
