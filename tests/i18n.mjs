@@ -174,7 +174,7 @@ try {
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(600);
   const studioUrl = await ev('return location.origin');
-  check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && (await ev(`return [...document.querySelectorAll('.tabbar button')].map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|')`)) === 'Agent|Edits|Batches|Media|Notes|Scene|Inspector',
+  check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && /^Agent\|Edits\|Batches(\|History)?\|Media\|Notes\|Scene\|Inspector$/.test(await ev(`return [...document.querySelectorAll('.tabbar button')].filter((b) => !b.classList.contains('none')).map((b) => b.querySelector('.lb')?.textContent ?? [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|')`)),
     'studio: the tabs « Agent · Edits · Batches » (left) and « Media · Notes · Scene · Inspector » (right), the tag « · live code »');
   // a pin on the title of plan s02 (frame 150), named by data-coulisses, sent as a batch
   await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(150); return 1`); await sleep(900);

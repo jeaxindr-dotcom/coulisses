@@ -253,6 +253,7 @@
       if (changed) renderAll();
       loudMeter();   // the sound measured (part 14): asked until it is there, the meter at the playhead
       wordsFetch();   // the words heard (part 15): a new video's, the transcription's progress
+      histStatus();   // « Historique » (part 16): its tab, its badge, its list when shown
     } catch (e) {
       if (!offline) { offline = true; setSave(T('st.save.paused'), 'err'); }
       setTimeout(pollReplies, 3000); return;

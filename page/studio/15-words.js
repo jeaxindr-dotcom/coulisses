@@ -179,9 +179,11 @@
   function initWords() {
     const q = $('#wq'); if (!q) return;
     let tm = null;
-    q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => wordsFind(q.value, false), 120); });
+    // typed: the words found lit at once; the first Entrée goes to the first one from the playhead, the next ones further
+    let fresh = false;
+    q.addEventListener('input', () => { fresh = true; clearTimeout(tm); tm = setTimeout(() => wordsFind(q.value, false), 120); });
     q.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(tm); if (wnorm(q.value) !== wnorm(WORDS.q)) wordsFind(q.value, true); else wordsGo(e.shiftKey ? -1 : 1); }
+      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(tm); if (fresh || wnorm(q.value) !== wnorm(WORDS.q)) { fresh = false; wordsFind(q.value, true); } else wordsGo(e.shiftKey ? -1 : 1); }
     });
     $('#wPrev').addEventListener('click', () => wordsGo(-1));
     $('#wNext').addEventListener('click', () => wordsGo(1));

@@ -50,9 +50,11 @@
   </nav>
   <aside id="lside" class="glass">
     <div class="tabbar" id="ltabs">
-      <button data-tab="agent"><i data-ic="sparkle"></i>{{st.tab.agent}}<span class="n zero" id="nAgent">0</span></button>
-      <button data-tab="queue"><i data-ic="list"></i>{{st.tab.queue}}<span class="n zero" id="nQueue">0</span></button>
-      <button data-tab="lots"><i data-ic="send"></i>{{st.tab.lots}}<span class="n zero" id="nLots">0</span></button>
+      <button data-tab="agent" title="{{st.tab.agent}}"><i data-ic="sparkle"></i><span class="lb">{{st.tab.agent}}</span><span class="n zero" id="nAgent">0</span></button>
+      <button data-tab="queue" title="{{st.tab.queue}}"><i data-ic="list"></i><span class="lb">{{st.tab.queue}}</span><span class="n zero" id="nQueue">0</span></button>
+      <button data-tab="lots" title="{{st.tab.lots}}"><i data-ic="send"></i><span class="lb">{{st.tab.lots}}</span><span class="n zero" id="nLots">0</span></button>
+      <!-- « Historique » (page/studio/16-history.js): every change of the project's files -->
+      <button data-tab="hist" class="none" title="{{st.tab.hist}}"><i data-ic="history"></i><span class="lb">{{st.tab.hist}}</span><span class="n zero" id="nHist">0</span></button>
     </div>
     <div class="tab" id="tab-agent">
       <div class="bar"><b>{{st.ag.title}}</b><span class="grow"></span><span class="muted">{{st.ag.sub}}</span></div>
@@ -77,6 +79,10 @@
       <div class="bar"><b>{{st.lots.title}}</b></div>
       <div id="renderCard"></div>
       <div class="scroll" id="lots"></div>
+    </div>
+    <div class="tab" id="tab-hist">
+      <div class="bar"><b>{{st.tab.hist}}</b><span class="grow"></span><span class="muted" id="histSub"></span></div>
+      <div class="scroll" id="histList"></div>
     </div>
   </aside>
   <div class="split v" id="splitL" title="{{st.splitV}}"></div>
@@ -129,6 +135,8 @@
       </div>
       <!-- « Planche » (page/studio/13-sheet.js): the video as a board of stills, over the image's area -->
       <div id="sheet"></div>
+      <!-- « Historique »: one change of a file, its lines (page/studio/16-history.js) -->
+      <div id="histDiff"></div>
     </div>
     <!-- the « Étalonnage » page: its scenes along the video, the playhead (click or drag = go there) -->
     <div id="cgStrip"><div class="scs"></div><i class="ph"></i></div>

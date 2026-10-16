@@ -150,11 +150,12 @@
   }
 
   // ---------- inspector ----------
-  let inspT = 0;
+  let inspT = 0, inspTrail = null;
   function renderInspector(force) {
     if (!onTab('insp')) return;
-    if (!force && performance.now() - inspT < 150) return;
-    inspT = performance.now();
+    // (at most every 150 ms; the last call of a burst — a key held, frames in a row — still shown, a moment later)
+    if (!force && performance.now() - inspT < 150) { clearTimeout(inspTrail); inspTrail = setTimeout(() => renderInspector(true), 170); return; }
+    clearTimeout(inspTrail); inspT = performance.now();
     const f = curFrame(), t = (f + 0.5) / FPS, c = contextAt(f), L = LIVE, rows = [];
     const dl = (pairs) => `<div class="box"><dl>${pairs.filter(([, x]) => x !== undefined && x !== null && x !== '').map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl></div>`;
     rows.push(`<h3>${T('st.insp.frame', { f, t: fmt(t) })}</h3>`);

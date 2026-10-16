@@ -22,6 +22,7 @@
     if (e.key === 'Escape' && $('#lb').style.display === 'flex') { $('#lb').style.display = 'none'; return; }
     if (e.key === 'Escape' && sheetOn) { toggleSheet(false); return; }   // « Planche »
     if (e.key === 'Escape' && wordsPopOpen()) { wordsPop(false); return; }   // « Paroles »
+    if (e.key === 'Escape' && histOpen()) { histClose(); return; }   // « Historique »: one change
     if (e.key === 'Escape' && $('#modal').style.display === 'flex') { $('#modal').style.display = 'none'; return; }
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'range';
     // the usual shortcuts: Ctrl+S saves now (never the browser's « save the page »), Ctrl+Entrée sends the queue

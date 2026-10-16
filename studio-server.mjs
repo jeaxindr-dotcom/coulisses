@@ -25,10 +25,11 @@ import { fileURLToPath } from 'node:url';
 import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJson, writeJson, nowIso } from './lib/episode.mjs';
 import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/frames.mjs';
 import crypto from 'node:crypto';
-import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
+import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems, readLot } from './lib/lots.mjs';
 import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed-copy.mjs';
 import { loudnessState, loudnessRange } from './lib/loudness.mjs';
 import { transcriptState, engines as wordsEngines, installParakeet, wordsChoice } from './lib/transcript.mjs';
+import { historyRoots, historyKey, historyStore } from './lib/history.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
 import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from './lib/shot-render.mjs';
@@ -36,7 +37,7 @@ import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
 import { peaksOf } from './lib/peaks.mjs';
-import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
+import { CACHE, DEFAULT_PORT, INSTALLED, DATA } from './lib/place.mjs';
 import { project, tracksOf, shotsUsedIn } from './lib/projects.mjs';
 import { genericTimelineBuilder, normalizeTimeline } from './lib/remotion-module.mjs';
 import { hfPlayerBuilder, hfTimelineBuilder, hfFor, hfComposition, injectHead } from './lib/hyperframes.mjs';
@@ -205,10 +206,32 @@ function watchExport() {
   setTimeout(watchExport, x?.state === 'running' ? 1000 : 4000).unref();
 }
 if (XP) watchExport();
+// the history of the project's files (lib/history.mjs, page/studio/16-history.js): every change of its code, who made it,
+// before / after, and the way back to any point. Started once the studio listens (a first look at every file).
+const HIST_ROOTS = historyRoots(P);
+let HISTORY = null, histVer = 0;
+// who changes the files now: the batch the agent took (the newest, taken in the last 3 hours), else nobody known
+function histBy() {
+  const r = readJson(REPLIES, { notes: {} });
+  const taken = Object.entries(r.lots ?? {}).filter(([, x]) => x?.status === 'taken' && Date.now() - Date.parse(x.at ?? 0) < 3 * 3600e3).sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at));
+  if (!taken.length) return { kind: 'outside' };
+  const n = +taken[0][0], L = readLot(P, n);
+  return { kind: 'lot', lot: n, lotKind: L?.kind ?? 'edits', agent: L?.agent?.name ?? null };
+}
+function startHistory() {
+  if (!HIST_ROOTS.length || HISTORY) return;
+  try {
+    const base = process.env.COULISSES_HISTORY_DIR ?? path.join(INSTALLED ? DATA : CACHE, 'historique');   // (COULISSES_HISTORY_DIR: the tests)
+    HISTORY = historyStore({ roots: HIST_ROOTS, dir: path.join(base, historyKey(HIST_ROOTS)), attribute: histBy, log });
+    if (HISTORY.scan()) histVer++;
+    HISTORY.watch(() => { histVer++; });
+  } catch (e) { log(t('srv.histFail', { msg: e.message })); HISTORY = null; }
+}
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P) };
+    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P),
+    history: HISTORY ? { version: histVer } : null };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -530,6 +553,28 @@ const server = http.createServer(async (req, res) => {
       return json(res, transcriptState(pickVideo(P), path.join(CACHE, 'transcripts'), REVUE, { lang }));
     }
     if (pn === '/api/transcript/install' && req.method === 'POST') { log(t('srv.wordsInstall')); return json(res, { ok: installParakeet() }); }
+    // the history of the project's files (lib/history.mjs, page/studio/16-history.js)
+    if (pn === '/api/history') {
+      if (!HISTORY) return json(res, { on: false, roots: HIST_ROOTS.length });
+      return json(res, { on: true, version: histVer, ...HISTORY.list({ limit: Math.min(2000, +(url.searchParams.get('limit') ?? 400) || 400), before: url.searchParams.get('before') }) });
+    }
+    if (pn === '/api/history/diff') {
+      const d = HISTORY?.diff(String(url.searchParams.get('id') ?? ''));
+      return d ? json(res, { ok: true, ...d }) : json(res, { ok: false, why: t('srv.histNone') });
+    }
+    if (pn === '/api/history/restore' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      if (!HISTORY) return json(res, { ok: false, why: t('srv.histNone') });
+      if (B && renderState(P)?.state === 'running') return json(res, { ok: false, why: t('srv.histRendering') });
+      if (XP && exportState(P)?.state === 'running') return json(res, { ok: false, why: t('srv.histExporting') });
+      const by = histBy();
+      if (by.kind === 'lot' && !b.force) return json(res, { ok: false, busy: by.lot, why: t('srv.histBusy', { lot: by.lot }) });
+      try {
+        const r = HISTORY.restore(String(b.id), { to: b.to === 'before' ? 'before' : 'after', scope: b.scope === 'file' ? 'file' : 'all' });
+        histVer++; log(t('srv.histRestored', { n: r.files.length }));
+        return json(res, { ok: true, ...r });
+      } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
     // the composition failed in the live preview (player/crash.tsx): kept for the agent and for later
     if (pn === '/api/preview-error' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
@@ -657,6 +702,7 @@ server.on('listening', async () => {
   console.log(t('srv.close'));
   if (!args.includes('--no-open')) exec(process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`);
   buildProxy();
+  setTimeout(startHistory, 1200).unref?.();   // the history of the project's files (after the first answers)
   await player.build(); player.watch();
 });
 // One studio per project (code review, 08/10/2026): the page of a studio is the only writer of revue/notes.json, so two

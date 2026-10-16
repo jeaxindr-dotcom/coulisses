@@ -199,6 +199,52 @@
   #sheet .tile .sc { color: var(--s11); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   #sheet .tile .nb { margin-left: auto; flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #ffd27f; color: #1d160b; font-weight: 700; font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; }
   #sheet .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--s11); padding: 30px; text-align: center; }
+  /* a tab bar too narrow: the inactive tabs as icons (page/studio/00-base.js fitTabs) */
+  .tabbar button.none { display: none; }
+  .tabbar.tight button:not(.on) .lb { display: none; }
+  .tabbar.tight button:not(.on) { flex: 0 0 auto; padding: 0 10px; }
+  /* « Historique » (page/studio/16-history.js): the list, one change over the image */
+  #histList .hday { margin: 12px 4px 6px; font: 600 11px var(--font-d); text-transform: uppercase; letter-spacing: .06em; color: var(--s9); }
+  #histList .hday:first-child { margin-top: 2px; }
+  #histList .hstep { margin-bottom: 8px; padding: 8px; border-radius: 14px; background: rgba(0, 0, 0, 0.16); border: 1px solid var(--stroke); }
+  #histList .hh { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; min-height: 26px; flex-wrap: wrap; }
+  #histList .who { padding: 2px 8px; border-radius: 999px; font-weight: 600; font-size: 11.5px; }
+  #histList .who.lot { background: rgba(167, 139, 250, 0.16); color: #c9b8ff; }
+  #histList .who.out { background: rgba(255, 255, 255, 0.07); color: var(--s11); }
+  #histList .who.back { background: rgba(111, 231, 200, 0.14); color: #8ff0d4; }
+  #histList .now { font-size: 11px; }
+  #histList .ask { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #ffd27f; flex-wrap: wrap; }
+  #histList button.mini { height: 24px; padding: 0 9px; font-size: 11.5px; border-radius: 999px; }
+  #histList button.mini.yes { background: rgba(255, 210, 127, 0.18); color: #ffd27f; }
+  #histList .hf { width: 100%; height: auto; min-height: 28px; padding: 4px 6px; gap: 8px; justify-content: flex-start; border: 0; border-radius: 9px; background: transparent; font-size: 12px; text-align: left; }
+  #histList .hf:hover { background: var(--glass-3); }
+  #histList .hf.sel { background: rgba(255, 255, 255, 0.1); color: var(--s12); }
+  #histList .hf .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .k { flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; font: 700 10px/18px var(--font-d); text-align: center; }
+  .k.edit { background: rgba(126, 211, 255, 0.16); color: #9bdcff; }
+  .k.add { background: rgba(201, 242, 107, 0.16); color: var(--lime); }
+  .k.delete { background: rgba(255, 112, 112, 0.16); color: #ff8a8a; }
+  .pm { flex: none; display: inline-flex; gap: 5px; font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  .pm .p { color: var(--lime); font-weight: 600; }
+  .pm .m { color: #ff8a8a; font-weight: 600; }
+  #histDiff { position: absolute; inset: 0; z-index: 31; display: none; flex-direction: column; background: var(--bg, #0b0d14); border-radius: 14px; overflow: hidden; }
+  #histDiff.on { display: flex; }
+  #histDiff .sbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; font-size: 12.5px; flex-wrap: wrap; }
+  #histDiff .sbar b { font: 600 13px var(--font-d); color: var(--s12); max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #histDiff .sbar .warn { color: #ffd27f; font-size: 11.5px; }
+  #histDiff .sbar button.sure { background: rgba(255, 210, 127, 0.2); color: #ffd27f; }
+  #histDiff .dbody { flex: 1; overflow: auto; padding: 8px 0 18px; font: 12px/1.55 "Cascadia Mono", Consolas, "Courier New", monospace; }
+  #histDiff .hunk { margin: 0 0 10px; }
+  #histDiff .hat { padding: 4px 14px; color: var(--s9); background: rgba(255, 255, 255, 0.03); font-family: var(--font); font-size: 11px; }
+  #histDiff .dl { display: flex; white-space: pre; min-width: max-content; }
+  #histDiff .dl.add { background: rgba(201, 242, 107, 0.10); }
+  #histDiff .dl.del { background: rgba(255, 112, 112, 0.11); }
+  #histDiff .ln { flex: none; width: 4.2em; padding-right: 8px; text-align: right; color: var(--s8, #5b6072); user-select: none; }
+  #histDiff .op { flex: none; width: 1.6em; text-align: center; color: var(--s9); user-select: none; }
+  #histDiff .dl.add .op { color: var(--lime); }
+  #histDiff .dl.del .op { color: #ff8a8a; }
+  #histDiff code { font: inherit; color: var(--s12); padding-right: 18px; }
+  #histDiff .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--s11); padding: 30px; text-align: center; }
   /* the sound measured (page/studio/14-sound.js): the meter by the volume */
   .loudm { display: none; align-items: center; gap: 6px; margin-right: 6px; font-size: calc(11px * var(--iz, 1)); color: var(--s11); font-variant-numeric: tabular-nums; }
   .loudm.on { display: inline-flex; }

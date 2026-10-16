@@ -29,6 +29,7 @@
 
   // ---------- line icons (after Lucide, ISC licence) ----------
   const ICONS = {
+    history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
     search: '<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>',
     captions: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/>',
     up: '<path d="m18 15-6-6-6 6"/>',
@@ -157,7 +158,7 @@
   new ResizeObserver(() => { fitMedia(); }).observe($('#stagewrap'));
   // two groups of tabs, each with its own one shown: the agent's column (Agent · Modifs · Envois) and the right panel
   // (Médias · Notes · Scène · Inspecteur); `tab` is the last one chosen, onTab(t) says whether t is shown
-  const LEFT = new Set(['agent', 'queue', 'lots']);
+  const LEFT = new Set(['agent', 'queue', 'lots', 'hist']);
   const tab0 = store.get('tab', null);   // the one tab of the earlier layout: kept in its group
   let tabL = store.get('tabL', LEFT.has(tab0) ? tab0 : 'queue'), tabR = store.get('tabR', tab0 && !LEFT.has(tab0) ? tab0 : 'medias');
   let tab = tabL;
@@ -172,9 +173,16 @@
     document.querySelectorAll(`${left ? '#lside' : '#side'} > .tab`).forEach((x) => x.classList.toggle('on', x.id === 'tab-' + t));
     if (t === 'insp') renderInspector(true);
     if (t === 'lots') renderLots();
+    if (t === 'hist') { histLoad(); histStatus(); }   // « Historique » (part 16)
     if (t === 'scene') renderScene();
     if (!left) { if (t === 'medias') window.CoulissesMedias?.show(); else window.CoulissesMedias?.hide(); }
+    fitTabs();
   }
+  // a tab bar too narrow for its tabs (the left one has four): the inactive ones show their icon only (their name on hover)
+  function fitTabs() {
+    for (const bar of document.querySelectorAll('.tabbar')) { bar.classList.remove('tight'); if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('tight'); }
+  }
+  window.addEventListener('resize', () => fitTabs());
   document.querySelectorAll('.tabbar button[data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
   $('#helpBtn').onclick = () => window.Shortcuts?.open();   // Aide › Raccourcis clavier (shortcuts.js)
   // « Langue · Language » (Édition › Préférences): the user's choice for the whole app (settings.json, via

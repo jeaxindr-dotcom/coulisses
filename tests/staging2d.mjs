@@ -65,10 +65,11 @@ try {
   const src = rail.find((b) => b.id === 'bSrc'), stg = rail.find((b) => b.id === 'bStage');
   check(src.off && /Pas encore de vidéo/.test(src.why) && !stg.off, `« MP4 ⇄ code » greyed here (« ${src.why} »), « Mise en scène » ready`);
   // the two tab bars (user request, 09/10/2026): the agent's column on the left, the media and notes on the right
-  const tabs = await p.eval(`return [...document.querySelectorAll('.tabbar')].map((bar) => { const r = bar.getBoundingClientRect(), bs = [...bar.querySelectorAll('button')];
-      return { names: bs.map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|'), cut: bs.filter((b) => b.scrollWidth > b.clientWidth + 1).length,
+  const tabs = await p.eval(`return [...document.querySelectorAll('.tabbar')].map((bar) => { const r = bar.getBoundingClientRect(), bs = [...bar.querySelectorAll('button')].filter((b) => getComputedStyle(b).display !== 'none');
+      return { names: bs.map((b) => b.querySelector('.lb')?.textContent ?? [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|'), cut: bs.filter((b) => b.scrollWidth > b.clientWidth + 1).length,
         fits: bar.scrollWidth <= bar.clientWidth + 1, last: bs.at(-1).getBoundingClientRect().right <= r.right + 1 }; })`);
-  check(tabs.map((t) => t.names).join(' / ') === 'Agent|Modifs|Envois / Médias|Notes|Scène|Inspecteur' && tabs.every((t) => !t.cut && t.fits && t.last), `two tab bars, none cut, the last whole (${tabs.map((t) => t.names.replaceAll('|', ' · ')).join(' / ')})`);
+  // (« Historique » too, once the studio follows the project's files: the inactive tabs then show their icon only)
+  check(/^Agent\|Modifs\|Envois(\|Historique)? \/ Médias\|Notes\|Scène\|Inspecteur$/.test(tabs.map((t) => t.names).join(' / ')) && tabs.every((t) => !t.cut && t.fits && t.last), `two tab bars, none cut, the last whole (${tabs.map((t) => t.names.replaceAll('|', ' · ')).join(' / ')})`);
   const m1 = await menuIds(p);
   check(TOOLS.every((id) => m1.ids.includes(id)) && !m1.ids.includes('render') && !m1.off.staging && /Pas encore de vidéo/.test(m1.off.source), `Outils: ${m1.ids.filter(Boolean).join(' · ')}`);
 

@@ -10,7 +10,7 @@
   // (var: part 08's first tick, before this part runs, finds them undefined and does nothing)
   var LOUD = { state: null, data: null, asked: -1e9, ranges: new Map() };
   var REF_LUFS = -14, PEAK_MAX = -1;   // YouTube's reference loudness; the true peak not to pass
-  var dbv = (v) => (v === null || v === undefined || v <= -69.9 ? '−∞' : `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(1).replace('.', T('st.ex.decimal'))}`);
+  var dbv = (v) => (v === null || v === undefined ? '—' : v <= -69.9 ? '−∞' : `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(1).replace('.', T('st.ex.decimal'))}`);
   function loudFetch() {
     if (!LOUD) return;
     const vid = STATUS?.video ?? META?.render; if (!vid) return;
@@ -30,7 +30,7 @@
   function loudAt(t) {
     const d = LOUD.data, i = loudIdx(t); if (!d || i < 0) return null;
     let p = -70; for (let k = Math.max(0, i - 2); k <= Math.min(d.P.length - 1, i + 2); k++) p = Math.max(p, d.P[k]);
-    return { S: d.S[i], M: d.M[i], P: p };
+    return { S: d.S[i] <= -69.9 && t < 3 ? null : d.S[i], M: d.M[i], P: p };   // (the short-term loudness needs 3 s of sound)
   }
   // the lane (part 08 draws it): x → the values of the pixel's time slice
   function drawLoud(g, y, h) {
@@ -67,11 +67,11 @@
     const v = LOUD.data ? loudAt((curFrame() + 0.5) / FPS) : null;
     el.classList.toggle('on', !!LOUD.data);
     if (!v) return;
-    const pct = Math.max(0, Math.min(100, ((v.S + 42) / 38) * 100)), sat = v.P > PEAK_MAX;
+    const s = v.S ?? v.M, pct = Math.max(0, Math.min(100, ((s + 42) / 38) * 100)), sat = v.P > PEAK_MAX;
     el.querySelector('i').style.width = `${pct}%`;
-    el.querySelector('.lv').textContent = dbv(v.S);
+    el.querySelector('.lv').textContent = dbv(s);
     el.classList.toggle('sat', sat);
-    el.title = T('st.loud.meter', { s: dbv(v.S), p: dbv(v.P), ref: dbv(REF_LUFS), src: mode === 'code' ? T('st.loud.fromMp4') : '' });
+    el.title = T('st.loud.meter', { s: dbv(s), p: dbv(v.P), ref: dbv(REF_LUFS), src: mode === 'code' ? T('st.loud.fromMp4') : '' });
   }
   // the Inspector's « Son mesuré »: the playhead, the whole video, a range (the note chosen, or the R range)
   function soundRows() {
