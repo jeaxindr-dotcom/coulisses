@@ -87,6 +87,8 @@
       </span>
       <span id="codeStatus"></span>
       <span class="grow"></span>
+      <!-- « Affichage »: the safe zones on the image (S) -->
+      <button id="bSafe" class="soft icon vtool" title="{{st.safe.btn}}"><i data-ic="safe"></i></button>
       <button id="open3d" class="soft" style="display:none"><i data-ic="move"></i><span></span></button>
       <span id="proxy"></span>
     </div>
@@ -105,6 +107,8 @@
           <!-- the grade, shown on the image (page/studio/11-grade.js): the filter on what is behind it, the vignette, the grain;
                its left edge is the before / after wipe -->
           <div id="cgFx"><div id="cgVig"></div><canvas id="cgGrain"></canvas></div>
+          <!-- the safe zones (page/studio/12-safe.js): a layer that never takes a click -->
+          <div id="safeOv"></div>
           <canvas id="ov" class="select"></canvas>
           <div id="hoverTag"></div>
           <button id="pickBtn" class="primary" title="{{st.pick.title}}">{{st.pick.text}}</button>

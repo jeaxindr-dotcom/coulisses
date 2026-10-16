@@ -10,6 +10,7 @@
       SNAP = META.snapshot; FPS = META.fps || 30; MAXQ = META.maxEdits || 0;
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
+      queueMicrotask(initSafe);   // the safe zones of this project (page/studio/12-safe.js)
       if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }
       if (META.newProject && !(data0Notes ?? 0)) tabL = 'agent';
       if (!META.features?.code) document.body.classList.add('nocode');

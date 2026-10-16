@@ -172,6 +172,17 @@
   #codeCrash code { max-width: 86%; white-space: pre-wrap; word-break: break-word; font-size: calc(13px * var(--iz, 1)); }
   #codeCrash .s { font-size: calc(12px * var(--iz, 1)); color: var(--s11); max-width: 80%; }
   #codeCrash .acts { margin-top: 6px; }
+  /* the safe zones (page/studio/12-safe.js) */
+  #safeOv { position: absolute; inset: 0; z-index: 1; pointer-events: none; display: none; }
+  #safeOv.on { display: block; }
+  #safeOv svg { width: 100%; height: 100%; display: block; }
+  #safeOv .bands rect { fill: rgba(255, 55, 55, 0.32); stroke: rgba(255, 90, 90, 0.7); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  #safeOv .safe { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 2; stroke-dasharray: 10 8; vector-effect: non-scaling-stroke; }
+  #safeOv .action { fill: none; stroke: rgba(201, 242, 107, 0.8); stroke-width: 1.5; stroke-dasharray: 10 8; vector-effect: non-scaling-stroke; }
+  #safeOv .title { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.5; stroke-dasharray: 4 6; vector-effect: non-scaling-stroke; }
+  #safeOv .thirds path { fill: none; stroke: rgba(255, 255, 255, 0.18); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  #safeOv text { fill: rgba(255, 255, 255, 0.9); font-family: var(--font-d), sans-serif; font-weight: 600; paint-order: stroke; stroke: rgba(0, 0, 0, 0.55); stroke-width: 3px; }
+  #viewbar .vtool.on { background: rgba(201, 242, 107, 0.16); color: var(--lime); }
   #codeWait { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; line-height: 1.4;
     background: rgba(9, 11, 18, 0.95); color: var(--s12); text-align: center; pointer-events: none; opacity: 0; transition: opacity .12s; will-change: opacity; }
   #media:not(.code) #codeWait { display: none; }

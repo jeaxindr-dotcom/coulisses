@@ -37,6 +37,7 @@
     { g: 'image', id: 'ask', keys: ['A'] },
     { g: 'image', id: 'source', keys: ['P'] },
     { g: 'image', id: 'viewReset', keys: ['Shift+Z'] },
+    { g: 'image', id: 'safeZones', keys: ['S'] },
     { g: 'notes', id: 'note', keys: ['N'] },
     { g: 'notes', id: 'range', keys: ['R'] },
     { g: 'notes', id: 'setIn', keys: ['I'] },

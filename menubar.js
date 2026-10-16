@@ -94,7 +94,7 @@
   function openMenu(i, { keyboard = false } = {}) {
     closeAll(); openI = i; barFocus = true; bar.classList.add('focus'); setBarCur(i);
     const btn = bar.querySelectorAll(':scope > button')[i]; btn.classList.add('open');
-    const level = buildMenu(MENUS[i].items, btn, false); stack.push(level);
+    const level = buildMenu(val(MENUS[i].items), btn, false); stack.push(level);   // (a top menu's items may be a function too: « Affichage »)
     if (keyboard) step(level, 1);
   }
   function step(level, d) {

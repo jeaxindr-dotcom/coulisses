@@ -70,6 +70,7 @@
       M.pause(); keyStep = true; seekFrame(curFrame() + dir); keyStep = false;   // (its veil waits past the hold: codeStep)
       holdKey = e.key; holdCode = e.code || null; holdT = setTimeout(() => { if (holdKey === e.key) startShuttle(dir); }, HOLD_MS);
     }
+    else if (on('safeZones')) { e.preventDefault(); toggleSafe(); }
     else if (on('editPrev')) { e.preventDefault(); toEdit(-1); }   // ↑: the previous edit point (a cut), as DaVinci
     else if (on('editNext')) { e.preventDefault(); toEdit(1); }    // ↓: the next one
     else if (on('secBack')) { e.preventDefault(); M.pause(); seekFrame(curFrame() - FPS); }
@@ -178,6 +179,8 @@
         '-',
         { id: 'prefs', label: T('menu.prefs'), run: showPrefs },
       ] },
+      // « Affichage »: what helps to look (user request 16/10/2026, from HyperFrames Studio's news)
+      { id: 'view', label: T('menu.view'), items: () => viewMenu() },
       { id: 'tools', label: T('menu.tools'), items: [
         { id: 'connect', label: T('menu.connect'), run: openConnect },
         { id: 'send', label: T('menu.send'), key: () => SC.show('send'), disabled: sendWhy, run: sendQueue },
