@@ -199,6 +199,17 @@
   #sheet .tile .sc { color: var(--s11); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   #sheet .tile .nb { margin-left: auto; flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #ffd27f; color: #1d160b; font-weight: 700; font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; }
   #sheet .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--s11); padding: 30px; text-align: center; }
+  /* the sound measured (page/studio/14-sound.js): the meter by the volume */
+  .loudm { display: none; align-items: center; gap: 6px; margin-right: 6px; font-size: calc(11px * var(--iz, 1)); color: var(--s11); font-variant-numeric: tabular-nums; }
+  .loudm.on { display: inline-flex; }
+  .loudm .lbar { position: relative; width: 54px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .loudm .lbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #4fb3ff, #7ed3ff 70%, #ffd27f); border-radius: 3px; }
+  .loudm .lbar .ref { position: absolute; top: -1px; bottom: -1px; width: 1.5px; left: 73.7%; background: rgba(255, 210, 127, 0.9); }
+  .loudm .lv { min-width: 3.1em; text-align: right; color: var(--s12); font-weight: 600; }
+  .loudm small { opacity: 0.7; }
+  .loudm.sat .lbar i { background: #ff5050; }
+  .loudm.sat .lv { color: #ff7070; }
+  #insp .bad { color: #ff7070; font-weight: 600; }
   #viewbar .vtool.on { background: rgba(201, 242, 107, 0.16); color: var(--lime); }
   #codeWait { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; line-height: 1.4;
     background: rgba(9, 11, 18, 0.95); color: var(--s12); text-align: center; pointer-events: none; opacity: 0; transition: opacity .12s; will-change: opacity; }

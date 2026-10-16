@@ -179,6 +179,7 @@
       [T('st.insp.emotes'), emo.length ? emo.map((e) => `${esc(who(e.actor))} · ${esc(e.name)}`).join('<br>') : none],
       [T('st.insp.walking'), walking.length ? walking.map(esc).join(', ') : none],
     ]));
+    rows.push(...soundRows());   // the sound measured (part 14)
     const n = sel && byId(sel);
     rows.push(`<h3 style="margin-top:14px">${T('st.insp.selected')}</h3>`);
     if (!n) rows.push(`<div class="empty">${T('st.insp.pick')}</div>`);

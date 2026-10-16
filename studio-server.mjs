@@ -27,6 +27,7 @@ import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/fram
 import crypto from 'node:crypto';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
 import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed-copy.mjs';
+import { loudnessState, loudnessRange } from './lib/loudness.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
 import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from './lib/shot-render.mjs';
@@ -509,6 +510,13 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(pk));
     }
     // ---- « les yeux » : GET /api/frame?f=123&source=video|code[&w=960] -> JPEG ----
+    // the sound measured (lib/loudness.mjs, page/studio/14-sound.js): the reviewed video every 0,1 s, a range exactly
+    if (pn === '/api/loudness') { const v = pickVideo(P); return json(res, loudnessState(v, path.join(CACHE, 'loudness'))); }
+    if (pn === '/api/loudness/range') {
+      const v = pickVideo(P), a = +(url.searchParams.get('a') ?? 0), b = +(url.searchParams.get('b') ?? 0);
+      if (!v || !(b > a)) return json(res, { ok: false, why: t('srv.noVideo') });
+      try { return json(res, { ok: true, ...(await loudnessRange(v, a, b)) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
     // the composition failed in the live preview (player/crash.tsx): kept for the agent and for later
     if (pn === '/api/preview-error' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');

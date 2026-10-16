@@ -248,6 +248,7 @@
       if (t !== repliesTxt) { repliesTxt = t; REPLIES = JSON.parse(t); if (!REPLIES.notes) REPLIES.notes = {}; applyRemaps(); changed = true; }
       if (s !== statusTxt) { statusTxt = s; STATUS = JSON.parse(s); onStatus(); changed = true; }
       if (changed) renderAll();
+      loudMeter();   // the sound measured (part 14): asked until it is there, the meter at the playhead
     } catch (e) {
       if (!offline) { offline = true; setSave(T('st.save.paused'), 'err'); }
       setTimeout(pollReplies, 3000); return;

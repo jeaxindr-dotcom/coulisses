@@ -19,7 +19,7 @@
   new ResizeObserver(resize).observe($('#tlwrap'));
   function buildLanes() {
     if (PROJ) {   // the montage plan's tracks, then the sound of the video
-      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [{ id: 'mix', name: T('st.lane.sound'), bh: 34 }] : [])];
+      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [{ id: 'mix', name: T('st.lane.sound'), bh: 34 }, { id: 'loud', name: T('st.lane.loud'), bh: 30 }] : [])];
       return;
     }
     const L = LIVE, out = [{ id: 'scenes', name: T('st.lane.sets'), bh: 22 }];
@@ -35,6 +35,7 @@
     if (L?.music?.some((m) => m.channel !== 'music')) out.push({ id: 'amb', name: T('st.lane.amb'), bh: 22 });
     if (L?.sfx?.length) out.push({ id: 'sfx', name: T('st.lane.sfx'), bh: 24 });
     out.push({ id: 'mix', name: 'Mix', bh: 32 });
+    if (META?.render) out.push({ id: 'loud', name: T('st.lane.loud'), bh: 30 });   // the sound measured (part 14)
     lanes = out;
   }
   const PEAKS = new Map();
@@ -170,6 +171,8 @@
         }
       } else if (l.id === 'mix') {
         wave(g, peaks('@mix'), 0, view.a, view.b, y, h, tone(TL, 0.55), 1);
+      } else if (l.id === 'loud') {
+        loudFetch(); drawLoud(g, y, h);   // the sound measured (part 14)
       } else if (l.id === 'trk') {
         const tr = l.tr;
         for (const c of tr.clips) {
@@ -281,6 +284,7 @@
     if (l.id === 'sfx') { const s = [...(L?.sfx ?? [])].reverse().find((s) => s.t <= t && t <= s.t + Math.min(9.5, PEAKS.get(s.src)?.data?.dur ?? 0.6)); if (s) return { lane: l, text: T('st.tip.sfx', { name: s.name, v: s.volume, t: fmt(s.t) }) }; }
     if (l.id === 'scenes') return { lane: l, text: contextAt(Math.floor(t * FPS)).scene };
     if (l.id === 'mix') return { lane: l, text: PROJ ? T('st.tip.soundVideo') : T('st.tip.soundMp4') };
+    if (l.id === 'loud') return { lane: l, text: loudTip(t) };
     if (l.id === 'trk') {
       const c = l.tr.clips.find((c) => c.t0 <= t && t < c.t1);
       if (c) return { lane: l, item: c, span: [c.t0, c.t1], text: T('st.tip.clip', { track: l.tr.name, label: c.label, file: c.file ? ' · ' + c.file : '', a: fmt(c.t0), b: fmt(c.t1), off: c.off ? T('st.tip.off') : '' }) };
@@ -470,6 +474,7 @@
     el.innerHTML = ''; const b = document.createElement('b'); b.textContent = c.scene || '—'; el.appendChild(b);
     if (c.lines.length) el.appendChild(document.createTextNode('   ' + c.lines.join('   ')));
     renderInspector();
+    loudMeter();   // the sound measured at the playhead (part 14)
   }
   M.on('play', updateHud); M.on('pause', updateHud); M.on('seeked', () => { updateHud(); draw(); drawOv(); });
   let lastF = -1;
