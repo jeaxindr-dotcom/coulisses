@@ -11,6 +11,7 @@
       PROJ = !!META.kind && META.kind !== 'brambleshire';
       if (META.size?.length === 2) { CW = META.size[0]; CH = META.size[1]; }
       queueMicrotask(initSafe);   // the safe zones of this project (page/studio/12-safe.js)
+      queueMicrotask(initWords);   // the words heard (page/studio/15-words.js)
       if (PROJ) { document.body.classList.add('proj'); $('#kindTag').textContent = kindLabel(); }
       if (META.newProject && !(data0Notes ?? 0)) tabL = 'agent';
       if (!META.features?.code) document.body.classList.add('nocode');

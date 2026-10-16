@@ -16,7 +16,10 @@
     if (n.reply) msgs.push({ from: 'claude', text: n.reply, images: [], at: n.updated });
     return msgs.sort((a, b) => (Date.parse(a.at || 0) || 0) - (Date.parse(b.at || 0) || 0));
   }
-  function stamp(n) { n.updated = now(); n.context = contextAt(n.frame, n.end ?? n.frame); }
+  function stamp(n) {
+    n.updated = now(); n.context = contextAt(n.frame, n.end ?? n.frame);
+    const h = heardIn(n.frame, n.end ?? n.frame); if (h) n.context.heard = h;   // the words heard there (part 15): for the agent
+  }
   function queueFull() {
     if (!MAXQ || drafts().length < MAXQ) return false;
     setSave(T('st.queue.full', { max: MAXQ }), 'err');
@@ -249,6 +252,7 @@
       if (s !== statusTxt) { statusTxt = s; STATUS = JSON.parse(s); onStatus(); changed = true; }
       if (changed) renderAll();
       loudMeter();   // the sound measured (part 14): asked until it is there, the meter at the playhead
+      wordsFetch();   // the words heard (part 15): a new video's, the transcription's progress
     } catch (e) {
       if (!offline) { offline = true; setSave(T('st.save.paused'), 'err'); }
       setTimeout(pollReplies, 3000); return;

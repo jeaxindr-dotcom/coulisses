@@ -47,6 +47,7 @@
     { g: 'notes', id: 'deleteNote', keys: ['Delete', 'Backspace'] },
     { g: 'timeline', id: 'zoomIn', keys: ['Plus', '='] },
     { g: 'timeline', id: 'zoomOut', keys: ['-'] },
+    { g: 'timeline', id: 'findWords', keys: ['Ctrl+F'] },
     { g: 'stage', id: 'staging', keys: ['M'] },
     { g: 'stage', id: 'modeMove', keys: ['W'], stage: true },
     { g: 'stage', id: 'modeRotate', keys: ['E'], stage: true },

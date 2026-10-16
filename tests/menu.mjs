@@ -109,7 +109,7 @@ try {
   await p.goto(`${H}/go/${imp.id}`);
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#menubar > button')`, 120000);
   await sleep(800);
-  check((await bar()) === 'Fichier · Édition · Outils · Aide' && await ev(`return document.querySelector('#menubar').getBoundingClientRect().bottom <= document.querySelector('header').getBoundingClientRect().top + 1`), 'studio: the same bar, above the header');
+  check((await bar()) === 'Fichier · Édition · Affichage · Outils · Aide' && await ev(`return document.querySelector('#menubar').getBoundingClientRect().bottom <= document.querySelector('header').getBoundingClientRect().top + 1`), 'studio: the same bar (with « Affichage », its review tools), above the header');
   const sf = await open('file');
   check(has(sf, 'revealVideo', (r) => r.off && /Pas encore de vidéo/.test(r.why)), 'Fichier › Afficher la vidéo dans l\'Explorateur: greyed while the run has no video yet (« Pas encore de vidéo… »)');
   check(has(sf, 'home', (r) => !r.off) && has(sf, 'revealFolder', (r) => !r.off) && has(sf, 'revealCoulisses', (r) => !r.off) && has(sf, 'close', (r) => !r.off), 'Fichier: Accueil, Ouvrir le dossier du projet, Afficher le fichier .coulisses, Fermer le studio — all usable here');

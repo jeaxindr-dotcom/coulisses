@@ -186,6 +186,11 @@
   <section id="tlpanel" class="glass">
     <div id="tlbar">
       <div id="context">—</div>
+      <!-- « Paroles » (page/studio/15-words.js): the words heard, transcribed, then found -->
+      <span id="words" class="words" style="display:none">
+        <span class="wfind"><i data-ic="search"></i><input id="wq" type="text" placeholder="{{st.words.find}}" spellcheck="false" autocomplete="off"><span id="wn"></span><button id="wPrev" class="icon" title="{{st.words.prev}}"><i data-ic="up"></i></button><button id="wNext" class="icon" title="{{st.words.next2}}"><i data-ic="down"></i></button></span>
+        <button id="wBtn" class="wbtn"><i data-ic="captions"></i><span></span></button>
+      </span>
       <span class="zoom">
         <button id="bZoomOut" class="icon" title="{{st.tl.zoomOut}}"><i data-ic="minus"></i></button>
         <span id="zoomPct" title="{{st.tl.zoom}}">100 %</span>
@@ -233,6 +238,7 @@
 </div>
 <svg id="cgDefs" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <div class="menu" id="menu"></div>
+<div class="menu wpop" id="wPop"></div>
 <div id="lb"><img alt=""></div>
 <div id="cmp"><div class="box">
   <div class="top"><b id="cmpT">{{st.cmp.title}}</b><span class="muted" id="cmpN"></span><span class="grow"></span>

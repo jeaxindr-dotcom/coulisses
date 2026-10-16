@@ -12,14 +12,14 @@
   const PAL = [[78, 82, 68], [256, 95, 80], [205, 96, 76], [330, 85, 80], [162, 72, 66], [40, 98, 74], [8, 96, 76], [235, 88, 82], [185, 75, 62], [290, 80, 80], [120, 60, 68], [20, 90, 72], [50, 90, 70], [215, 70, 70]];
   const actorHsl = new Map();
   const tone = (hsl, a) => `hsla(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%, ${a})`;
-  const TRACK = { scenes: [260, 70, 76], camera: [205, 96, 76], light: [40, 98, 74], music: [162, 72, 66], amb: [78, 82, 68], sfx: [8, 96, 76], mix: [240, 40, 86] };
+  const TRACK = { scenes: [260, 70, 76], camera: [205, 96, 76], light: [40, 98, 74], music: [162, 72, 66], amb: [78, 82, 68], sfx: [8, 96, 76], mix: [240, 40, 86], words: [34, 90, 74], loud: [200, 80, 76] };
   const TRK = { chap: [260, 70, 76], V1: [205, 96, 76], V2: [330, 85, 80], V3: [256, 95, 80], A1: [78, 82, 68], A2: [162, 72, 66], A3: [8, 96, 76] };
   const laneTone = (l) => l.id === 'trk' ? (TRK[l.tr.id] ?? [hue(l.tr.id), 70, 74]) : l.id === 'actor' ? (actorHsl.get(l.actor) ?? [40, 20, 70]) : TRACK[l.id] ?? [40, 10, 70];
   function resize() { dpr = window.devicePixelRatio || 1; W = Math.max(50, cv.clientWidth - HX); H = cv.clientHeight; cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(H * dpr); draw(); }
   new ResizeObserver(resize).observe($('#tlwrap'));
   function buildLanes() {
     if (PROJ) {   // the montage plan's tracks, then the sound of the video
-      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [{ id: 'mix', name: T('st.lane.sound'), bh: 34 }, { id: 'loud', name: T('st.lane.loud'), bh: 30 }] : [])];
+      lanes = [...(LIVE?.tracks ?? []).map((tr) => ({ id: 'trk', tr, name: tr.name, bh: tr.type === 'audio' ? 30 : tr.type === 'band' ? 22 : 24 })), ...(META?.render ? [...wordsLane(), { id: 'mix', name: T('st.lane.sound'), bh: 34 }, { id: 'loud', name: T('st.lane.loud'), bh: 30 }] : [])];   // (the words heard: part 15)
       return;
     }
     const L = LIVE, out = [{ id: 'scenes', name: T('st.lane.sets'), bh: 22 }];
@@ -34,6 +34,7 @@
     if (L?.music?.some((m) => m.channel === 'music')) out.push({ id: 'music', name: T('st.insp.music'), bh: 30 });
     if (L?.music?.some((m) => m.channel !== 'music')) out.push({ id: 'amb', name: T('st.lane.amb'), bh: 22 });
     if (L?.sfx?.length) out.push({ id: 'sfx', name: T('st.lane.sfx'), bh: 24 });
+    out.push(...wordsLane());   // the words heard (part 15)
     out.push({ id: 'mix', name: 'Mix', bh: 32 });
     if (META?.render) out.push({ id: 'loud', name: T('st.lane.loud'), bh: 30 });   // the sound measured (part 14)
     lanes = out;
@@ -171,6 +172,8 @@
         }
       } else if (l.id === 'mix') {
         wave(g, peaks('@mix'), 0, view.a, view.b, y, h, tone(TL, 0.55), 1);
+      } else if (l.id === 'words') {
+        drawWords(g, y, h, TL);   // the words heard (part 15)
       } else if (l.id === 'loud') {
         loudFetch(); drawLoud(g, y, h);   // the sound measured (part 14)
       } else if (l.id === 'trk') {
@@ -285,6 +288,7 @@
     if (l.id === 'scenes') return { lane: l, text: contextAt(Math.floor(t * FPS)).scene };
     if (l.id === 'mix') return { lane: l, text: PROJ ? T('st.tip.soundVideo') : T('st.tip.soundMp4') };
     if (l.id === 'loud') return { lane: l, text: loudTip(t) };
+    if (l.id === 'words') return { lane: l, text: wordsTip(t) };
     if (l.id === 'trk') {
       const c = l.tr.clips.find((c) => c.t0 <= t && t < c.t1);
       if (c) return { lane: l, item: c, span: [c.t0, c.t1], text: T('st.tip.clip', { track: l.tr.name, label: c.label, file: c.file ? ' · ' + c.file : '', a: fmt(c.t0), b: fmt(c.t1), off: c.off ? T('st.tip.off') : '' }) };
@@ -370,6 +374,12 @@
     if (th?.lane.id === 'trk' && th.item) {
       const c = th.item, n = addNote(Math.floor(c.t0 * FPS), Math.max(Math.floor(c.t0 * FPS) + 1, Math.ceil(c.t1 * FPS) - 1));
       if (n) setSave(T('st.note.onClip', { label: c.label }), 'ok');
+      return;
+    }
+    if (th?.lane.id === 'words') {   // a phrase heard (part 15): a range note on it
+      const p = wPhraseAt(xt(x)); if (!p) return;
+      const n = addNote(Math.floor(p.a * FPS), Math.max(Math.floor(p.a * FPS) + 1, Math.ceil(p.b * FPS) - 1));
+      if (n) setSave(T('st.note.onPhrase', { text: p.text.length > 60 ? p.text.slice(0, 58) + '…' : p.text }), 'ok');
       return;
     }
     if (th?.lane.id === 'actor' && th.item) {

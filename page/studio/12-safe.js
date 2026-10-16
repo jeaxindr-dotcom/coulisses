@@ -50,5 +50,6 @@
     return [
       { id: 'safeZones', label: () => T(safeOn ? 'menu.safeOff' : 'menu.safeOn'), key: () => SC.show('safeZones'), run: () => toggleSafe() },
       { id: 'sheet', label: () => T(sheetOn ? 'menu.sheetOff' : 'menu.sheetOn'), key: () => SC.show('sheet'), run: () => toggleSheet() },
+      { id: 'words', label: () => T(WORDS?.data ? 'menu.wordsFind' : 'menu.words'), key: () => SC.show('findWords'), run: () => wordsFocus() },
     ];
   }

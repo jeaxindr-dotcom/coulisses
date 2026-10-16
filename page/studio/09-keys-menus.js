@@ -21,9 +21,11 @@
     if (e.key === 'Escape' && menu.classList.contains('open')) { closeMenu(); return; }
     if (e.key === 'Escape' && $('#lb').style.display === 'flex') { $('#lb').style.display = 'none'; return; }
     if (e.key === 'Escape' && sheetOn) { toggleSheet(false); return; }   // « Planche »
+    if (e.key === 'Escape' && wordsPopOpen()) { wordsPop(false); return; }   // « Paroles »
     if (e.key === 'Escape' && $('#modal').style.display === 'flex') { $('#modal').style.display = 'none'; return; }
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'range';
     // the usual shortcuts: Ctrl+S saves now (never the browser's « save the page »), Ctrl+Entrée sends the queue
+    if (on('findWords')) { e.preventDefault(); wordsFocus(); return; }   // Ctrl+F: find in the words heard (part 15)
     if (on('save')) { e.preventDefault(); flushNow().then((ok) => setSave(ok ? T('st.key.saved', { t: hm5(new Date()) }) : T('st.save.failed'), ok ? 'ok' : 'err')); return; }
     if (on('send') && (!typing || e.target.id === 'qwords')) { e.preventDefault(); if (drafts().length) sendQueue(); else setSave(T('menu.why.noDraft'), ''); return; }
     // Ctrl+Z in a text field (user request, 08/10/2026: « Ctrl+Z revient un step en arrière, Ctrl+Y un step en avant »,

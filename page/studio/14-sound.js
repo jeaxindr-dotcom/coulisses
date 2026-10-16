@@ -8,18 +8,19 @@
 //     (the note chosen, or the R range being marked).
 // The values are the rendered MP4's: in « Code actuel » too (said in the meter's title).
   // (var: part 08's first tick, before this part runs, finds them undefined and does nothing)
-  var LOUD = { state: null, data: null, asked: 0, ranges: new Map() };
+  var LOUD = { state: null, data: null, asked: -1e9, ranges: new Map() };
   var REF_LUFS = -14, PEAK_MAX = -1;   // YouTube's reference loudness; the true peak not to pass
   var dbv = (v) => (v === null || v === undefined || v <= -69.9 ? '−∞' : `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(1).replace('.', T('st.ex.decimal'))}`);
   function loudFetch() {
     if (!LOUD) return;
     const vid = STATUS?.video ?? META?.render; if (!vid) return;
     const k = `${vid.name}|${vid.size}|${vid.mtime}`;   // a new video under review: measured again
-    if (k !== LOUD.key) { LOUD.key = k; LOUD.state = null; LOUD.data = null; LOUD.ranges.clear(); LOUD.asked = 0; }
+    if (k !== LOUD.key) { LOUD.key = k; LOUD.state = null; LOUD.data = null; LOUD.ranges.clear(); LOUD.asked = -1e9; }
     if (LOUD.state === 'ready' || LOUD.state === 'none') return;
     if (performance.now() - LOUD.asked < 2500) return;
     LOUD.asked = performance.now();
     fetch('/api/loudness', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
+      if (k !== LOUD.key) return;   // (an answer about the video before)
       LOUD.state = j.state; if (j.data) LOUD.data = j.data;
       if (j.state === 'building') setTimeout(loudFetch, 2600);
       scheduleDraw(); renderInspector(true); loudMeter();
