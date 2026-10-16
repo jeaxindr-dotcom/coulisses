@@ -13,7 +13,8 @@
   function histStatus() {
     if (!HISTO) return;
     const h = STATUS?.history;
-    $('#ltabs button[data-tab="hist"]')?.classList.toggle('none', !h);
+    const tb = $('#ltabs button[data-tab="hist"]');
+    if (tb && tb.classList.contains('none') === !!h) { tb.classList.toggle('none', !h); fitTabs(); }   // (shown: the bar may be too narrow now)
     if (!h) return;
     if (HISTO.seen === null) HISTO.seen = h.version;
     if (h.version !== HISTO.ver) { HISTO.ver = h.version; if (onTab('hist')) histLoad(); }

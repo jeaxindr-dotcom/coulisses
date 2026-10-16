@@ -199,6 +199,19 @@
   #sheet .tile .sc { color: var(--s11); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   #sheet .tile .nb { margin-left: auto; flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #ffd27f; color: #1d160b; font-weight: 700; font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; }
   #sheet .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--s11); padding: 30px; text-align: center; }
+  /* « Vérifier la composition » (page/studio/06-render.js): the findings of hyperframes check */
+  #renderCard .hfch { margin-top: 12px; }
+  #renderCard .hfc { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 4px; }
+  #renderCard .hff { width: 100%; height: auto; min-height: 0; padding: 6px 8px; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; justify-content: stretch; text-align: left; white-space: normal; border-radius: 10px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--stroke); font-size: 11.5px; line-height: 1.4; }
+  #renderCard .hff:hover { background: var(--glass-3); }
+  #renderCard .hff .sev { grid-row: span 2; padding: 1px 6px; border-radius: 6px; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+  #renderCard .hff.error .sev { background: rgba(255, 112, 112, 0.16); color: #ff8a8a; }
+  #renderCard .hff.warning .sev { background: rgba(255, 210, 127, 0.16); color: #ffd27f; }
+  #renderCard .hff.info .sev { background: rgba(126, 211, 255, 0.14); color: #9bdcff; }
+  #renderCard .hff .m { color: var(--s12); }
+  #renderCard .hff .w { color: var(--s9); font-size: 11px; }
+  #renderCard .rbar i.busy { width: 35%; animation: hfcBusy 1.4s ease-in-out infinite alternate; }
+  @keyframes hfcBusy { from { margin-left: 0; } to { margin-left: 65%; } }
   /* a tab bar too narrow: the inactive tabs as icons (page/studio/00-base.js fitTabs) */
   .tabbar button.none { display: none; }
   .tabbar.tight button:not(.on) .lb { display: none; }

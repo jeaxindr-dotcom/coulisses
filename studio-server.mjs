@@ -30,6 +30,7 @@ import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed
 import { loudnessState, loudnessRange } from './lib/loudness.mjs';
 import { transcriptState, engines as wordsEngines, installParakeet, wordsChoice } from './lib/transcript.mjs';
 import { historyRoots, historyKey, historyStore } from './lib/history.mjs';
+import { hfCheckState, hfCheckLite, startHfCheck, hfSegments } from './lib/hf-check.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
 import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from './lib/shot-render.mjs';
@@ -231,7 +232,7 @@ function status() {   // what changes often: polled by the page every 3 s with t
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
     render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P),
-    history: HISTORY ? { version: histVer } : null };
+    history: HISTORY ? { version: histVer } : null, hfCheck: HFP ? hfCheckLite(P) : null, hfSegments: HFP ? hfSegments(P) : null };
 }
 const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
 function writeNotes(data) {
@@ -553,6 +554,12 @@ const server = http.createServer(async (req, res) => {
       return json(res, transcriptState(pickVideo(P), path.join(CACHE, 'transcripts'), REVUE, { lang }));
     }
     if (pn === '/api/transcript/install' && req.method === 'POST') { log(t('srv.wordsInstall')); return json(res, { ok: installParakeet() }); }
+    // « Vérifier la composition » of a HyperFrames project (lib/hf-check.mjs): « hyperframes check », before its export
+    if (pn === '/api/hf/check' && req.method === 'POST') {
+      if (!HFP) return json(res, { ok: false, why: t('hfc.notHf') });
+      try { return json(res, { ...startHfCheck(P, { version: player.state.version, log }), ok: true }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+    }
+    if (pn === '/api/hf/check') return json(res, HFP ? hfCheckState(P) : { state: 'none' });
     // the history of the project's files (lib/history.mjs, page/studio/16-history.js)
     if (pn === '/api/history') {
       if (!HISTORY) return json(res, { on: false, roots: HIST_ROOTS.length });

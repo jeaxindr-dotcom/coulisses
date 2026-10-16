@@ -36,7 +36,8 @@
   $('#renderPill').onclick = () => setTab('lots');
   let rcKey = '';
   function exportCard(box) {
-    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape, META.gpu?.mode, META.gpu?.off,
+    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, HC = STATUS.hfCheck, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape, META.gpu?.mode, META.gpu?.off,
+      HC?.state, HC?.at, HC?.version === STATUS.code?.version, HFC?.at, STATUS.hfSegments?.done,
       S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
     if (key === rcKey) return; rcKey = key;
     if (LIVEP() && !cur) {
@@ -120,7 +121,54 @@
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
     const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
     const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
-    return `${last}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+    const segs = META.kind === 'hyperframes' && X && ['stopped', 'failed'].includes(X.state) && STATUS.hfSegments?.done ? `<div class="sub2">${T('st.hfc.resume', { done: STATUS.hfSegments.done, all: STATUS.hfSegments.all })}</div>` : '';
+    return `${hfCheckBlock()}${last}${segs}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
+  }
+  // « Vérifier la composition » (a HyperFrames project, lib/hf-check.mjs): « hyperframes check » before the export — what it
+  // finds, each at its moment of the video (a click goes there), into the queue as notes for the agent in one click
+  var HFC = { at: null, findings: [] };
+  window.__hfc = () => ({ check: STATUS?.hfCheck ?? null, code: STATUS?.code?.version ?? null, kind: META?.kind, n: HFC.findings.length });   // (the tests)
+  const hfcFresh = (C) => C?.state === 'done' && C.version === STATUS.code?.version;
+  function hfCheckBlock() {
+    if (META.kind !== 'hyperframes') return '';
+    const C = STATUS.hfCheck;
+    if (C?.state === 'done' && C.at !== HFC.at) queueMicrotask(hfcLoad);
+    const head = `<div class="rh hfch">${ic('check')}<b>${T('st.hfc.title')}</b><span class="muted">hyperframes check</span></div>`;
+    if (C?.state === 'running') return `${head}<div class="sub2">${T('st.hfc.running')}</div><div class="rbar"><i class="busy"></i></div>`;
+    const go = (again) => `<button class="soft" id="hfcGo">${ic('check')}${T(again ? 'st.hfc.again' : 'st.hfc.go')}</button>`;
+    if (!C || C.state === 'none') return `${head}<div class="sub2 muted">${T('st.hfc.what')}</div><div class="acts">${go(false)}</div>`;
+    if (C.state === 'failed') return `${head}<div class="err">${T('st.hfc.failed', { why: esc(C.error ?? '') })}</div><div class="acts">${go(true)}</div>`;
+    const when = hm5(new Date(C.at)), stale = hfcFresh(C) ? '' : `<div class="sub2 muted">${T('st.hfc.stale')}</div>`;
+    if (!C.total) return `${head}<div class="ok2">${T('st.hfc.clean', { t: when })}</div>${stale}<div class="acts">${go(true)}</div>`;
+    const list = (HFC.at === C.at ? HFC.findings : []).slice(0, 6).map((f, i) => `<button class="hff ${f.sev}" data-i="${i}" title="${esc(f.hint ?? f.msg)}"><span class="sev">${T('st.hfc.sev.' + f.sev)}</span><span class="m">${esc(f.msg)}</span>`
+      + `<span class="w">${[f.file ? esc(f.file) + (f.line ? ':' + f.line : '') : '', f.time !== null && f.time > 0 ? fmt(f.time) : ''].filter(Boolean).join(' · ')}</span></button>`).join('');
+    const more = C.total > 6 ? `<div class="sub2 muted">${T('st.hfc.more', { n: C.total - 6 })}</div>` : '';
+    return `${head}<div class="${C.errors ? 'err' : 'sub2'}">${T('st.hfc.found', { e: C.errors, w: C.warnings, t: when })}</div>${stale}<div class="hfc">${list}</div>${more}`
+      + `<div class="acts"><button class="soft" id="hfcNotes" title="${esc(T('st.hfc.toNotesTip'))}">${ic('list')}${T('st.hfc.toNotes')}</button>${go(true)}</div>`;
+  }
+  async function hfcLoad() {
+    try { const j = await (await fetch('/api/hf/check', { cache: 'no-store' })).json(); if (j.state === 'done') { HFC = { at: j.at, findings: j.findings ?? [] }; rcKey = null; renderRender(); } } catch { /* the next poll */ }
+  }
+  async function hfcStart() {
+    const r = await postJson('/api/hf/check');
+    if (!r?.ok) { setSave(T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), 'err'); return null; }
+    STATUS.hfCheck = { ...(STATUS.hfCheck ?? {}), state: 'running' }; rcKey = null; renderRender();
+    for (let i = 0; i < 200; i++) {   // (5 min at most)
+      await new Promise((res) => setTimeout(res, 1500));
+      let j = null; try { j = await (await fetch('/api/hf/check', { cache: 'no-store' })).json(); } catch { /* again */ }
+      if (j && j.state !== 'running') { STATUS.hfCheck = { ...j, findings: undefined }; HFC = j.state === 'done' ? { at: j.at, findings: j.findings ?? [] } : HFC; rcKey = null; renderRender(); return j; }
+    }
+    return null;
+  }
+  // the findings into the queue: a note each (errors first, 10 at most), at its moment, its words for the agent
+  function hfcToNotes() {
+    const fs2 = HFC.findings.filter((f) => f.sev !== 'info').slice(0, 10); let n = 0;
+    for (const f of fs2) {
+      const fr = Math.max(0, Math.min(FRAMES - 1, Math.round((f.time ?? 0) * FPS)));
+      const where = f.file ? ` (${f.file}${f.line ? ':' + f.line : ''})` : '';
+      if (addNote(fr, null, false, { text: T('st.hfc.note', { part: f.part, msg: f.msg, hint: f.hint ? ' — ' + f.hint : '', where }), source: 'code' })) n++;
+    }
+    setSave(T('st.hfc.added', { n }), 'ok');
   }
   // the speed of the export (user request 14/10/2026: « une molette allant de 0,5 à 2,0, chaque cran de 0,1 »): picture and
   // sound together (lib/export-run.mjs). The wheel of the mouse moves it a notch, a double click puts it back to ×1; the
@@ -202,6 +250,9 @@
     return `<label class="sub2 gpuLine" title="${esc(T('st.ex.gpuTitle'))}"><input type="checkbox" id="exGpu" ${g.off ? '' : 'checked'}> ${g.off ? T('st.ex.gpuAsk') : T('st.ex.gpu', { name: esc(g.name ?? 'GPU') })}</label>`;
   }
   function wireExport() {
+    $('#hfcGo')?.addEventListener('click', () => hfcStart());
+    $('#hfcNotes')?.addEventListener('click', () => hfcToNotes());
+    for (const b of document.querySelectorAll('#renderCard .hff')) b.addEventListener('click', () => { const f = HFC.findings[+b.dataset.i]; if (f?.time !== null && f?.time !== undefined) { M.pause(); seekFrame(Math.round(f.time * FPS)); } });
     for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
     $('#exStop')?.addEventListener('click', stopExportUI);
     $('#exLog')?.addEventListener('click', showExportLog);
@@ -213,6 +264,12 @@
   }
   async function startExportUI(qualite, label) {
     const vitesse = exportSpeed();
+    // a HyperFrames project: its composition checked first (once per version of the code); errors: asked before exporting
+    if (META.kind === 'hyperframes') {
+      let C = STATUS.hfCheck;
+      if (!hfcFresh(C)) { setSave(T('st.hfc.before'), ''); C = await hfcStart(); }
+      if (C?.state === 'done' && C.errors && !confirm(T('st.hfc.confirm', { n: C.errors }))) return;
+    }
     if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
     const r = await postJson('/api/export', { qualite, vitesse });
     setSave(r?.ok ? T('st.ex.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');

@@ -5,7 +5,10 @@
 //     (transcribed with the user's HyperFrames when Parakeet is there: the lane, Ctrl+F, Entrée, the Inspector, a note's
 //     context for the agent);
 //   - the Remotion project of tests/coulisses-fixture.mjs: « Historique » — a change made in an editor, one made while the
-//     agent works on a batch, the lines of a change, « Revenir ici » (and back again), « Annuler ce changement ».
+//     agent works on a batch, the lines of a change, « Revenir ici » (and back again), « Annuler ce changement »;
+//   - a HyperFrames project (lib/new-project.mjs): « Vérifier la composition » (hyperframes check: a text out of the
+//     frame, unreadable), its findings at their moment, into the queue as notes; « Exporter » checked first and asked
+//     about its errors; a long export's segments kept for the next one.
 // usage: node tests/review-tools.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,7 +52,7 @@ const p = await launch({ port: 9356 });
 await p.size(1600, 1000);
 const ev = (e) => p.eval(e).catch(() => null);
 const click = async (sel) => { await p.eval(`document.querySelector(${JSON.stringify(sel)}).click(); return 1`); await sleep(250); };
-let s1 = null, s2 = null;
+let s1 = null, s2 = null, s3 = null;
 try {
   // ======================= the vertical video =======================
   const imp = importProject(VID);
@@ -209,9 +212,69 @@ try {
       check(/historique : \d+ fichiers suivis/.test(lg) && /historique : \d+ fichier\(s\) remis comme avant/.test(lg), 'the studio\'s log says it');
     } finally { await q.close(); }
   }
+  kill(s2); s2 = null;
+
+  // ======================= a HyperFrames project: « Vérifier la composition », the long export =======================
+  const { hfFor } = await import('../lib/hyperframes.mjs');
+  if (!hfFor(null)) console.log('  (sauté : la vérification HyperFrames — pas de HyperFrames sur ce PC)');
+  else {
+    const { createProject } = await import('../lib/new-project.mjs');
+    const made = createProject({ nom: 'Essai verif', format: '16:9', duree: 4, engine: 'hyperframes' }, path.join(SCR, 'hf'));
+    const imp3 = importProject(made.file);
+    s3 = await studio(['--project', imp3.revue], 4192);
+    check(/Ouvre : http/.test(s3.out()), 'the studio of the HyperFrames project starts' + (/Ouvre : http/.test(s3.out()) ? '' : ': ' + s3.out().slice(-600)));
+    const h = await launch({ port: 9358 }); await h.size(1600, 1000);
+    const he = (e) => h.eval(e).catch(() => null), card = () => he(`return document.querySelector('#renderCard').innerText`);
+    try {
+      await h.goto('http://127.0.0.1:4192/');
+      await h.until(`window.__studio && document.querySelector('#ltabs button[data-tab=lots]')`, 120000); await sleep(1500);
+      await h.eval(`document.querySelector('#ltabs button[data-tab=lots]').click(); return 1`);
+      await h.until(`window.__studio && document.querySelector('#renderCard .rc')`, 120000).catch(async (e) => { console.log('    (page)', JSON.stringify(await he(`return { st: !!window.__studio, card: document.querySelector('#renderCard')?.innerHTML.slice(0, 300), url: location.href }`)), h.logs.filter((l) => /error|exception/i.test(l)).slice(0, 5).join(' | '), s3.out().slice(-800)); throw e; });
+      check(/Vérifier la composition/.test(await card() ?? ''), 'Envois: « Vérifier la composition » before the export');
+      await h.until(`!document.querySelector('#ltabs button[data-tab=hist]').classList.contains('none')`, 20000).catch(() => {}); await sleep(300);
+      check(await he(`const b = document.querySelector('#ltabs'); return b.scrollWidth <= b.clientWidth + 1 && b.classList.contains('tight')`), 'the left tabs with « Historique »: the inactive ones as icons, none cut');
+      await h.eval(`document.querySelector('#hfcGo').click(); return 1`);
+      await h.until(`/rien à signaler|erreur\\(s\\)/.test(document.querySelector('#renderCard').innerText)`, 120000).catch(() => {});
+      const c1 = await card();
+      check(/Composition vérifiée à \d\d:\d\d : rien à signaler|0 erreur\(s\)/.test(c1 ?? ''), `the blank composition checked: ${(c1 ?? '').split('\n').find((l) => /vérifiée/.test(l))}`);
+      // a text out of the frame, nearly black on black: the check finds it (layout, contrast)
+      const IDX = path.join(made.dir, 'index.html');
+      fs.writeFileSync(IDX, fs.readFileSync(IDX, 'utf8').replace('<h1 id="title"', '<div id="trop" class="clip" data-start="1" data-duration="3" data-track-index="1" style="position:absolute;left:1500px;top:200px;width:900px;font-size:90px;color:#141414">Un texte qui déborde du cadre</div>\n      <h1 id="title"'));
+      await h.until(`/Le code a changé depuis cette vérification/.test(document.querySelector('#renderCard').innerText)`, 30000).catch(() => {});
+      check(/Le code a changé depuis cette vérification/.test(await card() ?? ''), 'the code changed: the check said stale');
+      await h.eval(`document.querySelector('#hfcGo').click(); return 1`);
+      await h.until(`document.querySelectorAll('#renderCard .hff').length >= 2`, 120000).catch(() => {});
+      const c2 = await he(`return { head: document.querySelector('#renderCard .err')?.textContent ?? '', items: [...document.querySelectorAll('#renderCard .hff')].map((b) => b.innerText.replace(/\\n/g, ' | ')) }`);
+      check(/[1-9]\d* erreur\(s\)/.test(c2?.head ?? '') && c2.items.some((x) => /^erreur/i.test(x) && /Text extends outside|Contrast/i.test(x)), `the findings: ${c2?.head} — ${c2?.items.slice(0, 3).join(' · ')}`);
+      await h.shot(path.join(shots, 'review-tools-hfcheck.png'));
+      await h.eval(`document.querySelector('#renderCard .hff').click(); return 1`); await sleep(800);
+      const fr = await he(`return __studio.state().frame`);
+      check(fr >= 25 && fr <= 40, `a finding clicked: the playhead at its moment (image ${fr})`);
+      const d0 = await he(`return __studio.state().drafts`);
+      await h.eval(`document.querySelector('#hfcNotes').click(); return 1`); await sleep(800);
+      const d1 = await he(`return { n: __studio.state().drafts, txt: [...document.querySelectorAll('#draftList textarea.main')].map((t) => t.value).join(' / ') }`);
+      check(d1?.n >= d0 + 2 && /hyperframes check \((layout|contrast)\)/.test(d1.txt), `« Mettre dans les modifs »: ${d1?.n - d0} notes for the agent (${(d1?.txt ?? '').slice(0, 120)}…)`);
+      // the export: the code changed again → checked first; errors → asked (here: « no », nothing exported)
+      fs.writeFileSync(IDX, fs.readFileSync(IDX, 'utf8').replace('Un texte qui déborde du cadre', 'Un texte qui déborde encore'));
+      await h.until(`/Le code a changé depuis/.test(document.querySelector('#renderCard').innerText)`, 30000).catch(() => {});
+      await h.eval(`window.__asked = []; window.confirm = (m) => { window.__asked.push(m); return false; }; document.querySelector('#ltabs button[data-tab=lots]').click(); return 1`); await sleep(300);
+      await h.eval(`document.querySelector('#renderCard .exGo').click(); return 1`);
+      await h.until(`window.__asked.length >= 1`, 120000).catch(() => {}); await sleep(600);
+      const asked = await he(`return window.__asked`), st = await (await fetch('http://127.0.0.1:4192/api/status')).json();
+      check(asked?.length === 1 && /La vérification trouve \d+ erreur\(s\)/.test(asked[0]) && !st.export, `Exporter: checked first, its errors asked about (« ${(asked?.[0] ?? '').slice(0, 70)}… »), « non »: nothing exported`);
+      // the long export: the segments already made, said by the status (renders/.hf-segments)
+      const seg = path.join(made.dir, 'renders', '.hf-segments', 'abcdef0123456789');
+      fs.mkdirSync(seg, { recursive: true });
+      fs.writeFileSync(path.join(seg, 'segments.json'), JSON.stringify({ version: 1, planHash: 'abcdef0123456789', totalFrames: 3600, segmentFrames: 900, completed: [0, 1].map((i) => ({ index: i, startFrame: i * 900, endFrame: (i + 1) * 900, path: `seg-${i}.mp4`, bytes: 1000, completedAt: new Date().toISOString() })) }));
+      const st2 = await (await fetch('http://127.0.0.1:4192/api/status')).json();
+      check(st2.hfSegments?.done === 2 && st2.hfSegments.all === 4, `a long export stopped halfway: ${st2.hfSegments?.done} of ${st2.hfSegments?.all} segments kept for the next one`);
+      const run = fs.readFileSync(path.join(STUDIO, 'lib', 'hf-render-run.mjs'), 'utf8');
+      check(/'--resume'/.test(run) && /HF_SEGMENTED_MIN_SECONDS/.test(run), 'the export of HyperFrames: in segments from a minute, « --resume » from the ones made');
+    } finally { await h.close(); }
+  }
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
   try { await p.close(); } catch { /* closed */ }
-  kill(s1); kill(s2);
+  kill(s1); kill(s2); kill(s3);
 }
 console.log(`\n${ok} ok, ${ko} ko`);
 process.exit(ko ? 1 : 0);
