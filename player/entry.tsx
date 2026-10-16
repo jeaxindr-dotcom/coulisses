@@ -10,6 +10,7 @@ import { Player, PlayerRef } from '@remotion/player';
 import * as R3F from './r3f';
 import { createStage } from './stage';
 import { createReady } from './ready';
+import { createCrash } from './crash';
 // @ts-ignore resolved through esbuild's alias "@episode-src" -> 06_Remotion/src
 import { Episode } from '@episode-src/Episode';
 // @ts-ignore
@@ -20,9 +21,11 @@ const FPS = 30, W = 1920, H = 1080;
 const entry = (EPISODES as any[]).find((e) => e.id === __EPISODE__);
 const tl = entry ? entry.build() : null;
 const durationInFrames = tl ? Math.ceil(tl.duration * FPS) : 1;
-const listeners = new Set<(ev: { type: string; frame: number }) => void>();
+const listeners = new Set<(ev: { type: string; frame: number; [k: string]: unknown }) => void>();
 let ref: PlayerRef | null = null;
-const emit = (type: string) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame }); };
+const emit = (type: string, extra: Record<string, unknown> = {}) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame, ...extra }); };
+// the composition failing (player/crash.tsx): its error said, sent to the studio, the Player mounted again on recover()
+const C = createCrash({ emit, redraw: () => draw() });
 // the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
 const R = createReady({ root: () => document.getElementById('stage'), playing: () => !!ref?.isPlaying(), emit });
 
@@ -45,6 +48,8 @@ const stage = createStage({
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,
   frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
+  crashed: () => C.crashed, recover: (f?: number) => C.recover(f ?? ref?.getCurrentFrame() ?? 0),
+  __crash: () => { C.crashNext(); const f = ref?.getCurrentFrame() ?? 0; ref?.seekTo(f + 1); ref?.seekTo(f); },
   setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
@@ -70,6 +75,8 @@ const stage = createStage({
 };
 
 let rate = 1;
+// the episode, a test crash first (player/crash.tsx)
+const Comp: React.FC<any> = (p) => { C.check(); return <Episode {...p} />; };
 const App: React.FC = () => {
   const r = useRef<PlayerRef>(null);
   useEffect(() => {
@@ -79,7 +86,9 @@ const App: React.FC = () => {
     const onWait = () => R.setBuffering(true), onResume = () => R.setBuffering(false);
     (ref as any).addEventListener('waiting', onWait); (ref as any).addEventListener('resume', onResume);
     offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
-    const start = +(new URLSearchParams(location.search).get('f') ?? 0);
+    const onErr = (e: any) => C.onError(e, ref?.getCurrentFrame() ?? 0);
+    (ref as any).addEventListener('error', onErr); offs.push(() => (ref as any)?.removeEventListener('error', onErr));
+    const start = C.takeResume() ?? +(new URLSearchParams(location.search).get('f') ?? 0);
     if (start) ref.seekTo(start);
     emit('ready'); R.watch();
     return () => offs.forEach((o) => o());
@@ -87,7 +96,7 @@ const App: React.FC = () => {
   if (!entry) return <div style={{ color: '#fff', padding: 20 }}>Épisode {__EPISODE__} introuvable dans src/episodes/registry.ts</div>;
   return (
     <div id="stage" style={{ width: '100vw', height: '100vh' }}>
-      <Player ref={r} component={Episode} inputProps={{ tl, assets: entry.assets, scale: entry.scale }}
+      <Player ref={r} component={Comp} inputProps={{ tl, assets: entry.assets, scale: entry.scale }} errorFallback={C.fallback}
         durationInFrames={durationInFrames} fps={FPS} compositionWidth={W} compositionHeight={H}
         style={{ width: '100%', height: '100%' }} playbackRate={rate} clickToPlay={false} doubleClickToFullscreen={false}
         spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense
@@ -96,5 +105,5 @@ const App: React.FC = () => {
   );
 };
 const root = createRoot(document.getElementById('root')!);
-const draw = () => root.render(<App />);
+const draw = () => root.render(<App key={C.gen} />);   // a new key: the Player mounted again (after an error)
 draw();

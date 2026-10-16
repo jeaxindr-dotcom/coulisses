@@ -509,6 +509,14 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(pk));
     }
     // ---- « les yeux » : GET /api/frame?f=123&source=video|code[&w=960] -> JPEG ----
+    // the composition failed in the live preview (player/crash.tsx): kept for the agent and for later
+    if (pn === '/api/preview-error' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      const line = `${nowIso()} · image ${b.frame} · code v${b.version ?? '?'} · ${String(b.message ?? '').slice(0, 500)}${b.where ? ` · ${b.where}` : ''}\n${String(b.stack ?? '').slice(0, 3000)}\n\n`;
+      try { fs.mkdirSync(REVUE, { recursive: true }); fs.appendFileSync(path.join(REVUE, 'preview-errors.log'), line); } catch { /* read-only */ }
+      log(t('srv.previewError', { f: b.frame, msg: String(b.message ?? '').slice(0, 160) }));
+      return json(res, { ok: true });
+    }
     if (pn === '/api/frame') {
       const f = Math.max(0, Math.round(+(url.searchParams.get('f') ?? 0))), source = url.searchParams.get('source') === 'code' ? 'code' : 'video';
       const w = Math.min(1920, +(url.searchParams.get('w') ?? 0) || 0);

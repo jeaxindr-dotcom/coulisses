@@ -164,6 +164,14 @@
   #media .code-next { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; }   /* a new version, being prepared */
   #media.code #code { opacity: 1; }
   /* the live preview's frame still loading (player/ready.ts): covered, never judged */
+  /* the composition failed in the live preview (player/crash.tsx) */
+  #codeCrash { position: absolute; inset: 0; z-index: 3; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; line-height: 1.4;
+    background: rgba(9, 11, 18, 0.96); color: var(--s12); text-align: center; }
+  #media.code #codeCrash.on { display: flex; }
+  #codeCrash b { font: 600 calc(15px * var(--iz, 1)) var(--font-d); color: #f0b429; }
+  #codeCrash code { max-width: 86%; white-space: pre-wrap; word-break: break-word; font-size: calc(13px * var(--iz, 1)); }
+  #codeCrash .s { font-size: calc(12px * var(--iz, 1)); color: var(--s11); max-width: 80%; }
+  #codeCrash .acts { margin-top: 6px; }
   #codeWait { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; line-height: 1.4;
     background: rgba(9, 11, 18, 0.95); color: var(--s12); text-align: center; pointer-events: none; opacity: 0; transition: opacity .12s; will-change: opacity; }
   #media:not(.code) #codeWait { display: none; }

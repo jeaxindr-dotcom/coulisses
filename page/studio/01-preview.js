@@ -10,6 +10,7 @@
     set currentTime(t) {
       if (mode === 'code' && SP) {
         const f = Math.floor(t * FPS), now = performance.now(), quick = now - lastStep < 250;
+        if (crash) { codeRecover(f); v.currentTime = t; return; }   // after an error, the next move mounts the Player again there
         lastStep = now;
         // moving (the arrows held, steps in a row, a drag on the timeline): the frames as they come, no veil — the motion is
         // what is judged; the frame where it stops is watched (codeSettle)
@@ -67,6 +68,7 @@
         sp.on((ev) => {
           if (SP !== sp) return;
           // (while moving, the preview's « loading » is not shown: the end of the move is watched by codeSettle)
+          if (ev.type === 'error') { codeCrashed(ev); return; }
           if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
           if (mode !== 'code') return;
           if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
@@ -146,6 +148,32 @@
   // the next chapter's page, 1.3 s for long04, the screen never shows the frame before with the new frame's number) —,
   // the seek one frame later, and the veil goes once the preview says the frame asked is complete (player/ready.ts)
   let pendF = null, cwSeq = 0, lastStep = 0, settleT = null, keyStep = false;
+  // the composition failed (player/crash.tsx, user report 16/10/2026: the whole picture black with a « ⚠ » in E10): what
+  // happened, where in the code, kept in revue\preview-errors.log; « Réessayer », any move mounts the Player again
+  let crash = null;
+  const codeErrEl = $('#codeCrash');   // (#codeErr is the build error of the code)
+  function codeCrashed(ev) {
+    const e = ev.error ?? {}, at = ev.at ?? ev.frame ?? curFrame();
+    crash = { ...e, at };
+    $('#ceTitle').textContent = T('st.code.crash', { f: at }); $('#ceMsg').textContent = e.message ?? ''; $('#ceWhere').textContent = e.where ? T('st.code.crashWhere', { w: e.where }) : '';
+    codeErrEl.classList.add('on'); codeWaitEl.classList.remove('pend', 'pend-key', 'on');
+    postJson('/api/preview-error', { frame: at, message: e.message, where: e.where, stack: (e.stack ?? '').split('\n').slice(0, 12).join('\n'), version: codeVer }).catch(() => {});
+    setSave(T('st.code.crash', { f: at }), 'err');
+  }
+  function codeRecover(f = curFrame()) {
+    if (!crash || !SP) return;
+    crash = null; codeErrEl.classList.remove('on');
+    SP.recover?.(f);
+    codeWaitEl.classList.add('on');   // the Player mounts again: the frame covered until it is complete
+    const sp = SP, my = ++cwSeq; setTimeout(() => Promise.resolve(sp.whenFrameReady?.()).then(() => { if (my === cwSeq) codeWaitEl.classList.remove('on'); }), 400);
+  }
+  $('#ceRetry').onclick = () => codeRecover();
+  $('#ceCopy').onclick = () => { if (crash) copy(`${T('st.code.crash', { f: crash.at })}\n${crash.message}\n${crash.where ?? ''}`); };
+  $('#ceNote').onclick = () => {
+    if (!crash) return;
+    const n = addNote(crash.at, null, false, { source: 'code' });
+    if (n) { n.text = T('st.code.crashNoteText', { msg: crash.message, where: crash.where ? ` (${crash.where})` : '' }); save(); renderAll(); setSave(T('st.code.crashNoted'), 'ok'); }
+  };
   // an arrow released before the hold (a tap): its veil at the usual 90 ms from now
   function keyReleased() { if (codeWaitEl.classList.contains('pend-key')) { codeWaitEl.classList.remove('pend-key'); codeWaitEl.classList.add('pend'); } }
   // the end of a move: once nothing has moved for 220 ms, a frame not complete is covered until it is
@@ -178,6 +206,7 @@
     if (m === 'video' && SP) SP.pause();
     mode = m;
     codeWait(m === 'code' && SP?.frameLoading?.()); codeWaitEl.classList.remove('pend', 'pend-key'); pendF = null; cwSeq++;
+    codeErrEl.classList.toggle('on', m === 'code' && !!crash);
     SP?.sleep?.(m !== 'code');   // drawn only while it is on screen (Remotion's 3D canvas draws at every frame, even paused)
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');

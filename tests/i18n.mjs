@@ -25,7 +25,11 @@ const I = await import('../lib/i18n.mjs');
 const { lotMarkdown, renderMarkdown, pasteLine, renderLine, connectLine } = await import('../lib/lots.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const FR = I.DICTS.fr, EN = I.DICTS.en;
-const CLI = path.join(STUDIO, 'studio-cli.mjs'), HUB_PORT = 4183, ST_PORT = 4182, shots = path.join(STUDIO, '.cache', 'shots');
+// the home screen takes the next port when 4183 is busy (16/10/2026: another project's test server held it, and the test
+// looked at that server): its own port is read from what it says, « HUB_READY http://127.0.0.1:<port>/ »
+let HUB_PORT = 4183;
+const hubPort = (out) => +(/HUB_READY http:\/\/127\.0\.0\.1:(\d+)/.exec(out)?.[1] ?? HUB_PORT);
+const CLI = path.join(STUDIO, 'studio-cli.mjs'), ST_PORT = 4182, shots = path.join(STUDIO, '.cache', 'shots');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
@@ -119,6 +123,7 @@ try {
   hub = spawn(process.execPath, [path.join(STUDIO, 'hub-server.mjs'), '--port', String(HUB_PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let hubOut = ''; hub.stdout.on('data', (d) => { hubOut += d; }); hub.stderr.on('data', (d) => { hubOut += d; });
   for (let i = 0; i < 60 && !/HUB_READY/.test(hubOut); i++) await sleep(250);
+  HUB_PORT = hubPort(hubOut);
   check(/home screen ready: http/.test(hubOut), 'the home screen\'s log is in English');
   p = await launch({ port: 9381 });
   const until = async (expr, ms = 30000) => { const t0 = Date.now(); for (;;) { try { if (await p.eval(`return !!(${expr})`)) return true; } catch { /* navigating */ } if (Date.now() - t0 > ms) throw new Error(`timeout: ${expr}`); await sleep(150); } };
@@ -254,6 +259,7 @@ try {
   hub = spawn(process.execPath, [path.join(STUDIO, 'hub-server.mjs'), '--port', String(HUB_PORT)], { cwd: STUDIO, env: { ...process.env, COULISSES_LANG: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   hubOut = ''; hub.stdout.on('data', (d) => { hubOut += d; });
   for (let i = 0; i < 60 && !/HUB_READY/.test(hubOut); i++) await sleep(250);
+  HUB_PORT = hubPort(hubOut);
   await p.goto(`http://127.0.0.1:${HUB_PORT}/`); await until(`document.querySelector('#langs button.on')`, 10000);
   check((await ev(`return document.querySelector('#langs button.on').dataset.l`)) === 'en' && /Add a project/.test(await ev(`return document.body.innerText`)), 'with « en » in the settings file: the home screen in English, « EN » lit');
   await p.eval(`document.querySelector('#langs button[data-l=fr]').click(); return 1`);

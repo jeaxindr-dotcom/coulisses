@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client';
 import { Player, PlayerRef } from '@remotion/player';
 import { createStage2d } from './stage2d';
 import { createReady } from './ready';
+import { createCrash } from './crash';
 // @ts-ignore resolved by lib/player-build.mjs: player/three-stage.ts when the project has @react-three/fiber, else player/no3d.ts
 import { create3d } from '@coulisses-3d';
 // @ts-ignore resolved through esbuild's alias
@@ -25,9 +26,11 @@ const comp = comps.find((c) => c.id === __COMPOSITION__);
 const props = { ...(comp?.defaultProps ?? {}), ...(__PROPS__ ?? {}) };
 const durationInFrames = comp ? Math.max(1, Math.round(typeof comp.durationInFrames === 'function' ? comp.durationInFrames(props) : comp.durationInFrames)) : 1;
 const FPS = comp?.fps ?? 30, W = comp?.width ?? 1920, H = comp?.height ?? 1080;
-const listeners = new Set<(ev: { type: string; frame: number }) => void>();
+const listeners = new Set<(ev: { type: string; frame: number; [k: string]: unknown }) => void>();
 let ref: PlayerRef | null = null;
-const emit = (type: string) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame }); };
+const emit = (type: string, extra: Record<string, unknown> = {}) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame, ...extra }); };
+// the composition failing (player/crash.tsx): its error said, sent to the studio, the Player mounted again on recover()
+const C = createCrash({ emit, redraw: () => draw() });
 // the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
 const R = createReady({ root: () => document.getElementById('stage'), playing: () => !!ref?.isPlaying(), emit });
 
@@ -102,6 +105,8 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
   frame: () => ref?.getCurrentFrame() ?? 0,
   frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
+  crashed: () => C.crashed, recover: (f?: number) => C.recover(f ?? ref?.getCurrentFrame() ?? 0),
+  __crash: () => { C.crashNext(); const f = ref?.getCurrentFrame() ?? 0; ref?.seekTo(f + 1); ref?.seekTo(f); },
   setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
@@ -117,6 +122,8 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
 };
 
 let rate = 1;
+// the composition, a test crash first (player/crash.tsx)
+const Comp: React.FC<any> = (p) => { C.check(); return <Framed {...p} />; };
 const App: React.FC = () => {
   const r = useRef<PlayerRef>(null);
   useEffect(() => {
@@ -127,7 +134,9 @@ const App: React.FC = () => {
     const onWait = () => R.setBuffering(true), onResume = () => R.setBuffering(false);
     (ref as any).addEventListener('waiting', onWait); (ref as any).addEventListener('resume', onResume);
     offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
-    const q = new URLSearchParams(location.search), start = +(q.get('f') ?? 0);
+    const onErr = (e: any) => C.onError(e, ref?.getCurrentFrame() ?? 0);
+    (ref as any).addEventListener('error', onErr); offs.push(() => (ref as any)?.removeEventListener('error', onErr));
+    const q = new URLSearchParams(location.search), start = C.takeResume() ?? +(q.get('f') ?? 0);
     if (start) ref.seekTo(start);
     const staged = q.get('stage');
     if (staged) {   // the « after » capture: these offsets, at this frame, then the page says it is ready
@@ -145,7 +154,7 @@ const App: React.FC = () => {
   if (!comp) return <div style={{ color: '#fff', padding: 20, font: '14px sans-serif' }}>Composition « {__COMPOSITION__} » absente de compositions (src/coulisses.ts). Disponibles : {comps.map((c) => c.id).join(', ') || 'aucune'}</div>;
   return (
     <div id="stage" style={{ width: '100vw', height: '100vh' }}>
-      <Player ref={r} component={Framed} inputProps={props}
+      <Player ref={r} component={Comp} inputProps={props} errorFallback={C.fallback}
         durationInFrames={durationInFrames} fps={FPS} compositionWidth={W} compositionHeight={H}
         style={{ width: '100%', height: '100%' }} playbackRate={rate} clickToPlay={false} doubleClickToFullscreen={false}
         spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense numberOfSharedAudioTags={48} />
@@ -153,5 +162,5 @@ const App: React.FC = () => {
   );
 };
 const root = createRoot(document.getElementById('root')!);
-const draw = () => root.render(<App />);
+const draw = () => root.render(<App key={C.gen} />);   // a new key: the Player mounted again (after an error)
 draw();

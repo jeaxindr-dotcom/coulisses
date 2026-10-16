@@ -23,7 +23,7 @@ let ok = 0, ko = 0;
 const check = (cond, what) => { if (cond) { ok++; console.log(`  ✓ ${what}`); } else { ko++; console.log(`  ✗ ${what}`); } };
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
-const TEST_TEXTS = ['Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+const TEST_TEXTS = [/^L'aperçu du code plante à cette image : test/, 'Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
 await requireFrench(URL);
 closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
 const p = await launch();
@@ -197,6 +197,26 @@ try {
   const g1 = await p.eval('return __studio.state().frame');
   await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
   check(g1 - g0 > 20 && seenF.slice(3).every((o) => o < 0.05) && (await veilOp()) < 0.05, `the arrow held forward: ${g1 - g0} frames with no veil (${seenF.map((o) => o.toFixed(1)).join(' ')})`);
+  // the composition failing in the preview (user report 16/10/2026: E10 all black with a lone « ⚠ », stuck): the error
+  // said over the picture, kept in revue\preview-errors.log, a note for the agent; the next move mounts the Player again
+  const logF = path.join(REVUE, 'preview-errors.log'), log0 = fs.existsSync(logF) ? fs.statSync(logF).size : 0;
+  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.__crash(); return 1`);
+  await p.until(`document.querySelector('#codeCrash').classList.contains('on')`, 15000).catch(() => {});
+  const ce = await p.eval(`const e = document.querySelector('#codeCrash'); return { on: getComputedStyle(e).display !== 'none', txt: e.innerText, crashed: !!document.querySelector('#code').contentWindow.StudioPlayer.crashed() }`);
+  await sleep(800);
+  const logged = fs.existsSync(logF) && fs.statSync(logF).size > log0 && /plantage volontaire/.test(fs.readFileSync(logF, 'utf8'));
+  check(ce.on && ce.crashed && /L'aperçu du code a planté à l'image \d+/.test(ce.txt) && /plantage volontaire/.test(ce.txt) && /Réessayer/.test(ce.txt) && logged,
+    `an error of the composition: said over the picture (« ${ce.txt.split('\n')[0]} »), written to revue\\preview-errors.log`);
+  await p.shot(path.join(shots, 'e2e-7-crash.png'));
+  const nb = await p.eval('return __studio.state().drafts');
+  await p.eval(`document.querySelector('#ceNote').click(); return 1`); await sleep(400);
+  const noteTxt = await p.eval(`const c = [...document.querySelectorAll('#draftList .card textarea.main')].map((t) => t.value).find((v) => /aperçu du code plante/.test(v)); return c ?? ''`);
+  check((await p.eval('return __studio.state().drafts')) === nb + 1 && /plantage volontaire/.test(noteTxt), `« Créer une note pour l'agent »: a note at that frame (${noteTxt.slice(0, 70)}…)`);
+  await p.key('ArrowRight', 'ArrowRight'); await sleep(600);
+  await p.until(`!document.querySelector('#code').contentWindow.StudioPlayer.crashed() && !!document.querySelector('#code').contentWindow.document.querySelector('canvas') && document.querySelector('#code').contentWindow.StudioPlayer.frameReady()`, 120000).catch(() => {});
+  await sleep(1500);
+  const back = await p.eval(`return { on: document.querySelector('#codeCrash').classList.contains('on'), crashed: !!document.querySelector('#code').contentWindow.StudioPlayer.crashed(), canvas: !!document.querySelector('#code').contentWindow.document.querySelector('canvas'), fallback: /⚠/.test(document.querySelector('#code').contentWindow.document.getElementById('root').innerText) }`);
+  check(!back.on && !back.crashed && back.canvas && !back.fallback, `the next move: the Player mounted again, the scene drawn (no « ⚠ » left) ${JSON.stringify(back)}`);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
   // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête
