@@ -38,6 +38,7 @@
     { g: 'image', id: 'source', keys: ['P'] },
     { g: 'image', id: 'viewReset', keys: ['Shift+Z'] },
     { g: 'image', id: 'safeZones', keys: ['S'] },
+    { g: 'image', id: 'sheet', keys: ['T'] },
     { g: 'notes', id: 'note', keys: ['N'] },
     { g: 'notes', id: 'range', keys: ['R'] },
     { g: 'notes', id: 'setIn', keys: ['I'] },

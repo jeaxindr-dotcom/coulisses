@@ -20,6 +20,7 @@
     }
     if (e.key === 'Escape' && menu.classList.contains('open')) { closeMenu(); return; }
     if (e.key === 'Escape' && $('#lb').style.display === 'flex') { $('#lb').style.display = 'none'; return; }
+    if (e.key === 'Escape' && sheetOn) { toggleSheet(false); return; }   // « Planche »
     if (e.key === 'Escape' && $('#modal').style.display === 'flex') { $('#modal').style.display = 'none'; return; }
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'range';
     // the usual shortcuts: Ctrl+S saves now (never the browser's « save the page »), Ctrl+Entrée sends the queue
@@ -71,6 +72,7 @@
       holdKey = e.key; holdCode = e.code || null; holdT = setTimeout(() => { if (holdKey === e.key) startShuttle(dir); }, HOLD_MS);
     }
     else if (on('safeZones')) { e.preventDefault(); toggleSafe(); }
+    else if (on('sheet')) { e.preventDefault(); toggleSheet(); }
     else if (on('editPrev')) { e.preventDefault(); toEdit(-1); }   // ↑: the previous edit point (a cut), as DaVinci
     else if (on('editNext')) { e.preventDefault(); toEdit(1); }    // ↓: the next one
     else if (on('secBack')) { e.preventDefault(); M.pause(); seekFrame(curFrame() - FPS); }

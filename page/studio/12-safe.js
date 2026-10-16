@@ -42,11 +42,13 @@
   function initSafe() {
     try { safeOn = localStorage.getItem(safeKey()) === '1'; } catch { safeOn = false; }
     $('#bSafe')?.addEventListener('click', () => toggleSafe());
+    $('#bSheet')?.addEventListener('click', () => toggleSheet());   // « Planche » (part 13)
     drawSafe();
   }
   // the « Affichage » menu (part 09): the tools to look at the video
   function viewMenu() {
     return [
       { id: 'safeZones', label: () => T(safeOn ? 'menu.safeOff' : 'menu.safeOn'), key: () => SC.show('safeZones'), run: () => toggleSafe() },
+      { id: 'sheet', label: () => T(sheetOn ? 'menu.sheetOff' : 'menu.sheetOn'), key: () => SC.show('sheet'), run: () => toggleSheet() },
     ];
   }
