@@ -219,6 +219,20 @@ try {
   check(!back.on && !back.crashed && back.canvas && !back.fallback, `the next move: the Player mounted again, the scene drawn (no « ⚠ » left) ${JSON.stringify(back)}`);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
+  // the preview stopped by an error while the MP4 is shown (user bug 17/10/2026, E11: « le pointeur ne détecte plus les
+  // éléments » — the hidden preview had stopped at a frame with 49 sounds at once, and nothing said it): the pointer moved
+  // over the image mounts it again, and it names what is under it again
+  await p.key('v', 'KeyV', 'v'); await sleep(200);
+  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.__crash(); return 1`);
+  await p.until(`document.querySelector('#code').contentWindow.StudioPlayer.crashed()`, 15000).catch(() => {});
+  const crashedBehind = await p.eval(`return !!document.querySelector('#code').contentWindow.StudioPlayer.crashed()`);
+  const ovr = await p.eval(`const r = document.querySelector('#ov').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.6]`);
+  let named = '';
+  for (let i = 0; i < 60 && !named; i++) {
+    await p.mouse('mouseMoved', ovr[0] + (i % 7) * 6, ovr[1] + (i % 4) * 5); await sleep(500);
+    named = await p.eval(`const t = document.querySelector('#hoverTag'); return t.style.display === 'block' && !document.querySelector('#code').contentWindow.StudioPlayer.crashed() ? t.textContent : ''`);
+  }
+  check(crashedBehind && !!named, `the preview stopped behind the MP4: the pointer mounts it again, and names again (« ${named} »)`);
   // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête
   // de lecture pile poil sur cette jonction de clip »); the playhead drawn at the start of its frame, where the cut is
   await p.eval(`document.querySelector('#v').currentTime = 9050.5/30; return 1`); await sleep(800);

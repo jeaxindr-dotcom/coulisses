@@ -24,6 +24,7 @@
       const res = r.ok ? await r.json() : null;
       if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
       for (const n of d) { n.draft = false; n.lot = res.lot; n.sentAt = now(); }
+      if (res.again) setTimeout(() => setSave(T('st.send.again', { lot: res.lot }), 'ok'), 1800);   // the send before had failed on the way: that batch, its images made again
       HIST.back = []; HIST.fwd = []; HIST.last = null;   // a batch sent is not taken back with Ctrl+Z
       if (d.some((n) => n.stage)) setTimeout(() => setSave(T('st.send.offsets'), 'ok'), 1600);
       $('#qwords').value = ''; save();
