@@ -164,7 +164,7 @@
     if (!crash || !SP) return;
     crash = null; codeErrEl.classList.remove('on');
     SP.recover?.(f);
-    codeWaitEl.classList.add('on');   // the Player mounts again: the frame covered until it is complete
+    if (mode === 'code') codeWaitEl.classList.add('on');   // the Player mounts again: the frame covered until it is complete (behind the MP4: nothing to cover)
     const sp = SP, my = ++cwSeq; setTimeout(() => Promise.resolve(sp.whenFrameReady?.()).then(() => { if (my === cwSeq) codeWaitEl.classList.remove('on'); }), 400);
   }
   $('#ceRetry').onclick = () => codeRecover();

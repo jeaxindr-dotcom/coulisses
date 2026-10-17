@@ -28,7 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { optionsFrom, episode, readJson, writeJson, nowIso, stillSource, pad3, flagsOf } from './lib/episode.mjs';
 import { videoFrame, codeFrame, codeFrames, tile, closeCode, probeVideo } from './lib/frames.mjs';
-import { lotNumbers, readLot, lotFile } from './lib/lots.mjs';
+import { lotNumbers, readLot, lotFile, lotMarkdown } from './lib/lots.mjs';
 import { resolveTarget } from './lib/projects.mjs';
 import { snapshot, finish, step, listRuns } from './lib/runs.mjs';
 import { runRender, markReviewed, PHASES } from './lib/render.mjs';
@@ -135,7 +135,9 @@ async function main() {
           beat(false, n);
           const render = readLot(P, n)?.kind === 'render';   // the marker never changes with the language
           console.log(t('cli.waitGot', { marker: render ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`, gloss: render ? `render request ${n} received` : `batch ${n} received`, ep: P.ep, md: lotFile(P, n, 'md') }));
-          console.log(fs.readFileSync(lotFile(P, n, 'md'), 'utf8'));
+          // (a batch written by an older Coulisses whose request failed: its request made now from the batch)
+          if (!fs.existsSync(lotFile(P, n, 'md'))) { try { fs.writeFileSync(lotFile(P, n, 'md'), lotMarkdown(P, readLot(P, n))); } catch (e) { console.log(e.message); } }
+          console.log(fs.existsSync(lotFile(P, n, 'md')) ? fs.readFileSync(lotFile(P, n, 'md'), 'utf8') : lotFile(P, n));
           console.log(t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').join(' ')}` }));
           return;
         }

@@ -157,7 +157,7 @@ const App: React.FC = () => {
       <Player ref={r} component={Comp} inputProps={props} errorFallback={C.fallback}
         durationInFrames={durationInFrames} fps={FPS} compositionWidth={W} compositionHeight={H}
         style={{ width: '100%', height: '100%' }} playbackRate={rate} clickToPlay={false} doubleClickToFullscreen={false}
-        spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense numberOfSharedAudioTags={48} />
+        spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense numberOfSharedAudioTags={192} />
     </div>
   );
 };

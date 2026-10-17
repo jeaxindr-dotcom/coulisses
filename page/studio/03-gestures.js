@@ -87,6 +87,9 @@
     try {
       const sp = SP ?? (await loadCode()); if (!sp) return;
       const f = curFrame();
+      // the preview stopped by an error (E11, 17/10/2026: behind the MP4, nothing said it, and nothing was named any more):
+      // mounted again here; the next move names it
+      if (crash) { const at = crash.at ?? f; codeRecover(f); if (mode !== 'code') setSave(T('st.code.recovered', { f: at }), ''); return; }
       if (sp.frame() !== f) { sp.pause(); sp.seek(f); return; }   // the next move names it
       const pt = toComp(e), h = sp.hover(f, pt[0], pt[1]), tag = $('#hoverTag');
       if (h === undefined) return;
@@ -174,6 +177,7 @@
     try {
       const sp = await loadCode();
       if (!sp || job !== pickJob) { if (job === pickJob) setTg('done', ''); return; }
+      if (crash) { codeRecover(frame); await Promise.race([sp.whenFrameReady?.(), new Promise((r) => setTimeout(r, 15000))]); if (job !== pickJob) return; }   // (stopped by an error: mounted again first)
       const hits = (await sp.pickMany(frame, pts)).slice(0, 4).map((h) => ({ textures: h.textures, names: h.names, type: h.type, count: h.count, distance: h.distance }));
       if (job !== pickJob || !popFor) return;
       popFor.target = hits.length ? { frame, hits } : null;

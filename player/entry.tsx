@@ -100,7 +100,7 @@ const App: React.FC = () => {
         durationInFrames={durationInFrames} fps={FPS} compositionWidth={W} compositionHeight={H}
         style={{ width: '100%', height: '100%' }} playbackRate={rate} clickToPlay={false} doubleClickToFullscreen={false}
         spaceKeyToPlayOrPause={false} moveToBeginningWhenEnded={false} acknowledgeRemotionLicense
-        numberOfSharedAudioTags={48} /* an episode stacks music, voices and sound effects: the default 5 is not enough */ />
+        numberOfSharedAudioTags={192} /* an episode stacks music, voices and sound effects: the default 5 is not enough, 48 was not either (E11, 17/10/2026: 49 at once, the preview stopped) */ />
     </div>
   );
 };
