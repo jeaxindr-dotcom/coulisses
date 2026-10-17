@@ -97,7 +97,14 @@
 
   // ---------- the menu bar (menubar.js): « Fichier · Édition · Outils · Aide », every item calls what the page already does ----------
   const dlg = (o) => window.MenuBar?.dialog({ buttons: [{ label: T('menu.dlg.close'), primary: true }], ...o });
-  const toHub = (q = '') => { if (META?.hub) location.href = META.hub + q; };
+  // (user report 17/10/2026, from an iPad: « ça lag vachement » — the click said nothing while the heavy page went: now a
+  // veil at once, then the home screen; the notes not saved yet are sent first, as on any leaving)
+  function toHub(q = '') {
+    if (!META?.hub) return;
+    if (!$('#leaving')) { const d = document.createElement('div'); d.id = 'leaving'; d.innerHTML = `<span class="sp"></span>${esc(T('st.leaving'))}`; document.body.appendChild(d); }
+    try { SP?.pause(); M.pause(); } catch { /* */ }
+    requestAnimationFrame(() => setTimeout(() => { location.href = META.hub + q; }, 0));
+  }
   const noHub = () => (META?.hub ? false : T('menu.why.noHub'));
   const editLots = () => (STATUS.lots ?? []).filter((L) => L.kind !== 'render');
   const lastUndo = () => [...editLots()].reverse().find((L) => L.run?.finished && L.run.state !== 'undone');

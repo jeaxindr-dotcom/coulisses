@@ -510,6 +510,10 @@
   .spd { width: 28px; padding: 0 !important; justify-content: center; font-variant-numeric: tabular-nums; }
   #vol { width: 60px; height: 3px; }
   /* over the timeline: where we are (the scene, the lines), the zoom */
+  /* « Accueil »: the veil shown at once while the home screen comes (page/studio/09-keys-menus.js toHub) */
+  #leaving { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; gap: 12px; background: rgba(9, 11, 18, 0.78); color: var(--s12, #eee); font: 600 15px var(--font-d, sans-serif); }
+  #leaving .sp { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: var(--lime, #c9f26b); animation: leavingSpin 0.8s linear infinite; }
+  @keyframes leavingSpin { to { transform: rotate(360deg); } }
   #tlbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--stroke); min-height: 42px; }
   #tlbar .zoom { display: inline-flex; align-items: center; gap: 2px; flex: none; }
   #tlbar button { width: 30px; height: 28px; padding: 0; justify-content: center; background: transparent; border-color: transparent; color: var(--s11); }

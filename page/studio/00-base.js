@@ -23,6 +23,10 @@
   const C = {};
   const uid = () => Math.random().toString(36).slice(2, 10);
   const now = () => new Date().toISOString();
+  // a value of the live preview's frame made this page's own (a JSON copy): nothing of a preview's world may stay referenced
+  // from here once it is replaced, or every version of the code stays in memory (user bug 17/10/2026, E11: 7,8 Go after an
+  // evening of edits by the agent, the studio slower and slower, « Accueil » long to come)
+  const plain = (x) => (x === null || x === undefined ? x : JSON.parse(JSON.stringify(x)));
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const store = { get: (k, d) => { try { const x = localStorage.getItem('studio.' + k); return x === null ? d : JSON.parse(x); } catch { return d; } },
     set: (k, x) => { try { localStorage.setItem('studio.' + k, JSON.stringify(x)); } catch { /* private window */ } } };

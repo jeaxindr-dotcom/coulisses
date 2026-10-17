@@ -210,7 +210,7 @@
       to.push({ type: 'stage', id: step.id, delta: cur.delta, from: cur.from, to: cur.to, label: step.label });
       stQuiet = true; SP.stage.setDelta(step.id, step.delta, step.from, step.to); stQuiet = false;
       stPrev.set(step.id, { delta: step.delta, from: step.from, to: step.to }); stAt.set(step.id, 0);
-      if (stSel?.id === step.id) stSel = { ...stSel, ...SP.stage.info(step.id) };
+      if (stSel?.id === step.id) stSel = plain({ ...stSel, ...SP.stage.info(step.id) });
       renderScene.force = true; renderScene(); renderScene.force = false;
     } else {
       to.push({ type: 'notes', state: HIST.last, label: step.label });

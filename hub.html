@@ -571,6 +571,8 @@
   window.MenuBar?.mount($('#menubar'), [
     { id: 'file', label: T('menu.file'), items: [
       { id: 'home', label: T('menu.home'), disabled: () => T('menu.why.here') },
+      // (from an iPad through a remote desktop: no F5; a home screen started before this entry has not its words yet)
+      { id: 'reload', label: T('menu.reload') !== 'menu.reload' ? T('menu.reload') : document.documentElement.lang === 'en' ? 'Reload the page' : 'Actualiser la page', run: () => location.reload() },
       { id: 'newProject', label: T('menu.newProject'), key: () => SC.show('newProject'), run: openNew },
       { id: 'open', label: T('menu.open'), key: () => SC.show('open'), run: () => menuPick('project', true) },
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },

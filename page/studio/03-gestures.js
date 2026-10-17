@@ -178,7 +178,7 @@
       const sp = await loadCode();
       if (!sp || job !== pickJob) { if (job === pickJob) setTg('done', ''); return; }
       if (crash) { codeRecover(frame); await Promise.race([sp.whenFrameReady?.(), new Promise((r) => setTimeout(r, 15000))]); if (job !== pickJob) return; }   // (stopped by an error: mounted again first)
-      const hits = (await sp.pickMany(frame, pts)).slice(0, 4).map((h) => ({ textures: h.textures, names: h.names, type: h.type, count: h.count, distance: h.distance }));
+      const hits = plain((await sp.pickMany(frame, pts)).slice(0, 4).map((h) => ({ textures: h.textures, names: h.names, type: h.type, count: h.count, distance: h.distance })));   // (kept in the note: this page's own copy)
       if (job !== pickJob || !popFor) return;
       popFor.target = hits.length ? { frame, hits } : null;
       setTg('done', hits.length

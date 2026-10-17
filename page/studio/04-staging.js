@@ -62,6 +62,7 @@
   }
   let stUnsub = null;
   function onStageEvent(ev) {
+    ev = plain(ev);   // (kept as the chosen object, in the notes: this page's own copy)
     if (ev.type === 'change' && ev.id !== stSel?.id) return;   // an offset of the queue being re-applied
     if (ev.type === 'select' && !stPrev.has(ev.id)) stPrev.set(ev.id, { delta: JSON.parse(JSON.stringify(ev.delta)), from: ev.from, to: ev.to });
     if (ev.type === 'change') rememberStage(ev);
