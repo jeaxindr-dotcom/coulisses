@@ -154,6 +154,8 @@
     window.MenuBar.mount($('#menubar'), [
       { id: 'file', label: T('menu.file'), items: [
         { id: 'home', label: T('menu.home'), disabled: noHub, run: () => toHub() },
+        // (user request 17/10/2026: from an iPad through a remote desktop, no F5): the page read again, its notes saved first
+        { id: 'reload', label: T('menu.reload'), run: async () => { await flushNow(); location.reload(); } },
         { id: 'newProject', label: T('menu.newProject'), key: () => SC.show('newProject'), disabled: noHub, run: () => toHub('?menu=new') },
         { id: 'open', label: T('menu.open'), key: () => SC.show('open'), disabled: noHub, run: () => toHub('?menu=open') },
         { id: 'importFolder', label: T('menu.importFolder'), disabled: noHub, run: () => toHub('?menu=folder') },
