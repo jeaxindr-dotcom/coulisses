@@ -42,6 +42,7 @@ export async function launch({ port = 9333, headless = true } = {}) {
   const page = {
     logs,
     send: s,   // a raw DevTools command on this page (memory counters, garbage collection…)
+    onEvent: (fn) => handlers.push((d) => { if (d.sessionId === sessionId && d.method) fn(d); }),   // its DevTools events
     // a heap snapshot of the page, written to file (what keeps what alive)
     snapshot: async (file) => { const parts = [], h = (d) => { if (d.sessionId === sessionId && d.method === 'HeapProfiler.addHeapSnapshotChunk') parts.push(d.params.chunk); }; handlers.push(h); await s('HeapProfiler.enable'); await s('HeapProfiler.takeHeapSnapshot', { reportProgress: false }); handlers.splice(handlers.indexOf(h), 1); fs.writeFileSync(file, parts.join('')); },
     goto: async (url) => { await s('Page.navigate', { url }); await new Promise((r) => setTimeout(r, 1500)); },
