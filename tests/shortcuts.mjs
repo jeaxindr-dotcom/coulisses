@@ -24,7 +24,8 @@ process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
 const { makeFixture } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const I = await import('../lib/i18n.mjs');
-const PORT = 4195, U = `http://127.0.0.1:${PORT}`;
+const PORT = 4195;
+let U = `http://127.0.0.1:${PORT}`;   // (the port the studio says: the next one when another program holds 4195)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
@@ -38,6 +39,7 @@ try {
   st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', imp.revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
+  U = /Ouvre : (http:\/\/127\.0\.0\.1:[0-9]+)/.exec(out)?.[1] ?? U;
   p = await launch({ port: 9376 });
   await p.goto(U + '/');
   await p.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames`, 60000); await sleep(1200);

@@ -19,6 +19,7 @@
       e.preventDefault(); return;
     }
     if (e.key === 'Escape' && menu.classList.contains('open')) { closeMenu(); return; }
+    if (hubOpen()) { if (e.key === 'Escape') hubClose(); return; }   // the home screen over the studio has the keyboard
     if (e.key === 'Escape' && $('#lb').style.display === 'flex') { $('#lb').style.display = 'none'; return; }
     if (e.key === 'Escape' && $('#modal').style.display === 'flex') { $('#modal').style.display = 'none'; return; }
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) && e.target.type !== 'checkbox' && e.target.type !== 'range';
@@ -99,12 +100,37 @@
   const dlg = (o) => window.MenuBar?.dialog({ buttons: [{ label: T('menu.dlg.close'), primary: true }], ...o });
   // (user report 17/10/2026, from an iPad: « ça lag vachement » — the click said nothing while the heavy page went: now a
   // veil at once, then the home screen; the notes not saved yet are sent first, as on any leaving)
+  // « Accueil » (user report 17/10/2026, from an iPad: « ça lag vachement, il faudrait que ce soit quasi instantané »): the
+  // home screen over the studio, in a frame of its own loaded beforehand (hubFrame), shown at once; the studio stays
+  // where it is behind it. The project open here, chosen there (or « Revenir au studio », Échap): the studio again, at
+  // once; another one: the whole window goes to it (a veil first: the studio takes a moment to go)
+  function hubFrame(q = '') {
+    let f = $('#hubOv');
+    if (f && q) { f.remove(); f = null; }   // a menu of the home screen asked from here (« Ouvrir un projet… »): that page
+    if (!f) { f = document.createElement('iframe'); f.id = 'hubOv'; f.title = 'Coulisses'; f.src = META.hub + q; document.body.appendChild(f); }
+    return f;
+  }
   function toHub(q = '') {
     if (!META?.hub) return;
-    if (!$('#leaving')) { const d = document.createElement('div'); d.id = 'leaving'; d.innerHTML = `<span class="sp"></span>${esc(T('st.leaving'))}`; document.body.appendChild(d); }
     try { SP?.pause(); M.pause(); } catch { /* */ }
-    requestAnimationFrame(() => setTimeout(() => { location.href = META.hub + q; }, 0));
+    flushNow().catch(() => {});
+    const f = hubFrame(q); f.classList.add('on'); f.focus();
+    try { f.contentWindow?.postMessage({ coulisses: 'shown' }, '*'); } catch { /* */ }
   }
+  const hubOpen = () => !!$('#hubOv')?.classList.contains('on');
+  function hubClose() { $('#hubOv')?.classList.remove('on'); window.focus(); }
+  function leave(url) {
+    if (!$('#leaving')) { const d = document.createElement('div'); d.id = 'leaving'; d.innerHTML = `<span class="sp"></span>${esc(T('st.leaving') !== 'st.leaving' ? T('st.leaving') : FR ? 'Retour à l’accueil…' : 'Back to the home screen…')}`; document.body.appendChild(d); }
+    requestAnimationFrame(() => setTimeout(() => { location.href = url; }, 0));
+  }
+  window.addEventListener('message', (e) => {
+    if (!META?.hub || e.origin !== new URL(META.hub).origin) return;
+    const d = e.data ?? {};
+    if (d.coulisses === 'close') hubClose();
+    else if (d.coulisses === 'open' && typeof d.url === 'string') { const u = new URL(d.url, META.hub); if (u.origin === location.origin) hubClose(); else leave(u.href); }
+  });
+  // loaded beforehand, once the studio is settled (a few seconds after it opened): the first « Accueil » is instant too
+  setTimeout(function pre() { if (!META) return setTimeout(pre, 2000); if (META.hub && !$('#hubOv')) hubFrame(); }, 8000);
   const noHub = () => (META?.hub ? false : T('menu.why.noHub'));
   const editLots = () => (STATUS.lots ?? []).filter((L) => L.kind !== 'render');
   const lastUndo = () => [...editLots()].reverse().find((L) => L.run?.finished && L.run.state !== 'undone');

@@ -40,7 +40,7 @@ try {
     const v0 = await p.eval(`return document.querySelector('#codeStatus').textContent`);
     fs.writeFileSync(F, orig + `\n// version ${k}\n`);
     await p.until(`/^Code v[0-9]+/.test(document.querySelector('#codeStatus').textContent) && document.querySelector('#codeStatus').textContent !== ${JSON.stringify(v0)}`, 60000).catch(() => {});
-    await sleep(1200);
+    await p.until(`!document.querySelector('iframe.code-next')`, 30000).catch(() => {}); await sleep(1200);   // (no version being prepared at the time)
     seen.push({ v: await p.eval(`return document.querySelector('#codeStatus').textContent.split(' · ')[0]`), ...(await counters()) });
   }
   const last = seen.at(-1);
