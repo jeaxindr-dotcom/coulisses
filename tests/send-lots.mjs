@@ -79,6 +79,12 @@ try {
   const aside = fs.existsSync(path.join(P.REVUE, 'lots-annules')) ? fs.readdirSync(path.join(P.REVUE, 'lots-annules')) : [];
   check(lotNumbers(P).join() === '1' && aside.some((d) => d.startsWith('002-')) && logs.some((l) => /lot 2 mis de côté/.test(l)), `the copy nobody took set aside (${aside.join(', ')})`);
 
+  // the agent had already handled it: said so (no window, nothing for the agent)
+  fs.writeFileSync(P.REPLIES, JSON.stringify({ notes: {}, lots: { 1: { status: 'done', at: new Date().toISOString() } } }));
+  const r3 = await createLot(P, body, { fps: 30, size: [1920, 1080], log });
+  check(r3.lot === 1 && r3.again === 'done' && lotNumbers(P).join() === '1', `already handled by the agent: that batch, said « done » (${r3.again})`);
+  check(r2.again === 'taken', `taken by the agent before: said « taken » (${r2.again})`);
+
   // ---------- 3. studio-cli wait on a batch without its request ----------
   console.log('wait sur un lot sans sa demande');
   fs.rmSync(lotFile(P, 1, 'md'));
