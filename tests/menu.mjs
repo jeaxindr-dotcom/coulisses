@@ -146,9 +146,36 @@ try {
   await p.key('F10', 'F10'); await p.key('ArrowDown', 'ArrowDown'); await p.key('ArrowDown', 'ArrowDown'); await sleep(100);
   check((await ev(`return __studio.state().frame`)) === f0 && (await state()).depth === 1, 'while a menu has the keyboard, ↓ moves in it and not in the video');
   await escape(2);
+  // « Accueil » (user report 17/10/2026: « il faudrait que ce soit quasi instantané »): the home screen over the studio, at
+  // once (loaded beforehand, in a frame of its own: another origin, reached here by the mouse only); the project open here,
+  // chosen there: the studio again, at once; « Revenir au studio » and Échap too
+  const studioPort = await ev(`return location.port`);
+  // where the home screen puts its buttons, at this window's size: the same page in a tab of its own
+  const q = await launch({ port: 9383 });
+  let at = null;
+  try {
+    await q.goto(`${H}/`); await q.until(`document.querySelector('.card[data-id="${imp.id}"] button.open')`, 20000);
+    at = await q.eval(`document.querySelector('#backStudio').hidden = false; const c = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+      return { back: c('#backStudio'), title: c('header h1'), open: c('.card[data-id="${imp.id}"] button.open') }`);
+  } finally { await q.close(); }
+  const click = async ([x, y]) => { await p.mouse('mousePressed', x, y); await p.mouse('mouseReleased', x, y); };
+  await until(`document.querySelector('#hubOv')`, 20000).catch(() => {});   // (loaded beforehand, 8 s after the studio opened)
+  const t0 = Date.now();
   await run('file', 'home');
-  await until(`location.port === '${HUB_PORT}'`, 15000).catch(() => {});
-  check((await ev(`return location.port`)) === String(HUB_PORT), 'Fichier › Accueil (projets): back to the home screen');
+  const shownMs = Date.now() - t0;
+  const ov = await ev(`const f = document.querySelector('#hubOv.on'); return f ? { port: new URL(f.src).port, w: f.getBoundingClientRect().width } : null`);
+  check(ov?.port === String(HUB_PORT) && ov.w > 500 && (await ev(`return location.port`)) === studioPort, `Fichier › Accueil: the home screen over the studio, at once (${shownMs} ms, the studio behind it)`);
+  await sleep(800);
+  await click(at.back); await sleep(500);
+  check(!(await ev(`return !!document.querySelector('#hubOv.on')`)) && (await ev(`return location.port`)) === studioPort, '« Revenir au studio »: the studio again, as it was');
+  await run('file', 'home'); await sleep(800);
+  await click(at.title); await sleep(200);   // (the keyboard to the home screen)
+  await p.key('Escape', 'Escape'); await sleep(500);
+  check(!(await ev(`return !!document.querySelector('#hubOv.on')`)), 'Échap in the home screen: back to the studio');
+  await run('file', 'home'); await sleep(800);
+  await click(at.open);
+  await until(`!document.querySelector('#hubOv.on')`, 15000).catch(() => {});
+  check(!(await ev(`return !!document.querySelector('#hubOv.on')`)) && (await ev(`return location.port`)) === studioPort, 'the project open here, chosen on the home screen: the studio again, at once (not opened again)');
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
   const errs = p.logs.filter((l) => /exception|\[error\]/.test(l) && !/WebGL|X4000|503|404|Failed to load resource/.test(l));
   if (errs.length) console.log('page errors:\n' + errs.slice(0, 6).join('\n'));

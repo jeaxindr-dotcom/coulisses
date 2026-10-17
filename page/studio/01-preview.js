@@ -56,24 +56,17 @@
           return resolve(inPlace ? null : SP);
         }
         // what the preview on screen showed, carried over to the new one
+        // (what is carried over is copied into this page: the old preview's world goes with its frame — plain)
         const old = inPlace ? null : SP, f = old ? old.frame() : f0, was = !!old && old.isPlaying();
-        const pose = old && staging ? old.stage?.freePose?.() ?? null : null, chosen = old && staging ? stSel?.id ?? null : null;
+        const pose = plain(old && staging ? old.stage?.freePose?.() ?? null : null), chosen = old && staging ? stSel?.id ?? null : null;
         const queued = new Set(drafts().filter((n) => n.stage).map((n) => n.stage.id));
-        const carry = old && old.stage ? old.stage.list().filter((x) => !queued.has(x.id)) : [];
-        if (old) { try { old.pause(); } catch { /* gone */ } codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
+        const carry = plain(old && old.stage ? old.stage.list().filter((x) => !queued.has(x.id)) : []);
+        if (old) { try { old.pause(); } catch { /* gone */ } try { stUnsub?.(); } catch { /* gone */ } stUnsub = null; stSel = plain(stSel); codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
         SP = sp; codeVer = ver;
         if (!META.render && sp.durationInFrames) adoptCode(sp);
         sp.setVolume(vol); sp.setRate(rate);
         codeWait(false);
-        sp.on((ev) => {
-          if (SP !== sp) return;
-          // (while moving, the preview's « loading » is not shown: the end of the move is watched by codeSettle)
-          if (ev.type === 'error') { codeCrashed(ev); return; }
-          if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
-          if (mode !== 'code') return;
-          if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
-          if (ev.type === 'ended') fire('pause');
-        });
+        watchPlayer(sp);
         if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
         else showCodeNote('');
         if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); if (mode === 'code') setSave(T('st.code.updated'), 'ok'); }
@@ -110,6 +103,18 @@
     });
     codeLoad = job; codeLoading = job.promise;
     return job.promise;
+  }
+  // the preview's events (its own function: its closure holds the player only, never the one it replaced)
+  function watchPlayer(sp) {
+    sp.on((ev) => {
+      if (SP !== sp) return;
+      // (while moving, the preview's « loading » is not shown: the end of the move is watched by codeSettle)
+      if (ev.type === 'error') { codeCrashed(plain(ev)); return; }
+      if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
+      if (mode !== 'code') return;
+      if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
+      if (ev.type === 'ended') fire('pause');
+    });
   }
   // The live preview loaded in the background as soon as the studio has opened its video (user report, 09/10/2026: « le
   // bouton pour activer la caméra libre met du temps à charger » — 12 s for E03, the episode's 260 MB of textures and its

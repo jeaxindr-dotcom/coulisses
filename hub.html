@@ -166,6 +166,8 @@
 <header>
   <span class="logo">C</span>
   <div><h1>Coulisses</h1><div class="sub">{{hub.sub}}</div></div>
+  <!-- inside a studio (its « Accueil »): the way back to it -->
+  <button class="soft" id="backStudio" hidden></button>
   <span class="grow"></span>
   <span class="langs" id="langs" title="Langue · Language"><button data-l="fr">FR</button><button data-l="en">EN</button></span>
   <span class="pill" id="where"><span class="dot"></span>{{hub.where}}</span>
@@ -260,6 +262,19 @@
     c.querySelector('#impPath').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     return c;
   }
+  // inside a studio (its « Accueil », page/studio/09-keys-menus.js): a project opens in the whole window — the studio's own
+  // just closes the home screen, at once; « Revenir au studio » and Échap too
+  const inStudioFrame = (() => { try { return window.top !== window; } catch { return true; } })();
+  function goTo(url) {
+    if (inStudioFrame) { try { window.top.postMessage({ coulisses: 'open', url: new URL(url, location.href).href }, '*'); busy = null; load(true); return; } catch { /* the window itself, then */ } }
+    location.href = url;
+  }
+  const backToStudio = () => { try { window.top.postMessage({ coulisses: 'close' }, '*'); } catch { /* */ } };
+  if (inStudioFrame) {
+    const b = $('#backStudio'), w = T('hub.backStudio');
+    b.textContent = '← ' + (w !== 'hub.backStudio' ? w : document.documentElement.lang === 'en' ? 'Back to the studio' : 'Revenir au studio');
+    b.hidden = false; b.onclick = backToStudio;
+  }
   async function openEp(e, card) {
     if (busy || !openable(e)) return;
     busy = e.id;
@@ -267,7 +282,8 @@
     try {
       const r = await (await fetch('/api/open?ep=' + e.id, { method: 'POST' })).json();
       if (!r.ok) throw new Error(r.why || T('hub.error'));
-      location.href = r.url;
+      goTo(r.url);
+      if (inStudioFrame) { b.disabled = false; b.textContent = T('hub.openStudio'); }
     } catch (err) { busy = null; b.disabled = false; b.textContent = T('hub.retry'); card.querySelector('.err').textContent = err.message; }
   }
   // ---------- the folders: by channel unless the user moved a project; folded ones stay folded (this PC) ----------
@@ -418,7 +434,7 @@
       const b = box.querySelector('#npGo'); b.disabled = true; b.innerHTML = `<span class="spin"></span>${T('hub.new.creating')}`;
       const r = await postJSON('/api/new', { nom, chaine: box.querySelector('#npChan').value.trim(), format: fmt, duree: +box.querySelector('#npDur').value || 10, engine });
       b.disabled = false; b.textContent = T('hub.new.create');
-      if (r?.ok) { location.href = '/go/' + r.id; return; }
+      if (r?.ok) { goTo('/go/' + r.id); return; }
       if (r?.needInstall) { askInstall(box, r, go); return; }
       why(r?.why ?? T('hub.error'));
     };
@@ -542,7 +558,7 @@
     const imp = await postJSON('/api/import', { path: r.path });
     if (!imp?.ok) { impErr(imp?.why ?? T('hub.import.failed')); return; }
     const p = imp.project;
-    if (open && (p.episode || p.video || p.kind === 'remotion' || p.kind === 'hyperframes')) { location.href = '/go/' + p.id; return; }
+    if (open && (p.episode || p.video || p.kind === 'remotion' || p.kind === 'hyperframes')) { goTo('/go/' + p.id); return; }
     last = ''; await load(true);
     document.querySelector(`.card[data-id="${p.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -571,6 +587,8 @@
   window.MenuBar?.mount($('#menubar'), [
     { id: 'file', label: T('menu.file'), items: [
       { id: 'home', label: T('menu.home'), disabled: () => T('menu.why.here') },
+      // (from an iPad through a remote desktop: no F5; a home screen started before this entry has not its words yet)
+      { id: 'reload', label: T('menu.reload') !== 'menu.reload' ? T('menu.reload') : document.documentElement.lang === 'en' ? 'Reload the page' : 'Actualiser la page', run: () => location.reload() },
       { id: 'newProject', label: T('menu.newProject'), key: () => SC.show('newProject'), run: openNew },
       { id: 'open', label: T('menu.open'), key: () => SC.show('open'), run: () => menuPick('project', true) },
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
@@ -628,6 +646,7 @@
     else if (SC.is(e, 'newProject') && !document.querySelector('.mb-dlg')) { e.preventDefault(); openNew(); }
     else if (SC.is(e, 'help')) { e.preventDefault(); SC.open(); }
     else if (e.key === 'F1') e.preventDefault();
+    else if (e.key === 'Escape' && inStudioFrame && !document.querySelector('.mb-dlg, .mb-menu, dialog[open]')) backToStudio();
   });
   // File › Open a project… / Import… chosen in a studio: it comes back here (?menu=open|folder|video) to use the dialog
   const asked = new URLSearchParams(location.search).get('menu');

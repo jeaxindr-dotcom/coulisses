@@ -41,6 +41,9 @@ export async function launch({ port = 9333, headless = true } = {}) {
   await s('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
   const page = {
     logs,
+    send: s,   // a raw DevTools command on this page (memory counters, garbage collection…)
+    // a heap snapshot of the page, written to file (what keeps what alive)
+    snapshot: async (file) => { const parts = [], h = (d) => { if (d.sessionId === sessionId && d.method === 'HeapProfiler.addHeapSnapshotChunk') parts.push(d.params.chunk); }; handlers.push(h); await s('HeapProfiler.enable'); await s('HeapProfiler.takeHeapSnapshot', { reportProgress: false }); handlers.splice(handlers.indexOf(h), 1); fs.writeFileSync(file, parts.join('')); },
     goto: async (url) => { await s('Page.navigate', { url }); await new Promise((r) => setTimeout(r, 1500)); },
     eval: async (expr) => {
       const r = await s('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true });
