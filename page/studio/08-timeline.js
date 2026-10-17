@@ -472,7 +472,7 @@
     renderInspector();
   }
   M.on('play', updateHud); M.on('pause', updateHud); M.on('seeked', () => { updateHud(); draw(); drawOv(); });
-  let lastF = -1;
+  let lastF = -1, lastView = '';
   (function tick() {
     shuttleBackStep();
     if (!M.paused || shuttle) {
@@ -484,7 +484,11 @@
       else if (t < view.a + span * 0.04) { view.b = Math.min(DUR, t + span * 0.1); view.a = view.b - span; clampView(); }
     }
     const f = curFrame();
-    if (f !== lastF || !M.paused) {
+    // drawn again when the frame or the view changed (user report 18/10/2026, « la lecture est lente et laggy »: while playing,
+    // the timeline was drawn at every animation frame, 60 a second for a 30 i/s video, on the same thread as the preview)
+    const vk = `${view.a}|${view.b}`;
+    if (f !== lastF || vk !== lastView) {
+      lastView = vk;
       if (f !== lastF) { if (pickPt && pickPt.frame !== f) { pickPt = null; $('#pickBtn').style.display = 'none'; } hideHover(); }
       // a jump out of the view (↑ / ↓ to a cut, a frame step at its edge, a note chosen): the view follows the playhead
       if (f !== lastF && M.paused && !drag && DUR) { const t = f / FPS, span = view.b - view.a; if (t < view.a || t >= view.b) { view.a = t - span / 2; view.b = view.a + span; clampView(); } }
