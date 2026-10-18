@@ -16,12 +16,13 @@
   }
   document.querySelectorAll('button[data-tool]').forEach((b) => b.onclick = () => setTool(b.dataset.tool));
   const thin = (pts, n) => pts.length <= n ? pts : Array.from({ length: n }, (_, i) => pts[Math.round(i * (pts.length - 1) / (n - 1))]);
-  const visibleNotes = () => { const f = curFrame(); return notes.filter((n) => n.mark && f >= n.frame && f <= (n.end ?? n.frame)); };
+  const visibleNotes = () => { const f = curFrame(); return notes.filter((n) => n.mark && inLotF(n) && f >= n.frame && f <= (n.end ?? n.frame)); };   // (only the batch chosen, 02-notes.js)
   // a mark on the image (also drawn at full size, k = 1, into the PNG sent with a batch)
-  function paintMark(g, mark, label, k, color, faded, bw = CW * k) {
+  // (picked: a white halo instead of the dark one — the colour stays the note's own, red, blue or green)
+  function paintMark(g, mark, label, k, color, faded, bw = CW * k, picked = false) {
     g.save(); g.globalAlpha = faded ? 0.5 : 1;
     g.lineJoin = g.lineCap = 'round';
-    const halo = (fn, w) => { g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = w + 3 * Math.max(1, k * 2); fn(); g.strokeStyle = color; g.lineWidth = w; fn(); };
+    const halo = (fn, w) => { g.strokeStyle = picked ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'; g.lineWidth = w + 3 * Math.max(1, k * 2); fn(); g.strokeStyle = color; g.lineWidth = w; fn(); };
     let lx, ly;
     if (mark.kind === 'pin') {
       const [x, y] = [(mark.points[0][0] + 0.5) * k, (mark.points[0][1] + 0.5) * k], R = Math.max(7, 14 * k);
@@ -51,9 +52,9 @@
     if (ov.width !== Math.round(lw * q) || ov.height !== Math.round(lh * q)) { ov.width = Math.round(lw * q); ov.height = Math.round(lh * q); }
     const g = ov.getContext('2d'); g.setTransform(q, 0, 0, q, 0, 0); g.clearRect(0, 0, lw, lh);
     const k = lw / CW, num = new Map(reviewed().map((n, i) => [n.id, i + 1]));
-    for (const n of visibleNotes()) {
-      const done = statusOf(n) === 'done';
-      paintMark(g, n.mark, String(num.get(n.id)), k, n.id === sel ? C.acc : (done ? C.done : C.mark), done && n.id !== sel);
+    for (const n of visibleNotes()) {   // the colour of its state (02-notes.js stateOf), a validated one faded
+      const isSel = n.id === sel;
+      paintMark(g, n.mark, String(num.get(n.id)), k, stateColor(n), stateOf(n) === 'ok' && !isSel, CW * k, isSel);
     }
     if (drawing) paintMark(g, { kind: 'circle', strokes: [...drawing.strokes, ...(stroke ? [stroke] : [])] }, '', k, C.acc);
     else if (stroke) paintMark(g, { kind: 'circle', strokes: [stroke] }, '', k, C.acc);
@@ -141,7 +142,8 @@
   ov.addEventListener('pointercancel', () => { if (stroke) { stroke = null; drawOv(); } });
   $('#pickBtn').onclick = () => promptAtPick();
   window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, vz: { ...VZ }, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
-    video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null }) };   // for tests
+    video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null,
+    lotf: LOTF, tl: shapes.map((s) => s.id), tlX: Object.fromEntries(shapes.map((s) => [s.id, s.kind === 'point' ? s.x : (s.x0 + s.x1) / 2])) }) };   // for tests (the batch shown, the notes on the timeline)
   function promptAtPick() { if (!pickPt) return; $('#pickBtn').style.display = 'none'; openPop({ kind: 'pin', points: [pickPt.pt] }, pickPt.frame); }
 
   // ---------- the « what should change here? » box ----------

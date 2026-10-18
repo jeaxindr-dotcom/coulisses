@@ -3,7 +3,7 @@
 // so they share their names as the one inline script did; hence the two-space indent.
   // ---------- start ----------
   (async () => {
-    for (const n of ['s9', 's11', 'acc', 'mark', 'work', 'done', 'range', 'head', 'lime']) C[n] = css('--' + n);
+    for (const n of ['s9', 's11', 'acc', 'ntodo', 'nfixed', 'nok', 'head', 'lime']) C[n] = css('--' + n);
     try {
       META = await (await fetch('/api/meta')).json();
       const data0Notes = META.newProject ? ((await (await fetch('/api/notes')).json()).notes ?? []).length : 0;
@@ -37,6 +37,7 @@
       }
       notes = (data.notes || []).map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
       HIST.last = JSON.stringify(notes); notesLoaded(data);
+      LOTF = store.get(lotfKey(), 'all');   // the batch shown last time for this video (02-notes.js)
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
       STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
       restoreDrafts();   // (what was being typed before a reload of this tab)
