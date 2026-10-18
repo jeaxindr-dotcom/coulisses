@@ -30,11 +30,15 @@ try {
   await p.until(`window.__studio.state().mode === 'code' && window.__preview`, 120000);
   await p.eval(`await window.__preview.whenReady(); return 1`); await sleep(2500);
   // the preview's React tree: its sequences mounted, against the episode's sounds
-  const tree = await p.frameEval('player.html', `const el = document.getElementById('root'), k = Object.keys(el).find((x) => x.startsWith('__reactContainer'));
+  // (asked again until the preview's React tree is there: the frame may still be mounting it)
+  let tree = null;
+  for (let i = 0; i < 30 && !tree; i++) { if (i) await sleep(500); tree = await p.frameEval('player.html', `const el = document.getElementById('root'), k = el && Object.keys(el).find((x) => x.startsWith('__reactContainer'));
+    if (!k) return null;
     let seq = 0, win = 0; const st = [el[k].current ?? el[k]]; while (st.length) { const f = st.pop(); const t = f.type, n = typeof t === 'function' ? t.displayName || t.name : t?.render?.displayName || t?.render?.name || '';
       if (n === 'RegularSequenceRefForwardingFunction') seq++; if (n === 'WindowedSequence') win++; if (f.child) st.push(f.child); if (f.sibling) st.push(f.sibling); }
     const meta = await (await fetch('/api/meta')).json(), S = meta.snapshot ?? {};
-    return { seq, win, sounds: (S.says?.length ?? 0) + (S.sfx?.length ?? 0) + (S.music?.length ?? 0) }`);
+    return { seq, win, sounds: (S.says?.length ?? 0) + (S.sfx?.length ?? 0) + (S.music?.length ?? 0) }`).catch(() => null); }
+  tree ??= { seq: 0, win: 0, sounds: 0 };
   check(tree.win >= 100 && tree.seq < 80 && tree.seq < tree.win / 4, `the sound sequences far from the frame not mounted: ${tree.seq} mounted, ${tree.win} windowed (${tree.sounds} sounds in the episode)`);
   const src = await (await fetch(U + '/player.js')).text().catch(() => '');
   check(/react-dom-client.production.js/.test(src) && !/react-dom-client.development.js/.test(src), 'the preview built with React in production mode');
