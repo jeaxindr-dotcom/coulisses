@@ -691,3 +691,28 @@
   #cgScope { flex: 1; min-height: 0; width: calc(100% - 24px); margin: 0 12px 12px; border-radius: 12px; display: block; background: #05070c; }
   #cgScopeSeg button { height: 26px; font-size: 12px; padding: 0 11px; }
   #cgScopeSrc { font: 11px var(--mono); }
+
+  /* ---------- on the iPad (Coulisses in its browser, through Tailscale: lib/remote.mjs), or a narrow window ----------
+     the picture first: in portrait it takes the whole width above the two panels (side by side) and the timeline; on a
+     touch screen in landscape, the picture and the timeline on the left, the two panels one above the other on the right
+     (the three columns left the picture 98 px wide in portrait, 382 px in landscape) */
+  @media (max-width: 1000px) {
+    body:not(.cg) #app { grid-template-columns: 56px minmax(0, 1fr) 12px minmax(0, 1fr); grid-template-rows: minmax(240px, 46vh) 12px minmax(0, 1fr) 12px var(--tlh); }
+    body:not(.cg) #viewer { grid-column: 2 / -1; grid-row: 1; }
+    body:not(.cg) #lside { grid-column: 2; grid-row: 3; }
+    body:not(.cg) #side { grid-column: 4; grid-row: 3; }
+    body:not(.cg) #splitL { display: none; }
+    body:not(.cg) #splitV { grid-column: 3; grid-row: 3; pointer-events: none; }
+    body:not(.cg) #splitH { grid-column: 2 / -1; grid-row: 4; }
+    body:not(.cg) #tlpanel { grid-column: 2 / -1; grid-row: 5; }
+  }
+  @media (min-width: 1001px) and (max-width: 1400px) and (pointer: coarse) {
+    body:not(.cg) #app { grid-template-columns: 56px minmax(0, 1fr) 12px var(--side); grid-template-rows: minmax(0, 1fr) 12px minmax(0, 1fr) 12px var(--tlh); }
+    body:not(.cg) #viewer { grid-column: 2; grid-row: 1 / 4; }
+    body:not(.cg) #lside { grid-column: 4; grid-row: 1; }
+    body:not(.cg) #side { grid-column: 4; grid-row: 3; }
+    body:not(.cg) #splitL { display: none; }
+    body:not(.cg) #splitV { grid-column: 3; grid-row: 1 / 4; }
+    body:not(.cg) #splitH { grid-column: 2 / -1; grid-row: 4; }
+    body:not(.cg) #tlpanel { grid-column: 2 / -1; grid-row: 5; }
+  }

@@ -558,6 +558,24 @@
   const inStudio = () => T('menu.why.inStudio');
   const impErr = (m) => { const e = document.querySelector('#impErr'); if (e) { e.textContent = m || ''; e.closest('.imp')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } };
   // the Windows dialog, then the import; « Ouvrir un projet… » then opens it in the studio
+  // Fichier › Accès depuis l'iPad… (lib/remote.mjs): Coulisses in the iPad's browser through Tailscale, opened and closed
+  // from the PC; its address, to open in Safari there
+  function openIpad() {
+    const d = dlg({ title: T('hub.ipad.title'), html: '<div class="ipad"><p class="muted">…</p></div>' });
+    const draw = async (fresh) => {
+      const s = await fetch('/api/browser-access' + (fresh ? '?fresh=1' : ''), { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+      const box = d?.querySelector('.ipad'); if (!box) return;
+      if (!s) { box.innerHTML = `<p class="err">${esc(T('hub.ipad.noAnswer'))}</p>`; return; }
+      if (s.here) { box.innerHTML = `<p>${esc(T('hub.ipad.fromIpad'))}</p>`; return; }
+      if (!s.tailscale?.ok) { box.innerHTML = `<p>${T('hub.ipad.what')}</p><p class="err">${esc(T('hub.ipad.noTs', { why: s.tailscale?.why ?? '' }))}</p>`; return; }
+      box.innerHTML = `<p>${T('hub.ipad.what')}</p><p><b>${esc(T(s.on ? 'hub.ipad.isOn' : 'hub.ipad.isOff'))}</b></p>`
+        + (s.on ? `<p style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code style="user-select:all;font-size:14px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.08)">${esc(s.url)}</code><button class="soft" id="ipadCopy">${esc(T('hub.ipad.copy'))}</button></p><p class="muted">${T('hub.ipad.tips')}</p>` : '')
+        + `<p><button class="${s.on ? 'soft' : 'primary'}" id="ipadToggle">${esc(T(s.on ? 'hub.ipad.off' : 'hub.ipad.on'))}</button></p>`;
+      box.querySelector('#ipadToggle').onclick = async (e) => { e.currentTarget.disabled = true; const r = await postJSON('/api/browser-access', { on: !s.on }); if (!r?.ok) box.insertAdjacentHTML('beforeend', `<p class="err">${esc(r?.why ?? T('hub.ipad.noAnswer'))}</p>`); else draw(true); };
+      box.querySelector('#ipadCopy')?.addEventListener('click', async (e) => { const b = e.currentTarget; try { await navigator.clipboard.writeText(s.url); b.textContent = T('hub.ipad.copied'); } catch { getSelection().selectAllChildren(box.querySelector('code')); } });
+    };
+    draw(true);
+  }
   async function menuPick(what, open) {
     impErr('');
     const r = await postJSON('/api/import/pick', { what });
@@ -601,6 +619,7 @@
       { id: 'importFolder', label: T('menu.importFolder'), run: () => menuPick('folder', false) },
       { id: 'importVideo', label: T('menu.importVideo'), run: () => menuPick('video', false) },
       { id: 'scan', label: T('menu.scan'), run: openScan },
+      { id: 'ipad', label: T('hub.ipad.menu') !== 'hub.ipad.menu' ? T('hub.ipad.menu') : document.documentElement.lang === 'en' ? 'Access from the iPad…' : 'Accès depuis l’iPad…', run: openIpad },
       { id: 'pastePath', label: T('menu.pastePath'), run: () => { const c = document.querySelector('.imp'); if (!c) return; c.classList.add('pasting'); c.scrollIntoView({ block: 'center' }); c.querySelector('#impPath').focus(); } },
       '-',
       { id: 'revealFolder', label: T('menu.revealFolder'), disabled: inStudio },

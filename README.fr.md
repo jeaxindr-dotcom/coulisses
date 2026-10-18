@@ -35,6 +35,14 @@ Coulisses est le studio de revue de toutes les chaînes : relire et annoter une 
 - **Tous les tests, en une commande** : `node tests\run-all.mjs` (`--quick` sans les trois plus lents ; `--only a,b`, `--skip a,b`). Il démarre lui-même les studios du bac à sable dont les tests ont besoin, avec leurs propres réglages et bibliothèque (jamais les tiens), affiche une ligne par suite et un bilan, et garde le journal de chacune dans `.cache\run-all\`. Ce qui n'est pas dans le dépôt (les `node_modules` d'un projet Remotion, le théâtre d'Uchu-chan et son Short 12, la vraie vidéo d'E03) est trouvé par `tests\where.mjs` : sur un autre PC, `COULISSES_TEST_REMOTION`, `COULISSES_TEST_UCHU`, `COULISSES_TEST_SHORT12`, `COULISSES_TEST_E03` ; une suite dont la ressource manque se saute. `COULISSES_TEST_SLOW=2` double les attentes fixes sur un PC plus lent ; `COULISSES_TEST_SANDBOX_PORT=4198` met le studio du bac à sable sur un autre port quand le studio de l'atelier est ouvert sur 4174. Avant une suite, le bac à sable garde tout ce qui n'est pas aux tests (tes propres essais), sauf une note en attente vide, qui griserait « Envoyer ».
 - **Test de l'application** : `node tests\app.mjs`. Il ouvre la vraie fenêtre, rendue invisible, sur le bac à sable.
 
+## Depuis l'iPad (navigateur, sans bureau à distance)
+
+**Fichier › Accès depuis l'iPad…** (dans l'accueil, sur le PC) : Coulisses s'ouvre dans Safari sur l'iPad, chez toi ou ailleurs, par **Tailscale** (déjà sur le PC et l'iPad). « Ouvrir l'accès » donne l'adresse à ouvrir sur l'iPad, de la forme `https://<pc>.<réseau>.ts.net:4170/` (Partager › Sur l'écran d'accueil pour une icône).
+
+- Coulisses reste fermé au réseau : il n'écoute que le PC lui-même, et Tailscale (`tailscale serve`) amène ses ports — l'accueil et chaque studio ouvert — sur ton réseau Tailscale, en HTTPS, pour tes appareils seulement (jamais sur Internet, aucun port ouvert dans le pare-feu). Une requête n'est acceptée que si elle vient de Tailscale avec le nom de ce PC et ton compte (`lib/remote.mjs`, `lib/guard.mjs`).
+- Seuls les ports de Coulisses (4170-4199) sont ajoutés ou retirés de la config de Tailscale ; le reste n'est jamais touché. « Fermer l'accès » les retire tous, quitter Coulisses retire ceux qu'il a ouverts.
+- Sur l'iPad : dessin au doigt ou au Pencil sur l'image, la page s'arrange en hauteur (l'image d'abord) en portrait comme en paysage. Ce qui ouvrirait une fenêtre sur le PC (choisir un fichier) est remplacé par « Coller un chemin ». Le PC doit rester allumé, Coulisses ouvert.
+
 ## Langue : français ou anglais
 
 - **Tout ce que tu vois** suit un seul réglage : l'accueil, le studio, les fenêtres de `Coulisses.exe` et de `Coulisses Setup.exe`, la ligne à coller, les lots `.md` que lit l'agent et les messages de `studio-cli.mjs`. En anglais, l'agent reçoit le protocole `AGENT.en.md` au lieu de `AGENT.md`, et les pipelines le contrat `docs\COULISSES-REMOTION-CONTRACT.md` au lieu de la fiche.
