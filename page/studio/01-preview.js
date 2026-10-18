@@ -40,7 +40,7 @@
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
     if (SP && codeVer === ver) return Promise.resolve(SP);
     if (codeLoad && codeLoad.ver === ver) return codeLoad.promise;
-    if (codeLoad) { codeLoad.dropped = true; if (codeLoad.frame !== codeEl) codeLoad.frame.remove(); }
+    if (codeLoad) { codeLoad.dropped = true; codeLoad.remote?.api.dispose(); if (codeLoad.frame !== codeEl) codeLoad.frame.remove(); }
     const inPlace = !SP;   // nothing on screen yet (the first time, after the video): loaded in the frame itself
     const el = inPlace ? codeEl : document.createElement('iframe');
     if (!inPlace) { el.className = 'code-next'; el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k)); codeEl.after(el); }
@@ -48,7 +48,7 @@
     if (inPlace) $('#codeStatus').textContent = T('st.code.loading'); else showCodeNote(T('st.code.preparing'));
     job.promise = new Promise((resolve) => {
       const f0 = curFrame();
-      const finish = (sp) => {
+      const finish = async (sp) => {
         if (codeLoad === job) { codeLoad = null; codeLoading = null; }
         if (job.dropped) return resolve(SP);
         if (!sp) {
@@ -58,11 +58,11 @@
         // what the preview on screen showed, carried over to the new one
         // (what is carried over is copied into this page: the old preview's world goes with its frame — plain)
         const old = inPlace ? null : SP, f = old ? old.frame() : f0, was = !!old && old.isPlaying();
-        const pose = plain(old && staging ? old.stage?.freePose?.() ?? null : null), chosen = old && staging ? stSel?.id ?? null : null;
+        const pose = old && staging && old.stage ? plain(await Promise.resolve(old.stage.freePose()).catch(() => null)) : null, chosen = old && staging ? stSel?.id ?? null : null;
         const queued = new Set(drafts().filter((n) => n.stage).map((n) => n.stage.id));
         const carry = plain(old && old.stage ? old.stage.list().filter((x) => !queued.has(x.id)) : []);
-        if (old) { try { old.pause(); } catch { /* gone */ } try { stUnsub?.(); } catch { /* gone */ } stUnsub = null; stSel = plain(stSel); codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
-        SP = sp; codeVer = ver;
+        if (old) { try { old.pause(); } catch { /* gone */ } try { stUnsub?.(); } catch { /* gone */ } stUnsub = null; stSel = plain(stSel); old.dispose?.(); codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
+        SP = sp; codeVer = ver; window.__preview = sp;   // (the tests: the preview as the page sees it)
         if (!META.render && sp.durationInFrames) adoptCode(sp);
         sp.setVolume(vol); sp.setRate(rate);
         codeWait(false);
@@ -81,25 +81,30 @@
           syncStage();
           if (staging) {
             staging = false; freeCamOn = false; await setStaging(true);
-            if (pose && SP.stage.freeCamera) freeCamOn = SP.stage.freeCamera(true, pose);
+            if (pose && SP.stage.freeCamera) freeCamOn = !!(await SP.stage.freeCamera(true, pose));
             if (chosen) SP.stage.select(chosen);
             renderScene();
           }
         }, 0);
         showCodeStatus(); resolve(sp);
       };
-      el.onload = () => {
-        const w = el.contentWindow, t0 = performance.now();
-        (async function wait() {
-          if (job.dropped) return finish(null);
-          const sp = w.StudioPlayer;
-          if (!sp) { if (performance.now() - t0 > 60000) return finish(null); setTimeout(wait, 100); return; }
-          // a new version is shown once its scene is there (at most 90 s: then as it is)
-          if (!inPlace) await Promise.race([sp.whenReady?.() ?? null, new Promise((r) => setTimeout(r, 90000))]);
-          finish(sp);
-        })();
-      };
-      el.src = `/player.html?f=${f0}&v=${ver}`;
+      // the preview's own process (page/studio/00-remote.js, player/bridge.js): its player once it says it is there
+      const rem = remotePlayer(el.contentWindow); job.remote = rem;
+      (async () => {
+        const sp = await Promise.race([rem.hello, new Promise((r) => setTimeout(() => r(null), 60000))]);
+        if (job.dropped || !sp) { rem.api.dispose(); return finish(null); }
+        // a new version is shown once its scene is there (at most 90 s: then as it is)
+        if (!inPlace) await Promise.race([sp.whenReady().catch(() => {}), new Promise((r) => setTimeout(r, 90000))]);
+        // the one on screen shows a 3D scene: the new one takes its place once its own is mounted (« ready » does not wait
+        // for it; the staging in progress would come back on the 2D picture, without its free camera nor its object)
+        if (!inPlace && SP?.stage?.scene3d && sp.stage) {
+          const t0 = performance.now();
+          while (!job.dropped && performance.now() - t0 < 30000 && !(await sp.stage.hasScene().catch(() => false))) await new Promise((r) => setTimeout(r, 150));
+          if (!job.dropped) await Promise.race([sp.whenReady().catch(() => {}), new Promise((r) => setTimeout(r, 15000))]);
+        }
+        finish(sp);
+      })();
+      el.src = previewUrl(`f=${f0}&v=${ver}`);
     });
     codeLoad = job; codeLoading = job.promise;
     return job.promise;
@@ -186,10 +191,12 @@
     clearTimeout(settleT);
     settleT = setTimeout(() => {
       if (mode !== 'code' || !SP || SP.isPlaying() || shuttle || drag?.mode === 'scrub' || performance.now() - lastStep < 200) { if (shuttle || drag?.mode === 'scrub') codeSettle(); return; }
+      // (the preview in its own process answers in a moment: its frame is asked for, the veil shown only if it is not
+      // complete 90 ms later)
       const sp = SP, my = ++cwSeq;
-      if (sp.frameReady?.() !== false) return;
-      codeWaitEl.classList.add('on');
-      Promise.resolve(sp.whenFrameReady?.()).then(() => { if (my === cwSeq) codeWaitEl.classList.remove('on'); }, () => { if (my === cwSeq) codeWaitEl.classList.remove('on'); });
+      const veil = setTimeout(() => { if (my === cwSeq && mode === 'code') codeWaitEl.classList.add('on'); }, 90);
+      const done = () => { clearTimeout(veil); if (my === cwSeq) codeWaitEl.classList.remove('on'); };
+      Promise.resolve(sp.whenFrameReady?.()).then(done, done);
     }, 220);
   }
   function codeStep(f) {

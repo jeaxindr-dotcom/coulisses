@@ -13,7 +13,7 @@
 // (translate / rotate / scale), which compose with the transform the engine animates (GSAP, React styles) without
 // touching it, re-applied every frame inside its scope (the engine may rebuild the element), and the camera is a
 // wrapper around the composition (#coulisses-camera, preview only). The offset is in pixels of the frame, as seen.
-import { stageModeKey } from './keys';
+import { stageModeKey, toParent } from './keys';
 type V3 = [number, number, number];
 export interface Delta { p: V3; r: V3; s: number }   // p: frame pixels (x right, y down); r[2]: turn (radians); s: size factor
 interface Edit { id: string; name: string; kind: string; delta: Delta; from: number; to: number; base: number[] | null }
@@ -262,9 +262,9 @@ export function createStage2d(D: Deps) {
       if (ev.key === 'ArrowLeft') d.p[0] -= st; if (ev.key === 'ArrowRight') d.p[0] += st; if (ev.key === 'ArrowUp') d.p[1] -= st; if (ev.key === 'ArrowDown') d.p[1] += st;
       e.delta = d; run(); emit({ type: 'change', ...info(selected) }); return;
     }
-    try { (window.parent as any).dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, code: ev.code, shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey, altKey: ev.altKey })); } catch { /* */ }
+    toParent('keydown', ev);
   };
-  const onKeyUp = (ev: KeyboardEvent) => { try { (window.parent as any).dispatchEvent(new KeyboardEvent('keyup', { key: ev.key, code: ev.code })); } catch { /* */ } };
+  const onKeyUp = (ev: KeyboardEvent) => toParent('keyup', ev);
   function setMode(m: typeof mode) { mode = m; emit({ type: 'mode', mode: m }); run(); }
 
   function enable(want: boolean) {

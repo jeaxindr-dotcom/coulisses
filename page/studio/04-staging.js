@@ -44,14 +44,14 @@
       M.pause();
       if (!SP.stage) { setSave(T('st.stage.notReady'), 'err'); return; }
       // the 3D scene mounts once the episode's textures are loaded (a few seconds after the preview itself)
-      let ready = SP.stage.enable(true);
-      for (let i = 0; !ready && i < 160; i++) { if (i === 0) setSave(T('st.stage.loading'), ''); await new Promise((r) => setTimeout(r, 250)); ready = SP.stage.enable(true); }
+      let ready = await SP.stage.enable(true).catch(() => false);
+      for (let i = 0; !ready && i < 160; i++) { if (i === 0) setSave(T('st.stage.loading'), ''); await new Promise((r) => setTimeout(r, 250)); ready = await SP.stage.enable(true).catch(() => false); }
       if (!ready) { setSave(T('st.stage.notReady'), 'err'); return; }
       setSave(T('st.stage.ready'), 'ok');
       stUnsub?.(); stUnsub = SP.stage.on(onStageEvent); SP.stage.setMode(stMode);
       try { codeEl.contentWindow.focus(); } catch { /* */ }
     } else {
-      SP?.stage.enable(false); freeCamOn = false; stSel = null;
+      Promise.resolve(SP?.stage.enable(false)).catch(() => {}); freeCamOn = false; stSel = null;
       // the keyboard back to the studio (it was the preview's while staging): N, Espace, the arrows work again at once
       try { codeEl.blur(); window.focus(); } catch { /* */ }
     }
@@ -63,9 +63,10 @@
   let stUnsub = null;
   function onStageEvent(ev) {
     ev = plain(ev);   // (kept as the chosen object, in the notes: this page's own copy)
+    const quiet = !!ev.quiet; delete ev.quiet;   // an undo or a redo putting its offset back (page/studio/00-remote.js)
     if (ev.type === 'change' && ev.id !== stSel?.id) return;   // an offset of the queue being re-applied
     if (ev.type === 'select' && !stPrev.has(ev.id)) stPrev.set(ev.id, { delta: JSON.parse(JSON.stringify(ev.delta)), from: ev.from, to: ev.to });
-    if (ev.type === 'change') rememberStage(ev);
+    if (ev.type === 'change' && !quiet) rememberStage(ev);
     if (ev.type === 'select' || ev.type === 'change') { stSel = ev; const t = stageName(ev.id, ev); $('#stageBadgeK').textContent = `${t.name} · ${t.kind}`; }
     if (ev.type === 'deselect') { stSel = null; $('#stageBadgeK').textContent = T('st.stage.clickObj'); }
     if (ev.type === 'mode') stMode = ev.mode;
@@ -131,15 +132,15 @@
     $('#stCam0 .tipr').textContent = T(two ? 'st.s2.camResetTitle' : 'st.bar.cam0Tip');
     $('#stage').classList.toggle('freecam', staging && !two && freeCamOn);
   }
-  function toggleFreeCam() {
+  async function toggleFreeCam() {
     if (!staging || !SP?.stage) return;
-    if (D2()) SP.stage.freeCamera(stSel?.id !== '@camera');
-    else freeCamOn = SP.stage.freeCamera(!freeCamOn);
+    if (D2()) await SP.stage.freeCamera(stSel?.id !== '@camera');
+    else freeCamOn = !!(await SP.stage.freeCamera(!freeCamOn));
     renderScene();
   }
-  function resetCam() {
+  async function resetCam() {
     if (!staging || !SP?.stage) return;
-    SP.stage.resetCamera?.();
+    await SP.stage.resetCamera?.();
     if (D2()) stSel = SP.stage.selected ? stSel : null;
     setSave(T('st.scene.camResetDone'), 'ok'); renderScene(); if (D2()) syncStage();
   }
@@ -232,7 +233,7 @@
     $('#sc-add')?.addEventListener('click', addStageNote);
     $('#sc-cam').onclick = toggleFreeCam;
     $('#sc-cam0').onclick = resetCam;
-    $('#sc-parent')?.addEventListener('click', () => { if (!SP.stage.selectParent()) setSave(T('st.s2.noParent'), 'err'); });
+    $('#sc-parent')?.addEventListener('click', async () => { if (!(await SP.stage.selectParent())) setSave(T('st.s2.noParent'), 'err'); });
     bindList();
   }
   // the objects moved and not yet in the queue, and the offsets waiting in the queue
@@ -258,11 +259,11 @@
     if (two) {   // the « after » image of a run: the server photographs the preview with the offset (lib/stage-shot.mjs)
       setSave(T('st.s2.shooting'));
       try {
-        const r = await fetch('/api/stage-shot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frame: f, w: CW, h: CH, edits: SP.stage.edits().filter((e) => e.id === id || drafts().some((n) => n.stage?.id === e.id)) }) });
+        const r = await fetch('/api/stage-shot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frame: f, w: CW, h: CH, edits: (await SP.stage.edits()).filter((e) => e.id === id || drafts().some((n) => n.stage?.id === e.id)) }) });
         if (r.ok) shot = URL.createObjectURL(await r.blob());
       } catch { /* the edit stays without its image */ }
     } else shot = await SP.stage.snapshot();   // the shot's camera, with the offset, no gizmo
-    const pin = SP.stage.screenPos(id), info = SP.stage.info(id), cut = info.cutout ?? null;
+    const pin = await SP.stage.screenPos(id), info = (await SP.stage.infoNow?.(id)) ?? SP.stage.info(id), cut = info.cutout ?? null;   // (asked to the preview: its own process)
     const extra = {
       text: cut ? T(two ? 'st.stage.noteCut2d' : 'st.stage.noteCut', { name: t.name, scope: sc.label, from: sc.from, to: sc.to })
         : T(two ? 'st.s2.note' : 'st.stage.note', { name: t.name, kind: t.kind, delta: two ? deltaWords2d(d, id === '@camera') : deltaWords(d), scope: sc.label, from: sc.from, to: sc.to }),
@@ -277,7 +278,7 @@
       catch { /* the edit stays without its image */ }
     }
     stageSynced.add(id); SP.stage.select(null); stSel = null;
-    if (freeWas && !two) { freeCamOn = SP.stage.freeCamera(true); }
+    if (freeWas && !two) { freeCamOn = !!(await SP.stage.freeCamera(true)); }
     setSave(T('st.stage.added'), 'ok'); setTab('scene'); renderAll(); renderScene();
   }
   $('#bStage').onclick = () => { const why = stageWhy(); if (why) { setSave(why, 'err'); setTab('scene'); return; } setStaging(!staging); };

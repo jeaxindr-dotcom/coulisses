@@ -163,18 +163,18 @@ try {
   check((await p.eval('return __studio.state().frame')) === 1201, 'stepping works on the code view');
   // a frame not complete is covered and said (fiche du 10/10/2026: long04's chapter junctions showed a grey board the
   // render never has): a video of the frame that is not loaded yet — the preview waits, the veil shows, then goes
-  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+  await p.frameEval('player.html', `const d = document, v = d.createElement('video');
     v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
   await p.key('ArrowRight', 'ArrowRight'); await sleep(700);
-  const w1 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity, txt: e.innerText.trim(), ready: document.querySelector('#code').contentWindow.StudioPlayer.frameReady() }`);
-  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  const w1 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity, txt: e.innerText.trim(), ready: window.__preview.frameReady() }`);
+  await p.frameEval('player.html', `document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
   const w2 = await p.eval(`const e = document.querySelector('#codeWait'); return { on: e.classList.contains('on') || e.classList.contains('pend'), op: +getComputedStyle(e).opacity }`);
   check(w1.on && w1.op > 0.9 && !w1.ready && /Image en cours de chargement/.test(w1.txt) && !w2.on && w2.op < 0.05, `a frame whose video is still loading: covered (« ${w1.txt.split('\n')[0]} »), then shown once complete`);
   await p.key('ArrowLeft', 'ArrowLeft'); await sleep(600);
   // the arrow held (fast rewind ×2): the frames go by, no veil — even with a video of the frame not loaded (user report
   // 15/10/2026: « ça s'affiche quand je fais avance rapide ou retour rapide… je ne peux pas juger de façon fluide »);
   // released, the frame where it stops is covered while not complete
-  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+  await p.frameEval('player.html', `const d = document, v = d.createElement('video');
     v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
   const veilOp = () => p.eval(`return +getComputedStyle(document.querySelector('#codeWait')).opacity`);
   const f0 = await p.eval('return __studio.state().frame');
@@ -184,25 +184,25 @@ try {
   const f1 = await p.eval('return __studio.state().frame');
   await sleep(700);
   const atStop = await veilOp();
-  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  await p.frameEval('player.html', `document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
   const after = await veilOp();
   check(f0 - f1 > 20 && seen.slice(3).every((o) => o < 0.05) && atStop > 0.9 && after < 0.05, `the arrow held: ${f0 - f1} frames back with no veil (${seen.map((o) => o.toFixed(1)).join(' ')}); released on a frame still loading: covered, then shown`);
   // and forward (fast forward ×2: the preview plays), the same
-  await p.eval(`const d = document.querySelector('#code').contentWindow.document, v = d.createElement('video');
+  await p.frameEval('player.html', `const d = document, v = d.createElement('video');
     v.id = 'testNotReady'; v.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:120px'; d.getElementById('stage').appendChild(v); return 1`);
   const g0 = await p.eval('return __studio.state().frame');
   await p.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return 1`);
   const seenF = []; for (let i = 0; i < 10; i++) { await sleep(150); seenF.push(await veilOp()); }
   await p.eval(`window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return 1`);
   const g1 = await p.eval('return __studio.state().frame');
-  await p.eval(`document.querySelector('#code').contentWindow.document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
+  await p.frameEval('player.html', `document.getElementById('testNotReady').remove(); return 1`); await sleep(900);
   check(g1 - g0 > 20 && seenF.slice(3).every((o) => o < 0.05) && (await veilOp()) < 0.05, `the arrow held forward: ${g1 - g0} frames with no veil (${seenF.map((o) => o.toFixed(1)).join(' ')})`);
   // the composition failing in the preview (user report 16/10/2026: E10 all black with a lone « ⚠ », stuck): the error
   // said over the picture, kept in revue\preview-errors.log, a note for the agent; the next move mounts the Player again
   const logF = path.join(REVUE, 'preview-errors.log'), log0 = fs.existsSync(logF) ? fs.statSync(logF).size : 0;
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.__crash(); return 1`);
+  await p.eval(`window.__preview.__crash(); return 1`);
   await p.until(`document.querySelector('#codeCrash').classList.contains('on')`, 15000).catch(() => {});
-  const ce = await p.eval(`const e = document.querySelector('#codeCrash'); return { on: getComputedStyle(e).display !== 'none', txt: e.innerText, crashed: !!document.querySelector('#code').contentWindow.StudioPlayer.crashed() }`);
+  const ce = await p.eval(`const e = document.querySelector('#codeCrash'); return { on: getComputedStyle(e).display !== 'none', txt: e.innerText, crashed: !!window.__preview.crashed() }`);
   await sleep(800);
   const logged = fs.existsSync(logF) && fs.statSync(logF).size > log0 && /plantage volontaire/.test(fs.readFileSync(logF, 'utf8'));
   check(ce.on && ce.crashed && /L'aperçu du code a planté à l'image \d+/.test(ce.txt) && /plantage volontaire/.test(ce.txt) && /Réessayer/.test(ce.txt) && logged,
@@ -213,9 +213,11 @@ try {
   const noteTxt = await p.eval(`const c = [...document.querySelectorAll('#draftList .card textarea.main')].map((t) => t.value).find((v) => /aperçu du code plante/.test(v)); return c ?? ''`);
   check((await p.eval('return __studio.state().drafts')) === nb + 1 && /plantage volontaire/.test(noteTxt), `« Créer une note pour l'agent »: a note at that frame (${noteTxt.slice(0, 70)}…)`);
   await p.key('ArrowRight', 'ArrowRight'); await sleep(600);
-  await p.until(`!document.querySelector('#code').contentWindow.StudioPlayer.crashed() && !!document.querySelector('#code').contentWindow.document.querySelector('canvas') && document.querySelector('#code').contentWindow.StudioPlayer.frameReady()`, 120000).catch(() => {});
+  await p.until(`!window.__preview.crashed() && window.__preview.frameReady()`, 120000).catch(() => {});
+  for (let i = 0; i < 240 && !(await p.frameEval('player.html', `return !!document.querySelector('canvas')`)); i++) await sleep(500);   // (the preview: its own process)
   await sleep(1500);
-  const back = await p.eval(`return { on: document.querySelector('#codeCrash').classList.contains('on'), crashed: !!document.querySelector('#code').contentWindow.StudioPlayer.crashed(), canvas: !!document.querySelector('#code').contentWindow.document.querySelector('canvas'), fallback: /⚠/.test(document.querySelector('#code').contentWindow.document.getElementById('root').innerText) }`);
+  const back = { ...(await p.eval(`return { on: document.querySelector('#codeCrash').classList.contains('on'), crashed: !!window.__preview.crashed() }`)),
+    ...(await p.frameEval('player.html', `return { canvas: !!document.querySelector('canvas'), fallback: /⚠/.test(document.getElementById('root').innerText) }`)) };
   check(!back.on && !back.crashed && back.canvas && !back.fallback, `the next move: the Player mounted again, the scene drawn (no « ⚠ » left) ${JSON.stringify(back)}`);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
@@ -223,14 +225,14 @@ try {
   // éléments » — the hidden preview had stopped at a frame with 49 sounds at once, and nothing said it): the pointer moved
   // over the image mounts it again, and it names what is under it again
   await p.key('v', 'KeyV', 'v'); await sleep(200);
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.__crash(); return 1`);
-  await p.until(`document.querySelector('#code').contentWindow.StudioPlayer.crashed()`, 15000).catch(() => {});
-  const crashedBehind = await p.eval(`return !!document.querySelector('#code').contentWindow.StudioPlayer.crashed()`);
+  await p.eval(`window.__preview.__crash(); return 1`);
+  await p.until(`window.__preview.crashed()`, 15000).catch(() => {});
+  const crashedBehind = await p.eval(`return !!window.__preview.crashed()`);
   const ovr = await p.eval(`const r = document.querySelector('#ov').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.6]`);
   let named = '';
   for (let i = 0; i < 60 && !named; i++) {
     await p.mouse('mouseMoved', ovr[0] + (i % 7) * 6, ovr[1] + (i % 4) * 5); await sleep(500);
-    named = await p.eval(`const t = document.querySelector('#hoverTag'); return t.style.display === 'block' && !document.querySelector('#code').contentWindow.StudioPlayer.crashed() ? t.textContent : ''`);
+    named = await p.eval(`const t = document.querySelector('#hoverTag'); return t.style.display === 'block' && !window.__preview.crashed() ? t.textContent : ''`);
   }
   check(crashedBehind && !!named, `the preview stopped behind the MP4: the pointer mounts it again, and names again (« ${named} »)`);
   // ↑ / ↓: the previous / next edit point, exactly on the cut (as DaVinci; 10/10/2026: « je n'arrive pas à placer la tête

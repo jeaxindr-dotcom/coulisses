@@ -36,13 +36,13 @@ try {
   await p.until(`__studio.state().stage`, 20000);
   const sel = await p.eval(`return __studio.state().stage`);
   check(/set_ladder/.test(sel ?? ''), `click on the ladder selects it (${sel})`);
-  const before = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.screenPos(${JSON.stringify(sel)})`);
+  const before = await p.eval(`return window.__preview.stage.screenPos(${JSON.stringify(sel)})`);
   for (let i = 0; i < 4; i++) { await p.key('ArrowRight', 'ArrowRight'); await sleep(80); }
   await sleep(600);
-  const list = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.list()`);
+  const list = await p.eval(`return window.__preview.stage.list()`);
   const dx = list.find((x) => x.id === sel)?.delta.p[0];
   check(Math.abs(dx - 0.2) < 1e-6, `→ ×4 moves it by +0.20 in x (${dx})`);
-  const after = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.screenPos(${JSON.stringify(sel)})`);
+  const after = await p.eval(`return window.__preview.stage.screenPos(${JSON.stringify(sel)})`);
   check(after[0] > before[0] + 5, `the ladder moved right on the image (${before[0]} → ${after[0]} px)`);
   check(await p.eval(`return document.querySelector('#sc-x').value`) === '0.200', 'the panel shows Δx 0.200');
   await p.shot(path.join(shots, 'staging-1-moved.png'));
@@ -50,7 +50,7 @@ try {
   const f0 = await p.eval(`return __studio.state().frame`);
   await p.eval(`const s = document.querySelector('#scene'); s.setAttribute('tabindex', '-1'); window.focus(); s.focus(); return document.activeElement === s`);
   await p.key('ArrowUp', 'ArrowUp'); await sleep(400);
-  const dy = (await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.list()`)).find((x) => x.id === sel)?.delta.p[1];
+  const dy = (await p.eval(`return window.__preview.stage.list()`)).find((x) => x.id === sel)?.delta.p[1];
   check(Math.abs(dy - 0.05) < 1e-6 && (await p.eval(`return __studio.state().frame`)) === f0, `↑ with the focus on the panel nudges the object, not the frame (Δy ${dy})`);
   await p.key('ArrowDown', 'ArrowDown'); await sleep(400);
   // add to the queue
@@ -77,13 +77,13 @@ try {
   // the live preview asleep behind the MP4, awake when shown (09/10/2026: « met du temps à charger »: it is preloaded
   // behind the MP4, and must cost nothing there); a texture the browser already has is not sent again (304)
   await p.eval(`document.querySelector('#modal').style.display = 'none'; document.querySelector('#srcVideo').click(); return 1`); await sleep(800);
-  const draws = () => p.eval(`const c = document.querySelector('#code').contentWindow.document.querySelector('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl');
+  const draws = () => p.frameEval('player.html', `const c = document.querySelector('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl');
     let n = 0; const o = gl.drawElements.bind(gl); gl.drawElements = (...x) => { n++; return o(...x); }; await new Promise((r) => setTimeout(r, 1000)); gl.drawElements = o; return n`);
   const asleep = await draws();
   await p.eval(`document.querySelector('#srcCode').click(); return 1`); await sleep(800);
   const awake = await draws();
   check(asleep === 0 && awake > 50, `the live preview draws nothing behind the MP4 (${asleep} draw calls in 1 s), and again once shown (${awake})`);
-  const png = await p.eval(`return document.querySelector('#code').contentWindow.performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\\/public\\/.+\\.png/.test(n))`);
+  const png = await p.frameEval('player.html', `return performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\\/public\\/.+\\.png/.test(n))`);
   const r1 = png ? await fetch(png) : null, etag = r1?.headers.get('etag');
   const r2 = etag ? await fetch(png, { headers: { 'If-None-Match': etag } }) : null;
   check(!!etag && r2?.status === 304, `a texture already received is not sent again (ETag ${etag}, then 304)`);

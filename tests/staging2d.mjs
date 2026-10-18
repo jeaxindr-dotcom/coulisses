@@ -55,7 +55,7 @@ try {
   st = await studioOn(imp.revue, PORT);
   p = await launch({ port: 9372 });
   await p.goto(U + '/');
-  await p.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames`, 60000);
+  await p.until(`window.__preview?.durationInFrames`, 60000);
   await sleep(1500);
 
   // ---------- 1. the same tools everywhere ----------
@@ -74,26 +74,27 @@ try {
 
   // ---------- 2. the 2D staging ----------
   console.log('la mise en scène 2D');
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(45); return 1`); await sleep(900);
+  await p.eval(`window.__preview.seek(45); return 1`); await sleep(900);
   await p.key('m', 'KeyM', 'm');
   await p.until(`__studio.state().staging`, 20000);
-  check(await p.eval(`return __studio.state().tab === 'scene' && document.querySelector('#code').contentWindow.StudioPlayer.stage.kind === '2d'`), 'M: the 2D staging, panel « Scène »');
-  const at = await p.eval(`const f = document.querySelector('#code'), fr = f.getBoundingClientRect(), el = f.contentDocument.querySelector('[data-coulisses="titre s01"]'), r = el.getBoundingClientRect();
-    return [fr.left + r.left + r.width / 2, fr.top + r.top + r.height / 2, r.width]`);
+  check(await p.eval(`return __studio.state().tab === 'scene' && window.__preview.stage.kind === '2d'`), 'M: the 2D staging, panel « Scène »');
+  const fr0 = await p.eval(`const r = document.querySelector('#code').getBoundingClientRect(); return [r.left, r.top]`);
+  const el0 = await p.frameEval('player.html', `const r = document.querySelector('[data-coulisses="titre s01"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width]`);
+  const at = [fr0[0] + el0[0], fr0[1] + el0[1], el0[2]];
   await p.mouse('mousePressed', at[0], at[1]);
   for (let i = 1; i <= 5; i++) { await p.eval(`return 1`); await sleepMove(p, at[0] + i * 20, at[1] + i * 8); }
   await p.mouse('mouseReleased', at[0] + 100, at[1] + 40);
   await sleep(500);
   const sel = await p.eval(`return __studio.state().stage`);
   check(sel === '[data-coulisses="titre s01"]', `a click picks the title, by its data-coulisses name (${sel})`);
-  const k = await p.eval(`const f = document.querySelector('#code').contentDocument.getElementById('coulisses-camera').parentElement; return f.getBoundingClientRect().width / 1920`);
-  let info = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info(${JSON.stringify(sel)})`);
+  const k = await p.frameEval('player.html', `const f = document.getElementById('coulisses-camera').parentElement; return f.getBoundingClientRect().width / 1920`);
+  let info = await p.eval(`return window.__preview.stage.info(${JSON.stringify(sel)})`);
   check(Math.abs(info.delta.p[0] - 100 / k) < 3 && Math.abs(info.delta.p[1] - 40 / k) < 3, `a drag moves it, in frame pixels (Δx ${info.delta.p[0].toFixed(0)}, Δy ${info.delta.p[1].toFixed(0)}; ${(100 / k).toFixed(0)} × ${(40 / k).toFixed(0)} expected)`);
-  const css = await p.eval(`return document.querySelector('#code').contentDocument.querySelector('[data-coulisses="titre s01"]').style.translate`);
-  check(/px/.test(css) && await p.eval(`return /scale\\(/.test(document.querySelector('#code').contentDocument.querySelector('[data-coulisses="titre s01"]').style.transform)`), `shown on top of the engine: translate ${css}, its own transform untouched`);
+  const css = await p.frameEval('player.html', `return document.querySelector('[data-coulisses="titre s01"]').style.translate`);
+  check(/px/.test(css) && await p.frameEval('player.html', `return /scale\\(/.test(document.querySelector('[data-coulisses="titre s01"]').style.transform)`), `shown on top of the engine: translate ${css}, its own transform untouched`);
   for (let i = 0; i < 3; i++) { await p.key('ArrowRight', 'ArrowRight'); await sleep(60); }
   await p.wheel(at[0] + 100, at[1] + 40, -120); await sleep(400);
-  const info2 = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info(${JSON.stringify(sel)})`);
+  const info2 = await p.eval(`return window.__preview.stage.info(${JSON.stringify(sel)})`);
   check(Math.abs(info2.delta.p[0] - info.delta.p[0] - 3) < 0.01 && info2.delta.s > 1.03, `→ ×3 = +3 px, the wheel = size ×${info2.delta.s.toFixed(2)}`);
   check(await p.eval(`return document.querySelector('#sc-x').value`) === String(Math.round(info2.delta.p[0])), 'the panel shows the offset in pixels');
   // ---------- 3. into the queue: offset, pin, « after » image ----------
@@ -116,21 +117,21 @@ try {
   check(await p.eval(`return __studio.state().stage === '@camera'`), '« Caméra » picks the whole frame');
   const mid = await p.eval(`const r = document.querySelector('#code').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
   await p.wheel(mid[0], mid[1], -120); await p.wheel(mid[0], mid[1], -120); await sleep(400);
-  const cam = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info('@camera')`);
-  const camCss = await p.eval(`return document.querySelector('#code').contentDocument.getElementById('coulisses-camera').style.scale`);
+  const cam = await p.eval(`return window.__preview.stage.info('@camera')`);
+  const camCss = await p.frameEval('player.html', `return document.getElementById('coulisses-camera').style.scale`);
   check(cam.delta.s > 1.07 && +camCss > 1.07, `the wheel zooms the frame (×${cam.delta.s.toFixed(2)}, the preview's frame scale ${camCss})`);
   const camMd = lotMarkdown({ kind: 'remotion', target: 'x', title: 'Essai', remotionDir: SCR, remotion: { composition: 'C' }, coulisses: file, EP: SCR, REVUE: imp.revue },
     { lot: 1, sentAt: new Date().toISOString(), fps: 30, size: [1920, 1080], render: null, edits: [{ k: 1, id: 'c', frame: 45, end: null, time: 1.5, text: '', thread: [], context: null, mark: null, target: null, source: 'code', images: [], captures: {}, stage: { id: '@camera', name: 'Caméra', kind: 'cadre entier', delta: cam.delta, base: null, scope: { label: 'tout', from: 0, to: 299 }, frame: 45, dim: '2d', size: [1920, 1080] } }] });
   check(/Cadrage proposé par l'utilisateur/.test(camMd) && /mouvement de caméra/.test(camMd), 'a reframing goes to the agent as a camera move');
   // a rebuild of the preview while an offset is in progress (here the frame, not queued): the new version takes over, the offset with it
   { const KEYS = path.join(STUDIO, 'player', 'keys.ts');
-    await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.setDelta('@camera', { p: [33, 0, 0], r: [0, 0, 0], s: 1 }, 0, 1e9); return 1`); await sleep(300);
+    await p.eval(`window.__preview.stage.setDelta('@camera', { p: [33, 0, 0], r: [0, 0, 0], s: 1 }, 0, 1e9); return 1`); await sleep(300);
     const v0 = await p.eval(`return document.querySelector('#codeStatus').textContent`), f0 = await p.eval(`return __studio.state().frame`);
     fs.writeFileSync(KEYS, fs.readFileSync(KEYS));
     await p.until(`document.querySelector('#codeStatus').textContent !== ${JSON.stringify(v0)} && document.querySelectorAll('#media iframe').length === 1 && !/préparation/.test(document.querySelector('#codeStatus').textContent)`, 90000); await sleep(1500);
-    const dx = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info('@camera').delta.p[0]`);
+    const dx = await p.eval(`return window.__preview.stage.info('@camera').delta.p[0]`);
     check(dx === 33 && (await p.eval(`return __studio.state().frame`)) === f0, `a rebuild of the preview: the new version shows the offset in progress (Δx ${dx}) at the same frame (${f0})`);
-    await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.reset('@camera'); return 1`);
+    await p.eval(`window.__preview.stage.reset('@camera'); return 1`);
   }
   // « Médias » on a 2D picture: the image itself, laid where it was dropped, staged, queued with its box
   await p.eval(`document.querySelector('#sc-cam0').click(); return 1`); await sleep(300);
@@ -141,12 +142,14 @@ try {
     await fetch('/api/medias/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, nom: 'lanterne', categorie: 'accessoires' }) });
     return it`);
   await p.eval(`await window.Studio.dropMedia(${JSON.stringify(item.id)}, [1400, 300]); return 1`); await sleep(600);
-  const c2 = await p.eval(`const s = document.querySelector('#code').contentWindow.StudioPlayer.stage; return s.list().find((x) => x.cutout) ?? null`);
+  const c2 = await p.eval(`const s = window.__preview.stage; return s.list().find((x) => x.cutout) ?? null`);
   const sc2 = await p.eval(`return document.querySelector('#scene').innerText`);
-  check(c2?.id === '[data-coulisses="lanterne"]' && await p.eval(`return __studio.state().stage`) === c2.id && !!(await p.eval(`return document.querySelector('#code').contentDocument.querySelector('#coulisses-camera > img[data-coulisses="lanterne"]') ? 1 : 0`))
+  check(c2?.id === '[data-coulisses="lanterne"]' && await p.eval(`return __studio.state().stage`) === c2.id && !!(await p.frameEval('player.html', `return document.querySelector('#coulisses-camera > img[data-coulisses="lanterne"]') ? 1 : 0`))
     && /image \(nouvelle\)/.test(sc2) && /Retirer l'image/.test(sc2) && Math.abs(c2.cutout.final.x - 1400) < 1 && Math.abs(c2.cutout.final.y - 300) < 1 && Math.abs(c2.cutout.final.h - 270) < 1,
     `a library image dropped on the 2D picture is laid there at once, chosen (${c2?.id}, centre ${c2?.cutout?.final.x}, ${c2?.cutout?.final.y}, ${c2?.cutout?.final.w?.toFixed(0)} × ${c2?.cutout?.final.h?.toFixed(0)} px)`);
-  const lp = await p.eval(`const r = document.querySelector('#code').contentDocument.querySelector('img[data-coulisses="lanterne"]').getBoundingClientRect(), f = document.querySelector('#code').getBoundingClientRect(); return [f.left + r.left + r.width / 2, f.top + r.top + r.height / 2]`);
+  const lf = await p.eval(`const f = document.querySelector('#code').getBoundingClientRect(); return [f.left, f.top]`);
+  const lr = await p.frameEval('player.html', `const r = document.querySelector('img[data-coulisses="lanterne"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
+  const lp = [lf[0] + lr[0], lf[1] + lr[1]];
   await p.wheel(lp[0], lp[1], -120); await sleep(300);
   await p.eval(`document.querySelector('#sc-add').click(); return 1`);
   await p.until(`__studio.state().drafts === 2`, 60000); await sleep(3500);

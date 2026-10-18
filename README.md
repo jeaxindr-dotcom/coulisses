@@ -160,7 +160,7 @@ A pipeline whose edit is a Remotion composition becomes reviewable **before any 
 | `studio-cli.mjs` | the agent's command line |
 | `install.mjs` | copies the workshop into the installed app |
 | `lib\` | `i18n*.mjs` (the texts), `lots.mjs` (batches, the line to paste), `frames.mjs` (frames from the MP4 or the code), `player-build.mjs` / `timeline-live.mjs` / `remotion-module.mjs` (the live preview and the timelines), `runs.mjs` (undo), `render.mjs`, `export.mjs`, `projects.mjs`, `coulisses-file.mjs` / `coulisses-check.mjs` (the `.coulisses` file and `projet verifier`), `updates.mjs`, `agent.mjs`, `menu.mjs`, `describe.mjs`, `peaks.mjs`, `episode.mjs`, `place.mjs` |
-| `player\` | the Remotion Player of the live preview (`entry.tsx`, `remotion.tsx`) and the staging (`stage.ts`), compiled by the project's esbuild into `.cache\` |
+| `player\` | the Remotion Player of the live preview (`entry.tsx`, `remotion.tsx`) and the staging (`stage.ts`), compiled by the project's esbuild into `.cache\`. The preview is shown from `localhost` while the studio is `127.0.0.1`: another site for the browser, so it runs in a process of its own and never holds the page (nor the page it); `bridge.js` inside it and `page\studio\00-remote.js` in the page talk by messages. `?apercu=page` in the studio's address puts it back in the page's process (to compare) |
 | `tests\` | end-to-end tests: headless Chrome driven through the DevTools protocol (`cdp.mjs`), no dependency |
 | `docs\` | the pipeline contract (`COULISSES-REMOTION-CONTRACT.md`, `FICHE-COULISSES-REMOTION.md`) and an internal planning note (French) |
 

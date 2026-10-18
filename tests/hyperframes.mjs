@@ -85,12 +85,12 @@ try {
   // ---------- 3. the studio ----------
   console.log('le studio');
   await p.goto(`${H}/go/${r.id}`);
-  await p.until(`location.port !== '${PORT}' && window.__studio && document.querySelector('#code')?.contentWindow?.StudioPlayer?.ok`, 120000);
+  await p.until(`location.port !== '${PORT}' && window.__studio && window.__preview?.ok`, 120000);
   await sleep(2500);
   const U = await p.eval(`return location.origin`);
   const m = await get('/api/meta', U);
   check(m.kind === 'hyperframes' && m.engine === 'hyperframes' && m.features.code && m.features.export && m.size.join('x') === '1920x1080' && m.fps === 30, `the studio: HyperFrames ${m.hfVersion}, 1920×1080 at 30 fps, live code, export`);
-  const sp = `document.querySelector('#code').contentWindow.StudioPlayer`;
+  const sp = `window.__preview`;
   const pl = await p.eval(`const s = ${sp}; return { d: s.durationInFrames, w: s.width, h: s.height, hf: !!s.hyperframes }`);
   check(pl.d === 120 && pl.w === 1920 && pl.h === 1080 && pl.hf, `the composition, live: ${pl.d} frames (4 s)`);
   await p.eval(`${sp}.seek(60); return 1`); await sleep(800);
@@ -124,8 +124,8 @@ try {
   const v0 = await p.eval(`return document.querySelector('#codeStatus').textContent`);
   fs.writeFileSync(path.join(DIR, 'index.html'), fs.readFileSync(path.join(DIR, 'index.html'), 'utf8').split('Le titre qui monte</h1>').join('Le titre a changé</h1>'));
   await p.until(`document.querySelector('#codeStatus').textContent !== ${JSON.stringify(v0)}`, 30000).catch(() => {});
-  await p.until(`/Le titre a changé/.test(document.querySelector('#code').contentDocument?.body?.innerText ?? '')`, 30000).catch(() => {});
-  check(/Le titre a changé/.test(await p.eval(`return document.querySelector('#code').contentDocument?.body?.innerText ?? ''`)), 'a change of index.html: the preview shows it by itself');
+  for (let i = 0; i < 60 && !/Le titre a changé/.test(await p.frameEval('player.html', `return document.body?.innerText ?? ''`) ?? ''); i++) await sleep(500);   // (the preview: its own process)
+  check(/Le titre a changé/.test(await p.frameEval('player.html', `return document.body?.innerText ?? ''`) ?? ''), 'a change of index.html: the preview shows it by itself');
   await p.shot(path.join(SCR, 'hf-studio.png'));
 
   // ---------- 4. « Exporter » (a quick draft) ----------

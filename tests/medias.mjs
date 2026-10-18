@@ -176,8 +176,8 @@ try {
     const dt = new DataTransfer(); dt.setData('application/x-coulisses-media', id);
     document.querySelector('#viewer').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, clientX: r.left + r.width * 0.25, clientY: r.top + r.height * 0.5, bubbles: true, cancelable: true }));
     return id`);
-  await page.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.stage?.list?.().some((x) => x.cutout)`, 30000); await sleep(600);
-  const cut = await page.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.list().find((x) => x.cutout)`);
+  await page.until(`window.__preview?.stage?.list?.().some((x) => x.cutout)`, 30000); await sleep(600);
+  const cut = await page.eval(`return window.__preview.stage.list().find((x) => x.cutout)`);
   check(cut && Math.abs(cut.cutout.final.x - 480) < 40 && Math.abs(cut.cutout.final.y - 540) < 40 && await page.eval(`return __studio.state().staging && __studio.state().stage`) === cut.id,
     `dropped on the picture: laid there in the preview at once, chosen (centre ${cut?.cutout?.final.x?.toFixed(0)}, ${cut?.cutout?.final.y?.toFixed(0)})`);
   await page.eval(`document.querySelector('#sc-add').click(); return 1`);

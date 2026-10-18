@@ -171,13 +171,13 @@ try {
   await p.shot(path.join(shots, 'i18n-1-home.png'));
   // the sample run's studio, from the home screen
   await p.eval(`document.querySelector('.card[data-id="${imp.id}"]').click(); return 1`);
-  await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
+  await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && window.__preview?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(600);
   const studioUrl = await ev('return location.origin');
   check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && (await ev(`return [...document.querySelectorAll('.tabbar button')].map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|')`)) === 'Agent|Edits|Batches|Media|Notes|Scene|Inspector',
     'studio: the tabs « Agent · Edits · Batches » (left) and « Media · Notes · Scene · Inspector » (right), the tag « · live code »');
   // a pin on the title of plan s02 (frame 150), named by data-coulisses, sent as a batch
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(150); return 1`); await sleep(900);
+  await p.eval(`window.__preview.seek(150); return 1`); await sleep(900);
   const r = await ev(`const r = document.querySelector('#media').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]`);
   await p.key('c', 'KeyC', 'c'); await sleep(200);
   await p.mouse('mousePressed', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5); await p.mouse('mouseReleased', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5);

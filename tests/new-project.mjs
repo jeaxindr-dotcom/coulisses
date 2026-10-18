@@ -72,15 +72,15 @@ try {
   console.log('le studio');
   p = await launch({ port: 9382 });
   await p.goto(`${H}/go/${r.id}`);
-  await p.until(`location.port !== '${PORT}' && window.__studio && document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames > 1`, 120000);
+  await p.until(`location.port !== '${PORT}' && window.__studio && window.__preview?.durationInFrames > 1`, 120000);
   await sleep(2500);
-  const s0 = await p.eval(`const sp = document.querySelector('#code').contentWindow.StudioPlayer; return { tab: __studio.state().tab, intro: document.querySelector('#agentList').innerText, d: sp.durationInFrames, w: sp.width, h: sp.height }`);
+  const s0 = await p.eval(`const sp = window.__preview; return { tab: __studio.state().tab, intro: document.querySelector('#agentList').innerText, d: sp.durationInFrames, w: sp.width, h: sp.height }`);
   check(s0.tab === 'agent' && /Ta scène est vide/.test(s0.intro), 'the studio opens on the Agent tab: « Ta scène est vide… »');
   check(s0.d === 180 && s0.w === 1080 && s0.h === 1920, `the scene plays live (${s0.d} frames, ${s0.w}×${s0.h})`);
-  const objs = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.objects().map((o) => o.type)`);
+  const objs = await p.eval(`return (await window.__preview.objects()).map((o) => o.type)`);
   check(objs.includes('GridHelper') && objs.includes('AxesHelper') && objs.includes('DirectionalLight'), `a black 3D scene with the floor grid and the axes at the origin (${[...new Set(objs)].join(', ')})`);
   await p.key('m', 'KeyM', 'm'); await p.until(`__studio.state().staging`, 30000); await sleep(800);
-  check(await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.kind`) === '3d', 'M: the 3D staging (a free camera to look around the scene)');
+  check(await p.eval(`return window.__preview.stage.kind`) === '3d', 'M: the 3D staging (a free camera to look around the scene)');
   await p.key('m', 'KeyM', 'm'); await sleep(400);
   await p.eval(`document.querySelector('button[data-tab="agent"]').click(); return 1`); await sleep(300);
   await p.shot(path.join(SCR, 'new-project-empty.png'));
@@ -107,7 +107,7 @@ try {
   check(/fait/.test(await p.eval(`return document.querySelector('#agentList').innerText`)), 'the agent\'s answer shows in the Agent tab, the request « fait »');
   await p.until(`(document.querySelector('#codeStatus').textContent || '').includes('v2')`, 60000).catch(() => {});
   await sleep(2500);
-  let names = []; for (let i = 0; i < 40 && !names.includes('planete'); i++) { await sleep(500); names = await p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer?.objects?.().map((o) => o.name) ?? []`).catch(() => []); }
+  let names = []; for (let i = 0; i < 40 && !names.includes('planete'); i++) { await sleep(500); names = await p.eval(`return (await window.__preview?.objects?.())?.map((o) => o.name) ?? []`).catch(() => []); }
   check(names.includes('planete'), 'the scene code changed: the preview rebuilt by itself, the planet is in the 3D scene');
   await p.shot(path.join(SCR, 'new-project-planet.png'));
 } catch (e) {

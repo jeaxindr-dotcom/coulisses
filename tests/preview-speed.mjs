@@ -27,10 +27,10 @@ try {
   await p.goto(U + '/#f=6000');
   await p.until(`window.__studio && document.querySelector('#v').readyState >= 2`, 90000);
   await p.eval(`document.querySelector('#srcCode').click(); return 1`);
-  await p.until(`window.__studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer`, 120000);
-  await p.eval(`await document.querySelector('#code').contentWindow.StudioPlayer.whenReady(); return 1`); await sleep(2500);
+  await p.until(`window.__studio.state().mode === 'code' && window.__preview`, 120000);
+  await p.eval(`await window.__preview.whenReady(); return 1`); await sleep(2500);
   // the preview's React tree: its sequences mounted, against the episode's sounds
-  const tree = await p.eval(`const w = document.querySelector('#code').contentWindow, el = w.document.getElementById('root'), k = Object.keys(el).find((x) => x.startsWith('__reactContainer'));
+  const tree = await p.frameEval('player.html', `const el = document.getElementById('root'), k = Object.keys(el).find((x) => x.startsWith('__reactContainer'));
     let seq = 0, win = 0; const st = [el[k].current ?? el[k]]; while (st.length) { const f = st.pop(); const t = f.type, n = typeof t === 'function' ? t.displayName || t.name : t?.render?.displayName || t?.render?.name || '';
       if (n === 'RegularSequenceRefForwardingFunction') seq++; if (n === 'WindowedSequence') win++; if (f.child) st.push(f.child); if (f.sibling) st.push(f.sibling); }
     const meta = await (await fetch('/api/meta')).json(), S = meta.snapshot ?? {};
@@ -40,20 +40,25 @@ try {
   check(/react-dom-client.production.js/.test(src) && !/react-dom-client.development.js/.test(src), 'the preview built with React in production mode');
   // playing 6 s
   await p.send('Profiler.enable'); await p.send('Profiler.setSamplingInterval', { interval: 500 });
-  await p.eval(`window.__fr = []; window.__draws = 0; const sp = document.querySelector('#code').contentWindow.StudioPlayer;
+  const own = !!(await p.frameSend('player.html', 'Profiler.enable'));   // the preview in a process of its own (page/studio/00-remote.js)
+  if (own) await p.frameSend('player.html', 'Profiler.setSamplingInterval', { interval: 500 });
+  await p.eval(`window.__fr = []; window.__draws = 0; const sp = window.__preview;
     sp.on((e) => { if (e.type === 'frameupdate') window.__fr.push([performance.now(), e.frame]); });
     const cv = document.querySelector('#tl'), g = cv.getContext('2d'), clr = g.clearRect.bind(g); g.clearRect = (...a) => { window.__draws++; return clr(...a); };
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true })); return 1`);
-  await p.send('Profiler.start'); await sleep(6000);
-  const { profile } = await p.send('Profiler.stop');
-  const r = await p.eval(`const sp = document.querySelector('#code').contentWindow.StudioPlayer; sp.pause(); const f = window.__fr;
+  await p.send('Profiler.start'); if (own) await p.frameSend('player.html', 'Profiler.start'); await sleep(6000);
+  const { profile } = await p.send('Profiler.stop'), framePro = own ? (await p.frameSend('player.html', 'Profiler.stop'))?.profile : null;
+  const r = await p.eval(`const sp = window.__preview; sp.pause(); const f = window.__fr;
     const span = (f.at(-1)[0] - f[0][0]) / 1000, frames = f.at(-1)[1] - f[0][1], gaps = f.slice(1).map((x, i) => x[0] - f[i][0]).sort((a, b) => a - b);
     return { fps: +(frames / span).toFixed(1), p95: +gaps[Math.floor(gaps.length * 0.95)].toFixed(1), shown: f.length, draws: window.__draws }`);
-  const nodes = new Map(profile.nodes.map((n) => [n.id, n])); let busy = 0, idle = 0;
-  profile.samples.forEach((id, i) => { const t = profile.timeDeltas[i] ?? 0; if (nodes.get(id).callFrame.functionName === '(idle)') idle += t; else busy += t; });
-  const busyPct = Math.round((100 * busy) / (busy + idle));
+  const busyOf = (pr) => { const nodes = new Map(pr.nodes.map((n) => [n.id, n])); let busy = 0, idle = 0;
+    pr.samples.forEach((id, i) => { const t = pr.timeDeltas[i] ?? 0; if (nodes.get(id).callFrame.functionName === '(idle)') idle += t; else busy += t; });
+    return Math.round((100 * busy) / (busy + idle)); };
+  const busyPct = busyOf(profile), frameBusy = framePro ? busyOf(framePro) : null;
   check(r.fps >= 28 && r.p95 < 60, `playing: ${r.fps} images/s, 95 % of them within ${r.p95} ms of the one before`);
-  check(busyPct < 70, `the page's thread not saturated (${busyPct} % busy while playing)`);
+  check(own, 'the preview runs in a process of its own (another site: localhost)');
+  check(busyPct < 35, `the page's thread free while the preview plays (${busyPct} % busy; the preview's own thread ${frameBusy} %)`);
+  check(frameBusy !== null && frameBusy < 85, `the preview's thread not saturated (${frameBusy} % busy while playing)`);
   check(r.draws <= r.shown * 1.3 + 10, `the timeline drawn once per frame shown (${r.draws} draws for ${r.shown} frames)`);
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
   try { await p?.close(); } catch { /* */ }

@@ -88,7 +88,9 @@
   const kbd = (c) => String(c).split('+').map((p) => `<kbd>${esc(part(p))}</kbd>`).join('+');
 
   async function load() {
+    const was = JSON.stringify(OVER);
     try { const r = await (await fetch('/api/shortcuts', { cache: 'no-store' })).json(); OVER = clean(r?.shortcuts); } catch { /* the defaults */ }
+    if (JSON.stringify(OVER) !== was) changed();   // (the studio's live preview has its own copy, in its own process: told to read them again)
   }
   function clean(o) {
     const out = {};
