@@ -169,7 +169,9 @@
   const onTab = (t) => (LEFT.has(t) ? tabL : tabR) === t;
   function setTab(t) {
     const left = LEFT.has(t), bar = left ? '#ltabs' : '#tabs';
-    if (!document.querySelector(`${bar} button[data-tab="${t}"]`)) return;
+    const btn = document.querySelector(`${bar} button[data-tab="${t}"]`);
+    if (!btn) return;
+    if (btn.classList.contains('none')) { const first = document.querySelector(`${bar} button[data-tab]:not(.none)`)?.dataset.tab; if (first && first !== t) setTab(first); return; }
     tab = t;
     if (left) { tabL = t; store.set('tabL', t); } else { tabR = t; store.set('tabR', t); }
     document.querySelectorAll(`${bar} button`).forEach((b) => b.classList.toggle('on', b.dataset.tab === t));

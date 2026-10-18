@@ -233,13 +233,13 @@
   #histList .hf:hover { background: var(--glass-3); }
   #histList .hf.sel { background: rgba(255, 255, 255, 0.1); color: var(--s12); }
   #histList .hf .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
-  .k { flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; font: 700 10px/18px var(--font-d); text-align: center; }
-  .k.edit { background: rgba(126, 211, 255, 0.16); color: #9bdcff; }
-  .k.add { background: rgba(201, 242, 107, 0.16); color: var(--lime); }
-  .k.delete { background: rgba(255, 112, 112, 0.16); color: #ff8a8a; }
-  .pm { flex: none; display: inline-flex; gap: 5px; font-variant-numeric: tabular-nums; font-size: 11.5px; }
-  .pm .p { color: var(--lime); font-weight: 600; }
-  .pm .m { color: #ff8a8a; font-weight: 600; }
+  #histList .k, #histDiff .k { flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; font: 700 10px/18px var(--font-d); text-align: center; }
+  #histList .k.edit, #histDiff .k.edit { background: rgba(126, 211, 255, 0.16); color: #9bdcff; }
+  #histList .k.add, #histDiff .k.add { background: rgba(201, 242, 107, 0.16); color: var(--lime); }
+  #histList .k.delete, #histDiff .k.delete { background: rgba(255, 112, 112, 0.16); color: #ff8a8a; }
+  #histList .pm, #histDiff .pm { flex: none; display: inline-flex; gap: 5px; font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  #histList .pm .p, #histDiff .pm .p { color: var(--lime); font-weight: 600; }
+  #histList .pm .m, #histDiff .pm .m { color: #ff8a8a; font-weight: 600; }
   #histDiff { position: absolute; inset: 0; z-index: 31; display: none; flex-direction: column; background: var(--bg, #0b0d14); border-radius: 14px; overflow: hidden; }
   #histDiff.on { display: flex; }
   #histDiff .sbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex: none; font-size: 12.5px; flex-wrap: wrap; }

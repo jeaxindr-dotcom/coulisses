@@ -27,8 +27,8 @@ import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/fram
 import crypto from 'node:crypto';
 import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems, readLot } from './lib/lots.mjs';
 import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed-copy.mjs';
-import { loudnessState, loudnessRange } from './lib/loudness.mjs';
-import { transcriptState, engines as wordsEngines, installParakeet, wordsChoice } from './lib/transcript.mjs';
+import { loudnessState, loudnessRange, stopLoudness } from './lib/loudness.mjs';
+import { transcriptState, engines as wordsEngines, installParakeet, wordsChoice, stopTranscripts } from './lib/transcript.mjs';
 import { historyRoots, historyKey, historyStore } from './lib/history.mjs';
 import { hfCheckState, hfCheckLite, startHfCheck, hfSegments } from './lib/hf-check.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
@@ -187,6 +187,7 @@ let held = false;
 const videoStreams = new Set();
 async function hold() {
   held = true;
+  stopLoudness(); stopTranscripts();   // (they read the video too: Windows could not replace it)
   for (const st of videoStreams) { try { st.destroy(); } catch { /* closed */ } }
   videoStreams.clear();
   if (proxyChild) { try { proxyChild.kill(); } catch { /* gone */ } }
@@ -540,6 +541,7 @@ const server = http.createServer(async (req, res) => {
     // the sound measured (lib/loudness.mjs, page/studio/14-sound.js): the reviewed video every 0,1 s, a range exactly
     if (pn === '/api/loudness') { if (held) return json(res, { state: 'building' }); return json(res, loudnessState(pickVideo(P), path.join(CACHE, 'loudness'))); }
     if (pn === '/api/loudness/range') {
+      if (held) return json(res, { ok: false, why: 'video being replaced' });
       const v = pickVideo(P), a = +(url.searchParams.get('a') ?? 0), b = +(url.searchParams.get('b') ?? 0);
       if (!v || !(b > a)) return json(res, { ok: false, why: t('srv.noVideo') });
       try { return json(res, { ok: true, ...(await loudnessRange(v, a, b)) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
@@ -559,7 +561,7 @@ const server = http.createServer(async (req, res) => {
     // « Vérifier la composition » of a HyperFrames project (lib/hf-check.mjs): « hyperframes check », before its export
     if (pn === '/api/hf/check' && req.method === 'POST') {
       if (!HFP) return json(res, { ok: false, why: t('hfc.notHf') });
-      try { return json(res, { ...startHfCheck(P, { version: player.state.version, log }), ok: true }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+      try { return json(res, { ...startHfCheck(P, { version: player.state.builtAt ?? player.state.version, log }), ok: true }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     if (pn === '/api/hf/check') return json(res, HFP ? hfCheckState(P) : { state: 'none' });
     // the history of the project's files (lib/history.mjs, page/studio/16-history.js)

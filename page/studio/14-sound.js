@@ -17,6 +17,7 @@
     const k = `${vid.name}|${vid.size}|${vid.mtime}`;   // a new video under review: measured again
     if (k !== LOUD.key) { LOUD.key = k; LOUD.state = null; LOUD.data = null; LOUD.ranges.clear(); LOUD.asked = -1e9; }
     if (LOUD.state === 'ready' || LOUD.state === 'none') return;
+    if (LOUD.state === 'error' && performance.now() - LOUD.asked < 60000) return;   // (asked again a minute later, not every 2.5 s)
     if (performance.now() - LOUD.asked < 2500) return;
     LOUD.asked = performance.now();
     fetch('/api/loudness', { cache: 'no-store' }).then((r) => r.json()).then((j) => {

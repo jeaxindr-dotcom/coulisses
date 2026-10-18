@@ -22,6 +22,16 @@
     if (cuts >= 4 && cuts <= 300) return 'cuts';
     const d = FRAMES / FPS; return String(SHEET_STEPS.find((s) => d / s <= 150) ?? 30);
   }
+  // its images: asked when they come near the view, four at a time (each is an ffmpeg of the server)
+  let sheetIO = null;
+  function sheetLoad(el) {
+    sheetIO?.disconnect();
+    const queue = [];
+    let live = 0;
+    const next = () => { while (live < 4 && queue.length) { const im = queue.shift(); if (!im.isConnected || !im.dataset.src) continue; live++; im.onload = im.onerror = () => { live--; next(); }; im.src = im.dataset.src; delete im.dataset.src; } };
+    sheetIO = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) { sheetIO.unobserve(e.target); queue.push(e.target); } next(); }, { rootMargin: '400px' });
+    el.querySelectorAll('img[data-src]').forEach((im) => sheetIO.observe(im));
+  }
   function renderSheet() {
     const el = $('#sheet'); if (!el) return;
     const video = STATUS?.video ?? META?.render;
@@ -32,13 +42,14 @@
       const next = frames[i + 1] ?? FRAMES, here = cur >= f && cur < next;
       const c = contextAt(f), n = sorted.filter((x) => x.frame >= f && x.frame < next).length;
       return `<button class="tile${here ? ' here' : ''}" data-f="${f}" title="${esc(T('st.sheet.go', { t: fmt(f / FPS) }))}">
-        <span class="img"><img loading="lazy" decoding="async" alt="" style="aspect-ratio:${CW}/${CH}" src="/api/frame?f=${f}&w=${w}&source=video"></span>
+        <span class="img"><img decoding="async" alt="" style="aspect-ratio:${CW}/${CH}" data-src="/api/frame?f=${f}&w=${w}&source=video"></span>
         <span class="meta"><b>${fmt(f / FPS)}</b>${c.scene ? `<span class="sc">${esc(c.scene)}</span>` : ''}${n ? `<span class="nb" title="${esc(T('st.sheet.notes', { n }))}">${n}</span>` : ''}</span></button>`;
     }).join('');
     el.innerHTML = `<div class="sbar"><b>${T('st.sheet.title')}</b><span class="muted">${video ? T('st.sheet.n', { n: frames.length }) : ''}</span><span class="grow"></span>
       <span class="seg">${modes.map(([m, l]) => `<button data-m="${m}" class="${m === mode ? 'on' : ''}">${l}</button>`).join('')}</span>
       <button class="soft icon" id="sheetX" title="${esc(T('st.sheet.close'))}">${ic('x')}</button></div>
       ${video ? `<div class="grid${CH / CW > 1.2 ? ' tall' : ''}">${tiles}</div>` : `<div class="empty">${T('st.sheet.noVideo')}</div>`}`;
+    sheetLoad(el);
     el.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem(sheetModeKey(), b.dataset.m); } catch { /* */ } renderSheet(); }));
     $('#sheetX').addEventListener('click', () => toggleSheet(false));
     el.querySelectorAll('.tile').forEach((b) => b.addEventListener('click', () => { M.pause(); seekFrame(+b.dataset.f); toggleSheet(false); }));

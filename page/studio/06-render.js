@@ -128,7 +128,7 @@
   // finds, each at its moment of the video (a click goes there), into the queue as notes for the agent in one click
   var HFC = { at: null, findings: [] };
   window.__hfc = () => ({ check: STATUS?.hfCheck ?? null, code: STATUS?.code?.version ?? null, kind: META?.kind, n: HFC.findings.length });   // (the tests)
-  const hfcFresh = (C) => C?.state === 'done' && C.version === STATUS.code?.version;
+  const hfcFresh = (C) => C?.state === 'done' && C.version != null && C.version === (STATUS.code?.builtAt ?? STATUS.code?.version);   // (this very build)
   function hfCheckBlock() {
     if (META.kind !== 'hyperframes') return '';
     const C = STATUS.hfCheck;
