@@ -55,7 +55,7 @@ const normId = (x) => { const v = String(x ?? '').trim(); return /^E\d+$/i.test(
 function reviewStats(revue) {
   const notes = readJson(path.join(revue, 'notes.json'), { notes: [] }).notes ?? [];
   const replies = readJson(path.join(revue, 'replies.json'), { notes: {} }).notes ?? {};
-  const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return (r?.status && ct > ut ? r.status : n.status) === 'done'; };
+  const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return ['done', 'verified'].includes(r?.status && ct > ut ? r.status : n.status); };   // (fixed, or validated by the user)
   const lots = fs.existsSync(path.join(revue, 'lots')) ? fs.readdirSync(path.join(revue, 'lots')).filter((f) => /^\d{3}\.json$/.test(f)).length : 0;
   return { notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
     reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null };
@@ -108,7 +108,7 @@ function episodes() {
     const mp4 = path.join(dir, `${folder}.mp4`), video = fs.existsSync(mp4) ? stamp(mp4) : null;
     const notes = readJson(path.join(revue, 'notes.json'), { notes: [] }).notes ?? [];
     const replies = readJson(path.join(revue, 'replies.json'), { notes: {} }).notes ?? {};
-    const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return (r?.status && ct > ut ? r.status : n.status) === 'done'; };
+    const done = (n) => { const r = replies[n.id], ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0; return ['done', 'verified'].includes(r?.status && ct > ut ? r.status : n.status); };   // (fixed, or validated by the user)
     const snap = readJson(path.join(revue, 'timeline.json'), null);
     const lots = fs.existsSync(path.join(revue, 'lots')) ? fs.readdirSync(path.join(revue, 'lots')).filter((f) => /^\d{3}\.json$/.test(f)).length : 0;
     const st = studios.get(id), R = renderState({ REVUE: revue });   // a re-render asked from the studio (lib/render.mjs)

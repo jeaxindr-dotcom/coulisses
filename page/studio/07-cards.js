@@ -40,16 +40,17 @@
     return `<div class="gest">${w}${t ? `<span class="k">·</span><span class="obj">${esc(t.name)}</span><span class="k">${esc(t.kind)}</span>` : ''}</div>`;
   }
   function cardEl(n, i) {
-    const st = statusOf(n);
+    const st = statusOf(n), sk = stateOf(n);   // (its colour: st-todo red, st-fixed blue, st-ok green — 02-notes.js)
     const isR = n.end !== null, msgs = threadOf(n), hasClaude = msgs.some((m) => m.from === 'claude');
     const el = document.createElement('div');
-    el.className = 'card' + (n.id === sel ? ' sel' : '') + (st === 'done' ? ' done' : '');
+    el.className = `card st-${sk}` + (n.id === sel ? ' sel' : '') + (sk === 'ok' ? ' done' : '');
     el.dataset.id = n.id;
     const when = isR ? `${fmt(tOf(n.frame))} → ${fmt(tOf(n.end + 1))}` : fmt(tOf(n.frame));
     const pend = pending[n.id] ?? { text: '', images: [] };
     const badge = n.draft ? `<span class="badge draft">${T('st.card.pending')}</span>`
       : st === 'working' ? `<span class="badge work">${T('st.card.working', { lot: n.lot ? T('st.card.lotSuffix', { lot: n.lot }) : '' })}</span>`
-      : st === 'done' ? `<span class="badge ok">${ic('check')}${T('st.card.fixed')}</span>`
+      : sk === 'ok' ? `<span class="badge ok">${ic('check')}${TN('st.card.verified')}</span>`
+      : sk === 'fixed' ? `<span class="badge fixed">${ic('check')}${T('st.card.fixed')}</span>`
       : n.lot ? `<span class="badge">${T('st.rc.lot', { lot: n.lot })}</span>` : '';
     el.innerHTML = `
       <div class="row">
@@ -70,7 +71,8 @@
         <button class="go" title="${esc(T('st.card.goTitle'))}">${ic('goto')}${T('st.card.go')}</button>
         ${isR ? `<button class="play" title="${esc(T('st.card.playTitle'))}">${ic('play')}${T('st.card.play')}</button><button class="loop" title="${esc(T('st.card.loopTitle'))}">${ic('repeat')}${T('st.card.loop')}</button>` : ''}
         <button class="img" title="${esc(T('st.card.imgTitle'))}">${ic('image')}${T('st.card.img')}</button>
-        <label class="chk"><input type="checkbox" class="dn" ${st === 'done' ? 'checked' : ''}> ${T('st.card.done')}</label>
+        <span class="vgrp"><label class="chk"><input type="checkbox" class="dn" ${sk !== 'todo' ? 'checked' : ''}> ${T('st.card.done')}</label>
+        ${n.draft ? '' : `<button class="vf${sk === 'ok' ? ' on' : ''}" title="${esc(TN('st.card.verifyTitle'))}">${ic('check')}${TN(sk === 'ok' ? 'st.card.verifiedBtn' : 'st.card.verify')}</button>`}</span>
       </div>
       ${msgs.length ? `<div class="thread">${msgs.map((m) => `
         <div class="msg ${m.from}"><div class="who">${m.from === 'claude' ? esc(m.by ?? T('st.card.agent')) : T('st.card.you')} · ${esc(hhmm(m.at))}</div>${esc(m.text)}
@@ -92,7 +94,9 @@
     el.querySelectorAll('.mainimgs .x').forEach((b, k) => b.addEventListener('click', () => { n.images.splice(k, 1); n.updated = now(); save(); renderAll(); }));
     el.querySelector('.f0').addEventListener('change', (e) => { setFrames(n, +e.target.value, n.end); save(); renderAll(); seekFrame(n.frame); });
     el.querySelector('.f1')?.addEventListener('change', (e) => { setFrames(n, n.frame, +e.target.value); save(); renderAll(); seekFrame(n.end ?? n.frame); });
-    el.querySelector('.dn').addEventListener('change', (e) => { n.status = e.target.checked ? 'done' : 'open'; n.statusAt = now(); save(); renderAll(); });
+    el.querySelector('.dn').addEventListener('change', (e) => { n.status = e.target.checked ? 'done' : 'open'; n.statusAt = now(); save(); renderAll(); });   // (unticked: red again, its validation gone)
+    // « Valider » (user request, 18/10/2026): the user saw the fix — green; again: back to blue, « corrigée »
+    el.querySelector('.vf')?.addEventListener('click', () => { n.status = sk === 'ok' ? 'done' : 'verified'; n.statusAt = now(); save(); renderAll(); });
     el.querySelector('.go').addEventListener('click', () => { sel = n.id; M.pause(); seekFrame(n.frame); renderAll(); });
     el.querySelector('.play')?.addEventListener('click', () => { sel = n.id; loopId = null; seekFrame(n.frame); stopAt = n.end; M.play(); renderAll(); });
     el.querySelector('.loop')?.addEventListener('click', () => { sel = n.id; loopId = loopId === n.id ? null : n.id; stopAt = null; if (loopId) { seekFrame(n.frame); M.play(); } renderAll(); });
@@ -104,7 +108,7 @@
         { icon: 'end', label: isR ? T('st.menu.end') : T('st.menu.rangeTo'), run: () => { setFrames(n, n.frame, curFrame()); save(); renderAll(); } },
         ...(isR ? [{ icon: 'point', label: T('st.menu.single'), run: () => { setFrames(n, n.frame, null); save(); renderAll(); } }] : []),
         ...(n.mark ? [{ icon: 'x', label: T('st.menu.clearGesture'), run: () => { delete n.mark; delete n.target; n.updated = now(); save(); renderAll(); } }] : []),
-        ...(!n.draft ? ['-', { icon: 'repeat', label: T('st.menu.resend'), run: () => { if (queueFull()) return; n.draft = true; n.updated = now(); if (statusOf(n) === 'done') { n.status = 'open'; n.statusAt = now(); } save(); setTab('queue'); renderAll(); showCard(n.id); } }] : []),
+        ...(!n.draft ? ['-', { icon: 'repeat', label: T('st.menu.resend'), run: () => { if (queueFull()) return; n.draft = true; n.updated = now(); if (fixedOf(n)) { n.status = 'open'; n.statusAt = now(); } save(); setTab('queue'); renderAll(); showCard(n.id); } }] : []),
         '-',
         { icon: 'trash', label: n.draft ? T('st.menu.removeEdit') : T('st.menu.deleteNote'), danger: true, run: () => { if ((n.draft && !n.text.trim() && !n.images?.length) || confirm(n.draft ? T('st.menu.removeEditConfirm') : T('st.menu.deleteNoteConfirm'))) delNote(n.id); } },
       ];
@@ -117,7 +121,7 @@
         const p = pending[n.id] ?? { text: '', images: [] };
         if (!p.text.trim() && !p.images.length) return;
         (n.thread ??= []).push({ text: p.text.trim(), images: p.images, at: now() });
-        delete pending[n.id]; n.updated = now(); if (statusOf(n) === 'done') { n.status = 'open'; n.statusAt = now(); }
+        delete pending[n.id]; n.updated = now(); if (fixedOf(n)) { n.status = 'open'; n.statusAt = now(); }
         save(); renderAll();
       };
       rt.addEventListener('input', () => { (pending[n.id] ??= { text: '', images: [] }).text = rt.value; });
@@ -133,21 +137,51 @@
   function renderList() {
     const all = sorted().filter((n) => n.kind !== 'prompt'), num = new Map(all.map((n, i) => [n.id, i]));   // the requests of the Agent tab live there
     const others = all.filter((n) => !n.draft), d = all.filter((n) => n.draft), hide = $('#hideDone').checked;
-    const ndone = others.filter((n) => statusOf(n) === 'done').length;
-    $('#count').textContent = T('st.list.count', { n: others.length }) + (ndone ? T('st.list.fixed', { n: ndone }) : '');
+    renderLotF(others);
+    const mine = others.filter(inLotF);   // (the batch chosen: « Toutes les notes / Lot 1 / Lot 2… »)
+    const nfixed = mine.filter((n) => stateOf(n) === 'fixed').length, nok = mine.filter((n) => stateOf(n) === 'ok').length;
+    $('#count').textContent = T('st.list.count', { n: mine.length }) + (nfixed ? T('st.list.fixed', { n: nfixed }) : '') + (nok ? TN('st.list.verified', { n: nok }) : '');
     $('#nNotes').textContent = others.length; $('#nNotes').classList.toggle('zero', !others.length);
+    const ok1 = $('#lotOk');   // « Valider les N corrigées » of the batch chosen
+    if (ok1) { ok1.style.display = LOTF !== 'all' && nfixed ? '' : 'none'; ok1.innerHTML = `${ic('check')}${esc(TN('st.notes.okAll', { n: nfixed }))}`; ok1.title = TN('st.notes.okAllTitle'); }
     const a = document.activeElement, focused = a && a.closest ? a.closest('.card') : null;
     const keep = focused && a.tagName === 'TEXTAREA' ? { id: focused.dataset.id, cls: a.classList.contains('rep') ? 'rep' : 'main', s: a.selectionStart, e: a.selectionEnd } : null;
     const fill = (box, list, emptyHtml) => {
       const scroll = box.scrollTop; box.innerHTML = '';
       if (!list.length) box.innerHTML = `<div class="empty">${emptyHtml}</div>`;
-      for (const n of list) if (!(hide && box.id === 'list' && statusOf(n) === 'done')) box.appendChild(cardEl(n, num.get(n.id)));
+      for (const n of list) box.appendChild(cardEl(n, num.get(n.id)));
       box.scrollTop = scroll;
     };
     fill($('#draftList'), d, T('st.list.noDraft'));
-    fill($('#list'), others, T('st.list.noNote'));
+    // (« masquer les validées »: the green ones away — what is left to fix, and to check)
+    const shown = hide ? mine.filter((n) => stateOf(n) !== 'ok') : mine;
+    fill($('#list'), shown, mine.length ? esc(TN('st.list.allHidden')) : T('st.list.noNote'));
     if (keep) { const t = document.querySelector(`.card[data-id="${keep.id}"] textarea.${keep.cls}`); if (t) { t.focus(); t.setSelectionRange(keep.s, keep.e); } }
   }
+  // the menu « Toutes les notes / Lot 1 / Lot 2… » (user request, 18/10/2026): the batches the notes went in (the requests
+  // of the Agent tab apart), « Hors lot » for notes sent before batches existed; shown once a batch was sent
+  function renderLotF(others) {
+    const box = $('#lotF'); if (!box) return;
+    const per = new Map(); let loose = 0;
+    for (const n of others) if (n.lot) per.set(n.lot, (per.get(n.lot) ?? 0) + 1); else loose++;
+    const lots = [...per.keys()].sort((a, b) => a - b);
+    if (LOTF !== 'all' && !(LOTF === 'none' ? loose : per.has(LOTF))) { LOTF = 'all'; store.set(lotfKey(), LOTF); }   // (a batch whose notes are all gone)
+    const opts = [['all', TN('st.notes.lotAll', { n: others.length })], ...lots.map((l) => [l, TN('st.notes.lotOne', { lot: l, n: per.get(l) })]),
+      ...(loose && lots.length ? [['none', TN('st.notes.lotNone', { n: loose })]] : [])];
+    const sig = JSON.stringify(opts);
+    if (box.dataset.sig !== sig) { box.innerHTML = opts.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join(''); box.dataset.sig = sig; box.title = TN('st.notes.lotTitle'); }
+    box.value = String(LOTF);
+    box.classList.toggle('on', LOTF !== 'all');
+    $('#lotBar').style.display = lots.length ? '' : 'none';
+    $('#hideDoneT').textContent = TN('st.notes.hideOk');
+  }
+  $('#lotF').addEventListener('change', (e) => { setLotF(e.target.value); $('#list').scrollTop = 0; });
+  $('#lotOk').addEventListener('click', () => {
+    const list = notes.filter((n) => n.kind !== 'prompt' && !n.draft && inLotF(n) && stateOf(n) === 'fixed');
+    if (!list.length) return;
+    for (const n of list) { n.status = 'verified'; n.statusAt = now(); }
+    save(); renderAll(); setTimeout(() => setSave(TN('st.notes.okAllDone', { n: list.length }), 'ok'), 900);   // (one step of Ctrl+Z; said once saved)
+  });
 
   // ---------- inspector ----------
   let inspT = 0;
@@ -188,7 +222,7 @@
       const t0 = n.target?.hits?.length ? humanTarget(n.target.hits[0]) : null;
       rows.push(dl([
         [T('st.insp.note'), T('st.insp.noteNum', { i, where: n.end !== null ? T('st.insp.frames', { a: n.frame, b: n.end }) : T('st.insp.frameAt', { a: n.frame }) })],
-        [T('st.insp.state'), n.draft ? T('st.insp.stDraft') : st === 'working' ? T('st.insp.stWorking') : st === 'done' ? T('st.insp.stDone') : T('st.insp.stOpen')],
+        [T('st.insp.state'), n.draft ? T('st.insp.stDraft') : st === 'working' ? T('st.insp.stWorking') : st === 'verified' ? TN('st.insp.stVerified') : st === 'done' ? T('st.insp.stDone') : T('st.insp.stOpen')],
         [T('st.insp.lot'), n.lot ? `${T('st.rc.lot', { lot: n.lot })}${n.sentAt ? ' · ' + esc(hhmm(n.sentAt)) : ''}` : none],
         [T('st.insp.view'), PROJ ? null : n.source === 'code' ? T('st.insp.viewCode') : T('st.src.video')],
         [T('st.insp.ask'), esc(n.text || '—')],

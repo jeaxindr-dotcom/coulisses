@@ -69,7 +69,7 @@
     return [out, Math.max(1, rows.length)];
   }
   function laneLayout() {
-    const ranges = reviewed().filter((n) => n.end !== null), [rows, nrows] = rangeRows(ranges);
+    const ranges = shownNotes().filter((n) => n.end !== null), [rows, nrows] = rangeRows(ranges);   // (the batch chosen only)
     const notesH = Math.max(36, Math.min(92, 24 + nrows * 15));
     Y = { ruler: [0, 22], notes: [22, 22 + notesH], rows, nrows, top: 22 + notesH + 1 };
     for (const l of lanes) l.h = Math.max(10, Math.round(l.bh * vzoom));
@@ -184,11 +184,11 @@
         }
       }
     }
-    for (const n of reviewed()) {
+    for (const n of shownNotes()) {   // (the selected one in white: the colours say the notes' states)
       const x = tx(n.frame / FPS); if (x < -2 || x > W + 2) continue;
-      g.fillStyle = n.id === sel ? 'rgba(201,242,107,0.10)' : 'rgba(255,255,255,0.025)';
+      g.fillStyle = n.id === sel ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.025)';
       if (n.end !== null) g.fillRect(tx(n.frame / FPS), Y.top, Math.max(1, tx((n.end + 1) / FPS) - tx(n.frame / FPS)), H - Y.top);
-      else { g.fillStyle = n.id === sel ? 'rgba(201,242,107,0.5)' : 'rgba(255,255,255,0.07)'; g.fillRect(x - 0.5, Y.top, 1, H - Y.top); }
+      else { g.fillStyle = n.id === sel ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.07)'; g.fillRect(x - 0.5, Y.top, 1, H - Y.top); }
     }
     g.restore();
     // ---- ruler + notes band ----
@@ -208,23 +208,25 @@
     if (sub * pps >= 8) { g.fillStyle = 'rgba(255,255,255,0.06)'; for (let t = Math.ceil(view.a / sub) * sub; t <= view.b; t += sub) g.fillRect(Math.round(tx(t)), 18, 1, 4); }
     shapes = [];
     const n0 = Y.notes[0], n1 = Y.notes[1];
-    const ranges = reviewed().filter((n) => n.end !== null), points = reviewed().filter((n) => n.end === null);
+    const shown = shownNotes(), ranges = shown.filter((n) => n.end !== null), points = shown.filter((n) => n.end === null);   // (the batch chosen only)
     const rTop = n0 + 22, rH = Math.max(8, Math.min(12, (n1 - rTop - 3) / Y.nrows - 3));
-    const numOf = new Map(reviewed().map((n, i) => [n.id, i + 1]));
-    const colorOf = (n, done, isSel, base) => isSel ? C.acc : done ? C.done : statusOf(n) === 'working' ? C.work : n.draft ? C.mark : base;
+    const numOf = new Map(reviewed().map((n, i) => [n.id, i + 1]));   // (the numbers of all the notes, as everywhere)
+    // the colour of the note's state (02-notes.js stateOf: red to fix, blue fixed, green validated); the one selected
+    // ringed in white
     for (const n of ranges) {
       const x0 = tx(n.frame / FPS), x1 = tx((n.end + 1) / FPS), y = rTop + Y.rows.get(n.id) * (rH + 3);
       if (x1 < -10 || x0 > W + 10) continue;
-      const done = statusOf(n) === 'done', isSel = n.id === sel, col = colorOf(n, done, isSel, C.range);
-      g.globalAlpha = isSel ? 0.4 : 0.22; g.fillStyle = col; rr(g, x0, y, Math.max(4, x1 - x0), rH, rH / 2); g.fill();
-      g.globalAlpha = 1; g.strokeStyle = col; g.lineWidth = isSel ? 1.5 : 1; rr(g, x0 + 0.5, y + 0.5, Math.max(4, x1 - x0) - 1, rH - 1, rH / 2); g.stroke();
-      if (x1 - x0 > 24) { g.fillStyle = col; g.font = `600 9.5px ${FONT}`; g.fillText(String(numOf.get(n.id)) + (x1 - x0 > 90 && n.text ? '  ' + n.text.slice(0, Math.floor((x1 - x0) / 6.5)) : ''), x0 + 7, y + rH / 2 + 0.5); }
+      const isSel = n.id === sel, col = stateColor(n);
+      g.globalAlpha = isSel ? 0.45 : 0.22; g.fillStyle = col; rr(g, x0, y, Math.max(4, x1 - x0), rH, rH / 2); g.fill();
+      g.globalAlpha = 1; g.strokeStyle = isSel ? '#ffffff' : col; g.lineWidth = isSel ? 1.5 : 1; rr(g, x0 + 0.5, y + 0.5, Math.max(4, x1 - x0) - 1, rH - 1, rH / 2); g.stroke();
+      if (x1 - x0 > 24) { g.fillStyle = isSel ? '#ffffff' : col; g.font = `600 9.5px ${FONT}`; g.fillText(String(numOf.get(n.id)) + (x1 - x0 > 90 && n.text ? '  ' + n.text.slice(0, Math.floor((x1 - x0) / 6.5)) : ''), x0 + 7, y + rH / 2 + 0.5); }
       shapes.push({ kind: 'range', id: n.id, x0, x1, y0: y, y1: y + rH });
     }
     for (const n of points) {
       const x = tx(n.frame / FPS); if (x < -10 || x > W + 10) continue;
-      const done = statusOf(n) === 'done', isSel = n.id === sel, col = colorOf(n, done, isSel, '#ffd27f');
+      const isSel = n.id === sel, col = stateColor(n);
       g.fillStyle = col; g.globalAlpha = isSel ? 1 : 0.55; g.fillRect(x - 0.5, n0 + 17, 1, n1 - n0 - 17); g.globalAlpha = 1;
+      if (isSel) { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(x, n0 + 10, 10, 0, Math.PI * 2); g.fill(); g.fillStyle = col; }
       g.beginPath(); g.arc(x, n0 + 10, 8, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#1d160b'; g.textAlign = 'center'; g.font = `600 9.5px ${FONT}`; g.fillText(String(numOf.get(n.id)), x, n0 + 10.5); g.textAlign = 'left';
       shapes.push({ kind: 'point', id: n.id, x, y0: n0, y1: n1 });

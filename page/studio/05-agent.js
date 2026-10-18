@@ -71,7 +71,7 @@
     who.querySelector('.t').innerHTML = a.watching ? esc(T('st.ag.connected', { name: agentName() })) : `${esc(T('st.ag.notConnected'))} <button class="soft" id="agentConnect">${T('st.agent.connect')}</button>`;
     $('#agentConnect')?.addEventListener('click', openConnect);
     const list = prompts(), lots = Object.fromEntries((STATUS.lots ?? []).map((L) => [L.lot, L]));
-    const busy = list.filter((n) => !n.draft && statusOf(n) !== 'done').length;
+    const busy = list.filter((n) => !n.draft && !fixedOf(n)).length;
     $('#nAgent').textContent = busy; $('#nAgent').classList.toggle('zero', !busy); $('#nAgent').classList.toggle('hot', busy > 0);
     $('#agentHint').textContent = T(a.watching ? 'st.ag.hintOn' : 'st.ag.hintOff');
     const sig = JSON.stringify([list.map((n) => [n.id, n.draft, n.lot, statusOf(n), threadOf(n).length, lots[n.lot]?.claude?.status]), a.watching]);
@@ -84,7 +84,7 @@
     box.innerHTML = list.map((n) => {
       const st = statusOf(n), L = lots[n.lot];
       const chip = n.draft ? `<span class="st wait">${T('st.ag.sending')}</span>`
-        : st === 'done' ? `<span class="st ok">${ic('check')}${T('st.ag.done')}</span>`
+        : fixedOf(n) ? `<span class="st ok">${ic('check')}${T('st.ag.done')}</span>`
         : st === 'working' || L?.claude?.status === 'taken' ? `<span class="st work">${T('st.ag.working')}</span>`
         : `<span class="st wait">${T(a.watching ? 'st.ag.sentOk' : 'st.ag.waiting')}</span>`;
       const answers = threadOf(n).filter((m) => m.from === 'claude').map((m) => `<div class="it">${esc(m.text)}${m.images?.length ? `<div class="thumbs">${m.images.map((im) => `<img src="/${esc(im.file ?? im)}" data-full="/${esc(im.file ?? im)}" alt="">`).join('')}</div>` : ''}</div>`).join('');
@@ -151,7 +151,8 @@
         <div class="acts"><button class="soft cp">${ic('copy')}${T('st.lot.copy')}</button><button class="soft go">${T('st.lot.notes')}</button>
         ${canUndo ? `<button class="soft danger un">${ic('undo')}${T('st.lot.undo')}</button>` : ''}${canRedo ? `<button class="soft re">${ic('redo')}${T('st.lot.redo')}</button>` : ''}</div>`;
       el.querySelector('.cp').onclick = () => copy(L.line);
-      el.querySelector('.go').onclick = () => { const n = byId(L.ids[0]); if (n) { sel = n.id; M.pause(); seekFrame(n.frame); renderAll(); showCard(n.id); } };
+      // « Voir les notes »: this batch's only, in the Notes tab and on the timeline (the menu « Lot N » of the Notes tab)
+      el.querySelector('.go').onclick = () => { const n = byId(L.ids[0]); if (n) { setLotF(L.lot, false); sel = n.id; M.pause(); seekFrame(n.frame); renderAll(); showCard(n.id); } };
       el.querySelector('.un')?.addEventListener('click', () => stepLot(L, 'undo', el.querySelector('.res')));
       el.querySelector('.re')?.addEventListener('click', () => stepLot(L, 'redo', el.querySelector('.res')));
       box.appendChild(el);

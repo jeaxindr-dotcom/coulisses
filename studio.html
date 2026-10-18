@@ -160,7 +160,10 @@
     </div>
     <div class="tab" id="tab-medias"></div>
     <div class="tab" id="tab-notes">
-      <div class="bar"><b id="count">{{st.notes.zero}}</b><span class="grow"></span><label class="chk"><input type="checkbox" id="hideDone"> {{st.notes.hideDone}}</label></div>
+      <div class="bar"><b id="count">{{st.notes.zero}}</b><span class="grow"></span><label class="chk"><input type="checkbox" id="hideDone"> <span id="hideDoneT">{{st.notes.hideOk}}</span></label></div>
+      <!-- « Toutes les notes / Lot 1 / Lot 2… » (page/studio/07-cards.js renderLotF): this list, the timeline and the marks
+           on the picture; « Valider les N corrigées » of the batch chosen -->
+      <div class="lotbar" id="lotBar" style="display:none"><select id="lotF"></select><button id="lotOk" class="soft" style="display:none"></button></div>
       <div class="scroll" id="list"></div>
     </div>
     <div class="tab" id="tab-scene">

@@ -21,7 +21,7 @@ const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4174) || 4174;
 const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
 // [suite, what it needs]: self = starts its own servers; sandbox = a studio on 4174; render = a studio on 4180 on its copy
 const SUITES = [
-  ['typecheck', 'self'], ['guard', 'self'], ['temp-sweep', 'self'], ['file-release', 'self'], ['export-speed', 'self'], ['speed-envois', 'self'], ['send-lots', 'self'], ['notes-safety', 'self'], ['browser-access', 'self'], ['preview-memory', 'self'], ['preview-speed', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
+  ['typecheck', 'self'], ['guard', 'self'], ['temp-sweep', 'self'], ['file-release', 'self'], ['export-speed', 'self'], ['speed-envois', 'self'], ['send-lots', 'self'], ['notes-safety', 'self'], ['note-states', 'self'], ['browser-access', 'self'], ['preview-memory', 'self'], ['preview-speed', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
   ['hyperframes', 'self'], ['ipad-layout', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['grade', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
 ].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run'].includes(n))));

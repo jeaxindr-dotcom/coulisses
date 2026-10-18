@@ -16,6 +16,40 @@
     const r = reply(n), ut = Date.parse(n.statusAt || 0) || 0, ct = Date.parse(r?.statusAt || 0) || 0;
     return r?.status && ct > ut ? r.status : (n.status || 'open');
   }
+  // the colour of a note (user request, 18/10/2026: « rouge = je place une note, bleu = il l'a corrigée, verte = je l'ai
+  // validée »): 'todo' red (waiting to be sent, sent, the agent on it), 'fixed' blue (the agent says it fixed it — or the
+  // « corrigé » ticked), 'ok' green (the user checked the fix: « Valider »; only the user gives it, never the agent)
+  const stateOf = (n) => { const s = statusOf(n); return s === 'verified' ? 'ok' : s === 'done' ? 'fixed' : 'todo'; };
+  const fixedOf = (n) => stateOf(n) !== 'todo';   // fixed, validated or not
+  const stateColor = (n) => C[{ todo: 'ntodo', fixed: 'nfixed', ok: 'nok' }[stateOf(n)]];
+  // « Toutes les notes » or one batch's (user request, 18/10/2026): the Notes tab, the timeline and the marks on the
+  // picture show that batch's notes only. The notes not sent yet always show (they are in no batch yet: the one just
+  // placed never vanishes). 'none': the notes sent without a batch (before batches were made). Kept for this video.
+  let LOTF = 'all';
+  const lotfKey = () => `lotf:${META?.notesFile ?? META?.episode ?? location.port}`;
+  const inLotF = (n) => LOTF === 'all' || n.draft || (LOTF === 'none' ? !n.lot : String(n.lot) === String(LOTF));
+  const shownNotes = () => reviewed().filter(inLotF);
+  function setLotF(v, draw0 = true) {
+    LOTF = v === 'all' || v === 'none' ? v : +v || 'all'; store.set(lotfKey(), LOTF);
+    if (draw0) { if (sel && !inLotF(byId(sel) ?? {})) sel = null; renderAll(); }
+  }
+  // the texts added with the colours and the batch filter, for a studio started before them (its dictionary is the one
+  // it read when it started; the page itself is read again at each load): the key itself never shows
+  const NEWT = {
+    fr: { 'st.card.verify': 'Valider', 'st.card.verifiedBtn': 'Validée', 'st.card.verified': 'validée', 'st.card.verifyTitle': 'Tu as vérifié la correction : la note passe au vert. Clique encore pour revenir à « corrigée ».',
+      'st.list.verified': ' · {n} validée{n||s}', 'st.list.allHidden': 'Rien à afficher : les notes d’ici sont toutes validées (décoche « masquer les validées »).', 'st.notes.hideOk': 'masquer les validées',
+      'st.notes.lotAll': 'Toutes les notes ({n})', 'st.notes.lotOne': 'Lot {lot} · {n} note{n||s}', 'st.notes.lotNone': 'Hors lot · {n} note{n||s}', 'st.notes.lotTitle': 'Toutes les notes, ou celles d’un seul lot : dans cette liste, sur la timeline et sur l’image',
+      'st.notes.okAll': 'Tout valider ({n})', 'st.notes.okAllTitle': 'Les notes corrigées de ce lot passent au vert (Ctrl+Z pour revenir)', 'st.notes.okAllDone': '{n} note{n||s} validée{n||s} · Ctrl+Z pour revenir', 'st.insp.stVerified': 'validée' },
+    en: { 'st.card.verify': 'Validate', 'st.card.verifiedBtn': 'Validated', 'st.card.verified': 'validated', 'st.card.verifyTitle': 'You checked the fix: the note turns green. Click again to go back to "fixed".',
+      'st.list.verified': ' · {n} validated', 'st.list.allHidden': 'Nothing to show: the notes here are all validated (untick "hide the validated ones").', 'st.notes.hideOk': 'hide the validated ones',
+      'st.notes.lotAll': 'All notes ({n})', 'st.notes.lotOne': 'Batch {lot} · {n} note{n||s}', 'st.notes.lotNone': 'No batch · {n} note{n||s}', 'st.notes.lotTitle': 'All the notes, or one batch’s only: in this list, on the timeline and on the picture',
+      'st.notes.okAll': 'Validate all ({n})', 'st.notes.okAllTitle': 'The fixed notes of this batch turn green (Ctrl+Z to undo)', 'st.notes.okAllDone': '{n} note{n||s} validated · Ctrl+Z to undo', 'st.insp.stVerified': 'validated' },
+  };
+  const TN = (k, v) => {
+    const s = T(k, v); if (s !== k) return s;
+    const f = NEWT[FR ? 'fr' : 'en'][k]; if (f === undefined) return k;
+    return f.replace(/\{(\w+)(?:\|([^{}|]*)\|([^{}]*))?\}/g, (m, x, one, other) => one === undefined ? String(v?.[x] ?? '') : ((FR ? Math.abs(v?.[x]) > 1 : Math.abs(v?.[x]) !== 1) ? other : one));
+  };
   function threadOf(n) {
     const msgs = (n.thread || []).map((m) => ({ ...m, from: 'user' }));
     for (const m of reply(n)?.messages || []) msgs.push({ ...m, from: 'claude' });
