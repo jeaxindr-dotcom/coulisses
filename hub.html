@@ -34,7 +34,7 @@
   main { padding: 18px 40px 50px; }
   h2 { font: 600 15px var(--font-d); color: var(--s11); margin: 8px 4px 16px; letter-spacing: .02em; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
-  .card { position: relative; border-radius: 24px; overflow: hidden; background: rgba(24,27,40,.58); backdrop-filter: blur(26px) saturate(160%); border: 1px solid var(--stroke);
+  .card { position: relative; border-radius: 24px; overflow: hidden; background: rgba(24,27,40,.58); backdrop-filter: saturate(160%);   /* (no blur: see page/studio.css .glass) */ border: 1px solid var(--stroke);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 24px 60px rgba(0,0,0,.35); cursor: pointer; transition: transform .18s, border-color .18s, box-shadow .18s; }
   .card:hover { transform: translateY(-3px); border-color: rgba(201,242,107,.45); box-shadow: 0 0 0 4px rgba(201,242,107,.06), 0 30px 70px rgba(0,0,0,.45); }
   .card.off { cursor: default; opacity: .55; } .card.off:hover { transform: none; border-color: var(--stroke); }
