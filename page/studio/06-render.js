@@ -37,7 +37,7 @@
   let rcKey = '';
   function exportCard(box) {
     const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, HC = STATUS.hfCheck, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape, META.gpu?.mode, META.gpu?.off,
-      HC?.state, HC?.at, HC?.version === STATUS.code?.version, HFC?.at, STATUS.hfSegments?.done,
+      HC?.state, HC?.at, hfcFresh(HC), HFC?.at, STATUS.hfSegments?.done,
       S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
     if (key === rcKey) return; rcKey = key;
     if (LIVEP() && !cur) {

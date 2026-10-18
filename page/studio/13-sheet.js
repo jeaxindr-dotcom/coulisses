@@ -30,7 +30,9 @@
     let live = 0;
     const next = () => { while (live < 4 && queue.length) { const im = queue.shift(); if (!im.isConnected || !im.dataset.src) continue; live++; im.onload = im.onerror = () => { live--; next(); }; im.src = im.dataset.src; delete im.dataset.src; } };
     sheetIO = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) { sheetIO.unobserve(e.target); queue.push(e.target); } next(); }, { rootMargin: '400px' });
-    el.querySelectorAll('img[data-src]').forEach((im) => sheetIO.observe(im));
+    const imgs = [...el.querySelectorAll('img[data-src]')];
+    queue.push(...imgs.slice(0, 8)); next();   // (the first ones at once: they are in view)
+    for (const im of imgs.slice(8)) sheetIO.observe(im);
   }
   function renderSheet() {
     const el = $('#sheet'); if (!el) return;
