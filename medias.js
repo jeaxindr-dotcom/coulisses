@@ -122,8 +122,8 @@
 
   // ---------- the data ----------
   async function load() {
-    let d; try { d = await (await fetch('/api/medias', { cache: 'no-store' })).json(); } catch { return; }
-    if (!d || !d.items) return;
+    let d; try { d = await (await fetch('/api/medias', { cache: 'no-store' })).json(); } catch { schedule(); return; }   // (asked again: one failed refresh no longer stops them)
+    if (!d || !d.items) { schedule(); return; }
     D = d;
     refs = refs.filter((id) => byId(id));
     if (sel && !byId(sel)) sel = null;

@@ -10,11 +10,11 @@
   const sceneAt = (f) => {   // the set on stage at frame f (from the plan of the MP4, else the code's); a run: its band (chapter, beat)
     if (PROJ) {
       const t = (f + 0.5) / FPS, band = clipsAt(t).find((x) => x.tr.type === 'band');
-      return band ? { name: band.c.label, from: Math.floor(band.c.t0 * FPS), to: Math.min(FRAMES - 1, Math.ceil(band.c.t1 * FPS) - 1) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
+      return band ? { name: band.c.label, from: frameOfT(band.c.t0), to: Math.min(FRAMES - 1, frameOfT(band.c.t1) - 1) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
     }
     const sets = SNAP?.sets ?? LIVE?.sets ?? [], t = (f + 0.5) / FPS;
     const w = sets.filter((x) => x.inT <= t && t < (x.outT ?? 1e9) + (x.outDur ?? 0)).sort((a, b) => b.inT - a.inT)[0];
-    return w ? { name: w.name, from: Math.floor(w.inT * FPS), to: Math.min(FRAMES - 1, Math.ceil(((w.outT ?? DUR) + (w.outT !== null ? w.outDur : 0)) * FPS)) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
+    return w ? { name: w.name, from: frameOfT(w.inT), to: Math.min(FRAMES - 1, frameOfT((w.outT ?? DUR) + (w.outT !== null && w.outT !== undefined ? w.outDur ?? 0 : 0)) - 1) } : { name: T('st.scope.all'), from: 0, to: FRAMES - 1 };
   };
   function scopeOf(kind = stScope) {
     const f = curFrame(), sc = sceneAt(f);
@@ -51,7 +51,7 @@
       stUnsub?.(); stUnsub = SP.stage.on(onStageEvent); SP.stage.setMode(stMode);
       try { codeEl.contentWindow.focus(); } catch { /* */ }
     } else {
-      Promise.resolve(SP?.stage.enable(false)).catch(() => {}); freeCamOn = false; stSel = null;
+      Promise.resolve(SP?.stage?.enable(false)).catch(() => {}); freeCamOn = false; stSel = null;
       // the keyboard back to the studio (it was the preview's while staging): N, Espace, the arrows work again at once
       try { codeEl.blur(); window.focus(); } catch { /* */ }
     }
@@ -274,6 +274,7 @@
     const n = addNote(f, null, false, extra);
     if (!n) return;
     if (shot) {
+      if (shot.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(shot), 60000);   // (read just below; let go after)
       try { const blob = await (await fetch(shot)).blob(); const file = await upload(new File([blob], 'apres.jpg', { type: 'image/jpeg' }), n.id); (n.images ??= []).push({ file, at: now(), label: T('st.stage.afterLabel') }); save(); }
       catch { /* the edit stays without its image */ }
     }

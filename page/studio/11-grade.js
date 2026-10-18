@@ -308,10 +308,10 @@
     let list = [];
     if (PROJ) {
       const band = (LIVE?.tracks ?? []).find((t) => t.type === 'band' && t.clips?.length);
-      list = band ? band.clips.map((c) => ({ name: c.label, from: Math.max(0, Math.floor(c.t0 * FPS)), to: Math.min(FRAMES - 1, Math.ceil(c.t1 * FPS) - 1) })) : [];
+      list = band ? band.clips.map((c) => ({ name: c.label, from: Math.max(0, frameOfT(c.t0)), to: Math.min(FRAMES - 1, frameOfT(c.t1) - 1) })) : [];
     } else {
       const sets = SNAP?.sets ?? LIVE?.sets ?? [];
-      list = sets.map((x) => ({ name: x.name, from: Math.max(0, Math.floor(x.inT * FPS)), to: Math.min(FRAMES - 1, Math.ceil(((x.outT ?? DUR) + (x.outT !== null && x.outT !== undefined ? x.outDur ?? 0 : 0)) * FPS) - 1) }))
+      list = sets.map((x) => ({ name: x.name, from: Math.max(0, frameOfT(x.inT)), to: Math.min(FRAMES - 1, frameOfT((x.outT ?? DUR) + (x.outT !== null && x.outT !== undefined ? x.outDur ?? 0 : 0)) - 1) }))
         .sort((a, b) => a.from - b.from);
       // one after the other: a scene ends where the next one begins
       for (let i = 0; i < list.length - 1; i++) list[i].to = Math.max(list[i].from, Math.min(list[i].to, list[i + 1].from - 1));
@@ -768,8 +768,8 @@
       vignette: E.vignette > 0.001 ? cgVignetteCss(E.vignette) : null, grain: E.grain > 0.001 ? +E.grain.toFixed(3) : 0 };
     const text = T('st.cg.noteText', { scene: sc.name, words: cgWords(g) || T('st.cg.none') });
     let n = existing;
-    if (n) { n.grade = grade; n.text = text; n.updated = now(); save(); }
-    else { n = addNote(sc.from, sc.to, false, { text, grade }); if (!n) return null; }
+    if (n) { if (!n.gradeText || n.text === n.gradeText || !n.text?.trim()) n.text = text; n.grade = grade; n.gradeText = text; n.updated = now(); save(); }   // (the user's own words kept)
+    else { n = addNote(sc.from, sc.to, false, { text, grade, gradeText: text }); if (!n) return null; }
     delete CG.grades[sc.key]; cgSave();
     return { n, existing: !!existing, f, E };
   }

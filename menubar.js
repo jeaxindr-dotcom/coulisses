@@ -129,9 +129,11 @@
     if (!bar) return;
     const dl = document.querySelector('.mb-dlg');
     if (dl) {   // a dialog of the bar has the keyboard: Escape closes it, the page's shortcuts wait
+      if (dl.__onKey?.(e)) { e.stopPropagation(); return; }   // the dialog's own use of the keys first (Aide › Raccourcis clavier: the key being set)
+      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); dl.__close(); return; }
+      // typing in one of the dialog's own fields: its keys reach it (Entrée in « Nouveau projet » did nothing)
+      if (dl.contains(e.target) && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       e.stopPropagation();
-      if (dl.__onKey?.(e)) return;   // the dialog's own use of the keys first (Aide › Raccourcis clavier: the key being set)
-      if (e.key === 'Escape') { e.preventDefault(); dl.__close(); }
       return;
     }
     if (e.key === 'Alt') { altAlone = !e.repeat; return; }

@@ -137,7 +137,7 @@ export function createStage2d(D: Deps) {
     }
     for (const el of [...applied.keys()]) if (!seen.has(el)) write(el, null, el === root());
     drawBox();
-    if (on || edits.size) raf = requestAnimationFrame(tick);
+    if (on || cutouts.size || [...edits.values()].some((e) => !isZero(e.delta))) raf = requestAnimationFrame(tick);
   }
   const run = () => { if (!raf) raf = requestAnimationFrame(tick); };
 
@@ -227,7 +227,8 @@ export function createStage2d(D: Deps) {
     if (ev.button !== 0) return;
     ev.preventDefault(); overlay!.setPointerCapture(ev.pointerId); moved = false;
     let id = selected;
-    const inSel = id && (() => { const b = find(id!)!.getBoundingClientRect(); return ev.clientX >= b.left && ev.clientX <= b.right && ev.clientY >= b.top && ev.clientY <= b.bottom; })();
+    const selEl = id ? find(id) : null;
+    const inSel = !!selEl && (() => { const b = selEl.getBoundingClientRect(); return ev.clientX >= b.left && ev.clientX <= b.right && ev.clientY >= b.top && ev.clientY <= b.bottom; })();
     if (!inSel && id !== CAMERA) { id = pickAt(ev.clientX, ev.clientY); select(id); }
     if (!id) return;
     const [cx, cy] = centre(id), e = ensure(id);

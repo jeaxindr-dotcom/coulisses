@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
-import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
+import { removeTestNotes, closeTestLots, GRADE_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 process.env.COULISSES_LANG = 'fr';
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SANDBOX = process.env.STUDIO_SANDBOX ?? path.join(STUDIO, 'sandbox', '07_Episodes');
@@ -20,8 +20,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULI
 let ok = 0, ko = 0; const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 await requireFrench(`http://localhost:${PORT}/`);
 const cli = (...a) => execFileSync('node', [path.join(STUDIO, 'studio-cli.mjs'), ...a.slice(0, 1), 'E03', ...a.slice(1), '--episodes', SANDBOX], { encoding: 'utf8' }).trim();
-const TEST_TEXTS = [/^Étalonnage de la scène « Root Library » :/];
-closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
+const TEST_TEXTS = GRADE_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
+closeTestLots(REVUE, cli, SANDBOX_TEXTS); await removeTestNotes(PORT, SANDBOX_TEXTS);   // (what every suite of the sandbox left: each starts clean)
 const p = await launch({ port: 9371 });
 let lot = null;
 try {

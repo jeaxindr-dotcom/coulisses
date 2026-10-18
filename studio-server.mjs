@@ -20,12 +20,12 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { exec, spawn } from 'node:child_process';
+import { exec, spawn, execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { optionsFrom, episode, pickVideo, stamp, proxyFresh, stillSource, readJson, writeJson, nowIso } from './lib/episode.mjs';
 import { videoFrame, codeFrame, codeSignature, sweepStaleTemp } from './lib/frames.mjs';
 import crypto from 'node:crypto';
-import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems } from './lib/lots.mjs';
+import { createLot, lotsSummary, connectLine, MAX_EDITS, createRenderLot, withdrawRenderLot, compareItems, CLI as CLI_FILE } from './lib/lots.mjs';
 import { speedState, startSpeedCopy, stopSpeedCopy, speedLog } from './lib/speed-copy.mjs';
 import { renderState, renderFiles } from './lib/render.mjs';
 import { exportAvailable, exportState, startExport, stopExport, exportLog, exportOptions, exportOptionsReady } from './lib/export.mjs';
@@ -41,13 +41,11 @@ import { hfPlayerBuilder, hfTimelineBuilder, hfFor, hfComposition, injectHead } 
 import { stripTypeScriptTypes } from 'node:module';
 import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/updates.mjs';
 import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
-import { CLI as CLI_FILE } from './lib/lots.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage, writeSettings } from './lib/i18n.mjs';
 import { gpuEncoder, gpuOff } from './lib/gpu.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
-import { execFile } from 'node:child_process';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
 import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
@@ -78,25 +76,28 @@ function buildProxy() {
   const src = pickVideo(P); if (!src || held) return;
   if (proxyFresh(P)) { proxyState = 'ready'; return; }
   proxyState = 'building';
-  const tmp = PROXY.replace(/\.mp4$/, '.tmp.mp4'), t0 = Date.now();
+  const tmp = PROXY.replace(/\.mp4$/, '.tmp.mp4'), t0 = Date.now(), from = stamp(src);
   log(t('srv.proxyStart'));
   const run = (vcodec, next) => {
     const p = spawn('ffmpeg', ['-v', 'error', '-y', '-i', src, '-map', '0:v:0', '-map', '0:a?', ...vcodec, '-g', '6', '-bf', '0',
       '-c:a', 'copy', '-fps_mode', 'passthrough', '-movflags', '+faststart', tmp], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
     proxyChild = p;
-    let err = ''; p.stderr.on('data', (d) => { err += d; });
-    p.on('error', (e) => next(e.message));
-    p.on('close', (code) => next(code === 0 ? null : (err.trim().split('\n').pop() || `ffmpeg ${code}`)));
+    let err = '', ended = false; const end = (x) => { if (!ended) { ended = true; next(x); } };   // (no ffmpeg: « error » then « close »)
+    p.stderr.on('data', (d) => { err += d; });
+    p.on('error', (e) => end(e.message));
+    p.on('close', (code) => end(code === 0 ? null : (err.trim().split('\n').pop() || `ffmpeg ${code}`)));
   };
   const done = (err) => {
     proxyChild = null;
     if (held) { proxyState = 'missing'; fs.rmSync(tmp, { force: true }); return; }   // stopped by a hold: built again after it
     if (err) { proxyState = 'error'; proxyFailed = stamp(src); log(t('srv.proxyFail', { err })); return; }
-    fs.renameSync(tmp, PROXY);
-    fs.writeFileSync(PROXY_INFO, JSON.stringify({ source: stamp(src), gop: 6, built: new Date().toISOString() }, null, 1));
+    const now = stamp(src);
+    if (now.size !== from.size || now.mtime !== from.mtime) { proxyState = 'missing'; fs.rmSync(tmp, { force: true }); return; }   // (the video changed meanwhile: made again from the new one)
+    try { fs.renameSync(tmp, PROXY); } catch (e) { proxyState = 'error'; proxyFailed = from; fs.rmSync(tmp, { force: true }); log(t('srv.proxyFail', { err: e.message })); return; }
+    fs.writeFileSync(PROXY_INFO, JSON.stringify({ source: from, gop: 6, built: new Date().toISOString() }, null, 1));
     proxyState = 'ready'; log(t('srv.proxyReady', { s: Math.round((Date.now() - t0) / 1000) }));
   };
-  run(['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '20', '-b:v', '0'], (err) => (err ? run(['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20'], done) : done(null)));
+  run(['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '20', '-b:v', '0'], (err) => (err && !held ? run(['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20'], done) : done(err)));   // (stopped by a hold: no CPU try, the video is being replaced)
 }
 function refreshProxy() {
   if (held || proxyState === 'building' || proxyFresh(P)) return;
@@ -110,7 +111,7 @@ function refreshProxy() {
 // ---- live preview of the code ----
 // the multi-track timeline (camera, music, sound effects, voices…) as the current code builds it: rebuilt with the preview
 // a project: the tracks of its montage plan (AItelier), read again when the plan changes; no code to preview
-const planTimeline = () => { const d = tracksOf(P); const v = d ? Date.parse(d.mtime) : 0; return { build: () => {}, state: { version: v, status: 'ready', error: null, data: d ? { tracks: d.tracks, fps: d.fps, frames: d.frames, plan: d.file } : null } }; };
+const planTimeline = () => { const d = tracksOf(P); const v = d ? Date.parse(d.mtime) : 0; return { state: { version: v, status: 'ready', error: null, data: d ? { tracks: d.tracks, fps: d.fps, frames: d.frames, plan: d.file } : null } }; };
 const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, log }) : G ? genericTimelineBuilder(P.remotion, { log })
   : HFP ? hfTimelineBuilder(P, { log, normalize: (raw) => normalizeTimeline(raw, raw.fps) })
   : { get state() { return planTimeline().state; }, build: () => {} };
@@ -157,8 +158,9 @@ function meta() {
   const render = video ? stamp(video) : null, pr0 = probe(video);
   const hc = HFP ? hfComposition(P.hf.projet, P.hf.index) : null;   // a HyperFrames project: its root composition's size and rate
   const pr = HFP && hc && !video ? { size: [hc.width, hc.height], fps: hc.fps } : pr0;
+  const XA = XP ? exportAvailable(P) : { ok: false, why: null };   // (asked once: it reads the export's folder)
   return {
-    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: XP && exportAvailable(P).ok }, exportWhy: XP ? exportAvailable(P).why : null, gpu: XP ? { ...gpuEncoder(), off: gpuOff() } : null, exportOptions: XP && exportAvailable(P).ok ? exportOptions(P) : [],
+    kind: P.kind, format: P.project?.format ?? null, features: { code: CODE, staging: CODE, render: B, plan: !!timeline.state.data, video: !!video, export: XP && XA.ok }, exportWhy: XP ? XA.why : null, gpu: XP ? { ...gpuEncoder(), off: gpuOff() } : null, exportOptions: XP && XA.ok ? exportOptions(P) : [],
     composition: G ? P.remotion.composition : HFP ? hc?.id ?? null : null, engine: B || G ? 'remotion' : HFP ? 'hyperframes' : null, hfVersion: HFP ? hfFor(P.hf.projet)?.version ?? null : null, channel: P.channel ?? null, coulisses: P.coulisses ?? null, exportDir: P.exportRule?.dossier ?? null,
     size: pr.size, root: P.EP, videoPath: video ?? null,
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
@@ -203,17 +205,53 @@ function watchExport() {
   setTimeout(watchExport, x?.state === 'running' ? 1000 : 4000).unref();
 }
 if (XP) watchExport();
+let lotChain = Promise.resolve();
+const oneLotAtATime = (fn) => { const p = lotChain.then(fn); lotChain = p.catch(() => {}); return p; };
+let fpsMemo = { t: 0, v: 30 };
+const fpsNow = () => (Date.now() - fpsMemo.t < 10000 ? fpsMemo.v : (fpsMemo = { t: Date.now(), v: meta().fps || 30 }).v);   // (meta() for each frame asked, before)
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
-  return { code: meta().code, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
+  refreshProxy();
+  return { code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt }, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
     render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P) };
 }
-const readNotes = () => readJson(NOTES, { episode: ep, notes: [] });
-function writeNotes(data) {
-  const tmp = `${NOTES}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 1));
-  if (fs.existsSync(NOTES)) fs.copyFileSync(NOTES, NOTES.replace(/\.json$/, '.bak.json'));
-  fs.renameSync(tmp, NOTES);
+// The user's notes (revue/notes.json), the page's file. Code review 18/10/2026: an unreadable notes.json (cut short by
+// another tool, a BOM, an edit by hand) was read as « no notes », the page showed 0, its next save wrote that over the
+// file — and notes.bak.json, made again at every save, lost the original at the second one. Now:
+//   - a file there but unreadable is an error (503): the page shows it and saves nothing; if something writes anyway,
+//     the unreadable file is kept first (notes.illisible-<date>.json);
+//   - its revision (size + time) goes with it: a save made on an older one (a second tab of the same studio) is refused
+//     (409) with the notes as they are now, the page merges and saves again;
+//   - notes.bak.json is the state of at least 10 minutes ago (no longer of 0.4 s ago), and a save that drops 3 notes or
+//     more at once keeps the notes before it (revue/sauvegardes/, the 20 newest);
+//   - written as every JSON of Coulisses (lib/episode.mjs writeJson: tried again while another process reads it).
+const notesRev = () => { try { const s = fs.statSync(NOTES); return `${s.size}-${Math.round(s.mtimeMs)}`; } catch { return '0'; } };
+function readNotes() {
+  let txt = null;
+  for (let i = 0; i < 20; i++) {
+    try { txt = fs.readFileSync(NOTES, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return { episode: ep, notes: [], rev: '0' }; txt = null; }
+    if (txt !== null) try { const d = JSON.parse(txt.replace(/^\uFEFF/, '')); if (Array.isArray(d?.notes)) return { ...d, rev: notesRev() }; } catch { /* being written: again */ }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+  }
+  return null;   // there, but not readable
+}
+const stampNow = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };   // (the user's time)
+function writeNotes(data, before) {
+  if (fs.existsSync(NOTES) && !before) {   // unreadable: kept as it is before anything replaces it
+    try { fs.copyFileSync(NOTES, NOTES.replace(/\.json$/, `.illisible-${stampNow()}.json`)); } catch { /* */ }
+  }
+  const bak = NOTES.replace(/\.json$/, '.bak.json');
+  try { if (before && (!fs.existsSync(bak) || Date.now() - fs.statSync(bak).mtimeMs > 10 * 60e3)) fs.copyFileSync(NOTES, bak); } catch { /* next time */ }
+  if (before && before.notes.length - data.notes.length >= 3) {
+    try {
+      const dir = path.join(REVUE, 'sauvegardes'); fs.mkdirSync(dir, { recursive: true });
+      fs.copyFileSync(NOTES, path.join(dir, `notes-${stampNow()}-avant-${before.notes.length - data.notes.length}-en-moins.json`));
+      const all = fs.readdirSync(dir).filter((f) => /^notes-.*\.json$/.test(f)).sort();
+      for (const f of all.slice(0, Math.max(0, all.length - 20))) fs.rmSync(path.join(dir, f), { force: true });
+    } catch { /* the save itself still goes */ }
+  }
+  const { rev, ...rest } = data; void rev;
+  writeJson(NOTES, rest);
 }
 
 // the studio page's script: the parts of page/studio/ (00-base.js … 10-start.js), in their order, inside one function as
@@ -268,7 +306,8 @@ function sendFile(req, res, file, type, track) {
   }
 }
 function pipeOut(stream, res, track) {
-  if (track) { videoStreams.add(stream); stream.on('close', () => videoStreams.delete(stream)); res.on('close', () => stream.destroy()); }
+  if (track) { videoStreams.add(stream); stream.on('close', () => videoStreams.delete(stream)); }
+  res.on('close', () => stream.destroy());
   stream.on('error', () => res.destroy()).pipe(res);
 }
 let videoSeen = false, lastCount = -1;
@@ -317,7 +356,7 @@ const projTitle = () => (B ? folder.replace(/^E\d+ - /, '') : P.title);
 const server = http.createServer(async (req, res) => {
   if (!fromApp(req)) return refuse(res);   // only Coulisses itself (lib/guard.mjs)
   const url = new URL(req.url, 'http://x');
-  const pn = decodeURIComponent(url.pathname);
+  let pn; try { pn = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end('bad address'); }
   try {
     if (pn === '/api/ping') return json(res, { studio: true, pid: process.pid, notesFile: NOTES });
     if (pn === '/' || pn === '/index.html') {   // in the user's language (lib/i18n.mjs: {{key}} and window.T)
@@ -449,7 +488,11 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/video/revue') return sendVideo(req, res, 'revue');
     if (pn === '/api/meta') return json(res, meta());
     if (pn === '/api/status') return json(res, status());
-    if (pn === '/api/notes' && req.method === 'GET') return json(res, readNotes());
+    if (pn === '/api/notes' && req.method === 'GET') {
+      const d = readNotes();
+      if (!d) return json(res, { error: 'unreadable', file: NOTES }, 503);
+      return json(res, d);
+    }
     if (pn === '/api/replies') {
       let txt = '{"notes":{}}';
       try { txt = JSON.stringify(JSON.parse(fs.readFileSync(REPLIES, 'utf8'))); } catch { /* none yet (or being written) */ }
@@ -470,9 +513,13 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/notes' && req.method === 'PUT') {
       const data = JSON.parse((await body(req)).toString('utf8'));
       if (!Array.isArray(data.notes)) throw new Error('notes must be an array');
-      writeNotes(data);
+      const before = fs.existsSync(NOTES) ? readNotes() : { notes: [], rev: '0' };
+      // saved on an older revision than the file's (another tab saved since): refused, with the notes as they are now
+      // (a save without revision — the tests, an older page — goes through as before)
+      if (data.rev !== undefined && before && data.rev !== before.rev) return json(res, { ok: false, conflict: true, current: before }, 409);
+      writeNotes(data, before);
       if (data.notes.length !== lastCount) { lastCount = data.notes.length; log(t('srv.notes', { n: lastCount })); }
-      return json(res, { ok: true });
+      return json(res, { ok: true, rev: notesRev() });
     }
     // ---- live preview ----
     if (pn === '/player.html' && HFP) {
@@ -490,7 +537,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(stripTypeScriptTypes(src, { mode: 'strip' }).replace(/from '\.\/keys'/g, "from '/hf-keys.js'"));
     }
-    if (HFP && pn.startsWith('/hf/')) return sendFile(req, res, inside(P.hf.projet, decodeURIComponent(pn.slice(4))));
+    if (HFP && pn.startsWith('/hf/')) return sendFile(req, res, inside(P.hf.projet, pn.slice(4)));
     if (pn === '/player.html') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(fs.readFileSync(path.join(HERE, 'player', 'player.html'), 'utf8').replace('__V__', String(player.state.version)));
@@ -506,8 +553,10 @@ const server = http.createServer(async (req, res) => {
       if (src === '@mix' && held) { res.writeHead(503); return res.end('video being replaced'); }
       const file = src === '@mix' ? pickVideo(P) : inside(CODE && P.remotionDir ? path.join(P.remotionDir, 'public') : P.hf?.projet ?? P.EP, src);   // a project: its own files
       if (!file || !fs.existsSync(file)) { res.writeHead(404); return res.end('no audio'); }
+      const st = fs.statSync(file), tag = `"${st.size}-${Math.round(st.mtimeMs)}"`;
+      if (req.headers['if-none-match'] === tag) { res.writeHead(304, { ETag: tag, 'Cache-Control': 'no-cache' }); return res.end(); }
       const pk = await peaksOf(file);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ETag: tag });
       return res.end(JSON.stringify(pk));
     }
     // ---- « les yeux » : GET /api/frame?f=123&source=video|code[&w=960] -> JPEG ----
@@ -527,24 +576,26 @@ const server = http.createServer(async (req, res) => {
       // every frame of the code is a render; the grading page's scopes and scenes asked them again and again)
       const sig = source === 'code' ? (P.kind === 'hyperframes' ? null : codeSignature(P)) : (() => { try { const s = fs.statSync(stillSource(P)); return `${s.size}-${Math.round(s.mtimeMs)}`; } catch { return null; } })();
       const kept = sig ? path.join(FRAME_CACHE, 'kept', `${crypto.createHash('sha1').update(`${source}|${f}|${w}|${sig}`).digest('hex').slice(0, 24)}.jpg`) : null;
-      if (kept) { try { if (Date.now() - fs.statSync(kept).mtimeMs < (source === 'code' ? 600e3 : 3600e3)) { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache', 'X-Frame': String(f), 'X-Source': source, 'X-Kept': '1' }); return fs.createReadStream(kept).pipe(res); } } catch { /* not kept */ } }
+      if (kept) { try { if (Date.now() - fs.statSync(kept).mtimeMs < (source === 'code' ? 600e3 : 3600e3)) { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache', 'X-Frame': String(f), 'X-Source': source, 'X-Kept': '1' }); return pipeOut(fs.createReadStream(kept), res); } } catch { /* not kept */ } }
       if (source === 'code' && !CODE) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(t('srv.noCode')); }
       if (source === 'code') {
         await codeFrame(P, f, out, { log });
         if (w) { const s = out.replace(/\.jpg$/, '-s.jpg'); await videoFrame(out, 0, 30, s, { width: w }).catch(() => {}); if (fs.existsSync(s)) fs.renameSync(s, out); }
       } else {
         if (held) { res.writeHead(503); return res.end('video being replaced'); }
-        await videoFrame(stillSource(P), f, meta().fps, out, { width: w || undefined });
+        await videoFrame(stillSource(P), f, fpsNow(), out, { width: w || undefined });
       }
       if (kept) { try { fs.mkdirSync(path.dirname(kept), { recursive: true }); fs.copyFileSync(out, kept); keepFew(path.dirname(kept), 300); } catch { /* not kept */ } }
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-cache', 'X-Frame': String(f), 'X-Source': source });
-      return fs.createReadStream(out).on('close', () => fs.rm(out, { force: true }, () => {})).pipe(res);
+      if (!fs.existsSync(out)) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('no frame'); }
+      const rs = fs.createReadStream(out).on('close', () => fs.rm(out, { force: true }, () => {}));
+      return pipeOut(rs, res);
     }
     // ---- the pending edits -> a batch for Claude ----
     if (pn === '/api/send' && req.method === 'POST') {
       const b = JSON.parse((await body(req)).toString('utf8'));
       const m = meta(), u = await updatesFor(b.agent);
-      const r = await createLot(P, b, { fps: b.fps || m.fps, size: Array.isArray(b.size) ? b.size : m.size, log, updates: u.updates, agent: u.agent });
+      const r = await oneLotAtATime(() => createLot(P, b, { fps: b.fps || m.fps, size: Array.isArray(b.size) ? b.size : m.size, log, updates: u.updates, agent: u.agent }));
       return json(res, { ok: true, ...r, agent: agentState(), updates: u.line, updatesOk: u.ok });
     }
     if (pn === '/api/updates') { const u = await updatesFor(url.searchParams.get('agent'), url.searchParams.has('fresh')); return json(res, { line: u.line, ok: u.ok, md: u.updates ? updatesMarkdown(u.updates, { cli: `node "${CLI_FILE}"`, target: P.target }).join('\n') : '', ...u.updates }); }
@@ -577,7 +628,7 @@ const server = http.createServer(async (req, res) => {
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
       if (renderState(P)?.state === 'running') return json(res, { ok: false, why: t('lot.err.renderRunning') });
       const u = await updatesFor(b.agent);
-      let r; try { r = createRenderLot(P, b, { updates: u.updates, agent: u.agent }); } catch (e) { return json(res, { ok: false, why: e.message }); }
+      let r; try { r = await oneLotAtATime(() => createRenderLot(P, b, { updates: u.updates, agent: u.agent })); } catch (e) { return json(res, { ok: false, why: e.message }); }
       log(t('srv.renderSent', { lot: r.lot, md: r.md }));
       return json(res, { ok: true, ...r, agent: agentState(), updates: u.line, updatesOk: u.ok });
     }

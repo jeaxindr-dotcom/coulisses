@@ -18,12 +18,12 @@
     try {
       if (!(await flushNow())) throw new Error(T('st.send.notSaved'));
       const marks = {}, cnv = document.createElement('canvas'); cnv.width = CW; cnv.height = CH;
-      const num = new Map(sorted().map((n, i) => [n.id, i + 1]));
+      const num = new Map(reviewed().map((n, i) => [n.id, i + 1]));
       for (const n of d) if (n.mark) { const g = cnv.getContext('2d'); g.clearRect(0, 0, CW, CH); paintMark(g, n.mark, String(num.get(n.id)), 1, '#b49cff'); marks[n.id] = cnv.toDataURL('image/png'); }
       const r = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: d.map((n) => n.id), words: $('#qwords').value, marks, agent: AGENT_PICK, fps: FPS, size: [CW, CH] }) });
       const res = r.ok ? await r.json() : null;
       if (!res?.ok) throw new Error(r.ok ? T('st.send.emptyAnswer') : await r.text());
-      for (const n of d) { n.draft = false; n.lot = res.lot; n.sentAt = now(); }
+      for (const n0 of d) { const n = byId(n0.id) ?? n0; n.draft = false; n.lot = res.lot; n.sentAt = now(); }
       // the send before had failed on the way: that batch, its images made again; already handled by the agent: said, no window
       if (res.again === 'done') { HIST.back = []; HIST.fwd = []; HIST.last = null; $('#qwords').value = ''; save(); setTab('lots'); setSave(T('st.send.againDone', { lot: res.lot }), 'ok'); sending = false; renderAll(); return; }
       if (res.again) setTimeout(() => setSave(T('st.send.again', { lot: res.lot }), 'ok'), 1800);
@@ -91,7 +91,7 @@
       return `<div class="ag" data-id="${n.id}"><div class="me">${esc(n.text)}</div><div class="meta">${n.lot ? T('st.rc.lot', { lot: n.lot }) + ' · ' : ''}${hhmm(n.created)} ${chip}</div>${answers}</div>`;
     }).join('');
     box.querySelectorAll('.thumbs img').forEach((im) => im.onclick = () => openLightbox(im.dataset.full));
-    if (atBottom || list.length) box.scrollTop = box.scrollHeight;
+    if (atBottom) box.scrollTop = box.scrollHeight;
   }
   $('#agentSend').onclick = sendPrompt;
   $('#agentText').addEventListener('keydown', (e) => {   // Entrée sends, Maj+Entrée goes to the line

@@ -77,7 +77,8 @@ try {
   const s0 = await p.eval(`const sp = window.__preview; return { tab: __studio.state().tab, intro: document.querySelector('#agentList').innerText, d: sp.durationInFrames, w: sp.width, h: sp.height }`);
   check(s0.tab === 'agent' && /Ta scène est vide/.test(s0.intro), 'the studio opens on the Agent tab: « Ta scène est vide… »');
   check(s0.d === 180 && s0.w === 1080 && s0.h === 1920, `the scene plays live (${s0.d} frames, ${s0.w}×${s0.h})`);
-  const objs = await p.eval(`return (await window.__preview.objects()).map((o) => o.type)`);
+  // (asked again when the preview was rebuilt meanwhile: a call on the version before ends « preview gone »)
+  let objs = []; for (let i = 0; i < 20; i++) { try { objs = await p.eval(`return (await window.__preview.objects()).map((o) => o.type)`); break; } catch { await sleep(500); } }
   check(objs.includes('GridHelper') && objs.includes('AxesHelper') && objs.includes('DirectionalLight'), `a black 3D scene with the floor grid and the axes at the origin (${[...new Set(objs)].join(', ')})`);
   await p.key('m', 'KeyM', 'm'); await p.until(`__studio.state().staging`, 30000); await sleep(800);
   check(await p.eval(`return window.__preview.stage.kind`) === '3d', 'M: the 3D staging (a free camera to look around the scene)');

@@ -11,7 +11,24 @@ export async function requireFrench(base) {
   if (m?.lang && m.lang !== 'fr') { console.error(`Le studio ${base} parle « ${m.lang} » : le relancer avec COULISSES_LANG=fr (les tests vérifient les textes français).`); process.exit(2); }
 }
 
+// the profiles of earlier runs that were stopped by force (a suite killed at its time limit: close() never ran) — only
+// ours (studio-cdp-), untouched for 2 hours, and not held by a Chrome still running (it cannot be renamed then)
+// (18/10/2026: 35 of them, 2.3 GB in %TEMP%)
+function sweepProfiles() {
+  const T = os.tmpdir(), old = Date.now() - 2 * 3600e3;
+  let names = []; try { names = fs.readdirSync(T).filter((n) => /^studio-cdp-[A-Za-z0-9]{6}(-del)?$/.test(n)); } catch { return; }
+  for (const n of names) {
+    const d = path.join(T, n);
+    try {
+      if (n.endsWith('-del')) { fs.rmSync(d, { recursive: true, force: true }); continue; }   // (a sweep cut short)
+      if (fs.statSync(d).mtimeMs > old) continue;
+      const gone = `${d}-del`; fs.renameSync(d, gone); fs.rmSync(gone, { recursive: true, force: true });
+    } catch { /* in use, or already gone */ }
+  }
+}
+
 export async function launch({ port = 9333, headless = true } = {}) {
+  sweepProfiles();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-cdp-'));
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
     `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...(headless ? ['--headless=new'] : []),

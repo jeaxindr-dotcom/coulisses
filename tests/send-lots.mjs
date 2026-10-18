@@ -83,6 +83,12 @@ try {
   fs.writeFileSync(P.REPLIES, JSON.stringify({ notes: {}, lots: { 1: { status: 'done', at: new Date().toISOString() } } }));
   const r3 = await createLot(P, body, { fps: 30, size: [1920, 1080], log });
   check(r3.lot === 1 && r3.again === 'done' && lotNumbers(P).join() === '1', `already handled by the agent: that batch, said « done » (${r3.again})`);
+  // « Renvoyer » on that note, done by the agent (code review 18/10/2026: it was answered « déjà traitée »): the note
+  // changed since (the page stamps it) — a new request, a new batch
+  await new Promise((r) => setTimeout(r, 2500));
+  notes[0].updated = new Date().toISOString(); fs.writeFileSync(P.NOTES, JSON.stringify({ episode: P.ep, notes }));
+  const r4 = await createLot(P, body, { fps: 30, size: [1920, 1080], log });
+  check(r4.lot === 2 && !r4.again && lotNumbers(P).join() === '1,2', `« Renvoyer » on a note the agent did: a new batch (lot ${r4.lot})`);
   check(r2.again === 'taken', `taken by the agent before: said « taken » (${r2.again})`);
 
   // ---------- 3. studio-cli wait on a batch without its request ----------
