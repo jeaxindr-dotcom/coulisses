@@ -413,7 +413,7 @@
   let wasHeld = false, heldFrame = 0, reloading = false;
   function onHeld() {
     if (!META) return;
-    if (!META.render) { if (STATUS.video && !reloading) { reloading = true; setSave(T('st.save.firstExport'), 'ok'); const f = curFrame(); flushNow().then(() => { location.hash = `f=${f}`; location.reload(); }); } return; }
+    if (!META.render) { if (STATUS.video && !reloading) { reloading = true; setSave(T('st.save.firstExport'), 'ok'); reloadSafely(curFrame()).then((ok) => { if (!ok) reloading = false; }); } return; }   // (not saved: tried again at the next status)
     if (!STATUS.video) return;
     const fresh = STATUS.video.size !== META.render.size || STATUS.video.mtime !== META.render.mtime;
     if (STATUS.held && !wasHeld) {
@@ -425,7 +425,7 @@
     if (!STATUS.held && fresh && !reloading) {
       reloading = true; setSave(T('st.save.newVideo'), 'ok');
       const f = wasHeld ? heldFrame : curFrame();
-      flushNow().then(() => { location.hash = `f=${f}`; location.reload(); });
+      reloadSafely(f).then((ok) => { if (!ok) reloading = false; });   // (not saved: tried again at the next status)
       return;
     }
     if (!STATUS.held && wasHeld && !fresh) {   // the replacement did not happen: back to the same video
@@ -447,7 +447,7 @@
     $('#cmp').classList.add('open'); showCmp();
   }
   function showCmp() {
-    const it = CMP[cmpI], num = sorted().findIndex((n) => n.id === it.id) + 1;
+    const it = CMP[cmpI], num = reviewed().findIndex((n) => n.id === it.id) + 1;
     $('#cmpT').textContent = T('st.cmp.head', { num: num || '?', lot: it.lot });
     $('#cmpN').textContent = `${cmpI + 1} / ${CMP.length}`;
     $('#cmpLA').textContent = T('st.cmp.labelBefore', { what: it.beforeSource === 'code' ? T('st.cmp.codePreview') : T(PROJ ? 'st.cmp.exportOf' : 'st.cmp.renderOf', { date: dayTime(it.beforeRender?.mtime) }), f: it.beforeFrame });

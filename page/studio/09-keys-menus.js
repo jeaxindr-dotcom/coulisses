@@ -97,7 +97,7 @@
     else if (on('setIn') && sel) { const n = byId(sel); setFrames(n, curFrame(), n.end); save(); renderAll(); }
     else if (on('setOut') && sel) { const n = byId(sel); setFrames(n, n.frame, curFrame()); save(); renderAll(); }
     else if (on('loop') && sel) { const n = byId(sel); if (n.end !== null) { loopId = loopId === n.id ? null : n.id; if (loopId) { seekFrame(n.frame); M.play(); } renderAll(); } }
-    else if (on('deleteNote') && sel) { e.preventDefault(); delNote(sel); setSave(T('st.key.deleted'), 'ok'); }   // Ctrl+Z brings it back
+    else if (on('deleteNote') && sel) { e.preventDefault(); delNote(sel); setSave(T('st.key.deleted'), 'ok'); }   // no question (README: Ctrl+Z brings it back)
     else if (on('zoomIn')) zoomBy(1 / 1.5);
     else if (on('zoomOut')) zoomBy(1.5);
   });
@@ -124,7 +124,7 @@
     try { f.contentWindow?.postMessage({ coulisses: 'shown' }, '*'); } catch { /* */ }
   }
   const hubOpen = () => !!$('#hubOv')?.classList.contains('on');
-  function hubClose() { $('#hubOv')?.classList.remove('on'); window.focus(); }
+  function hubClose() { const f = $('#hubOv'); f?.classList.remove('on'); try { f?.contentWindow?.postMessage({ coulisses: 'hidden' }, '*'); } catch { /* */ } window.focus(); }
   function leave(url) {
     if (!$('#leaving')) { const d = document.createElement('div'); d.id = 'leaving'; d.innerHTML = `<span class="sp"></span>${esc(T('st.leaving') !== 'st.leaving' ? T('st.leaving') : FR ? 'Retour à l’accueil…' : 'Back to the home screen…')}`; document.body.appendChild(d); }
     requestAnimationFrame(() => setTimeout(() => { location.href = url; }, 0));
@@ -194,7 +194,7 @@
       { id: 'file', label: T('menu.file'), items: [
         { id: 'home', label: T('menu.home'), disabled: noHub, run: () => toHub() },
         // (user request 17/10/2026: from an iPad through a remote desktop, no F5): the page read again, its notes saved first
-        { id: 'reload', label: T('menu.reload'), run: async () => { await flushNow(); location.reload(); } },
+        { id: 'reload', label: T('menu.reload'), run: () => reloadSafely() },
         { id: 'newProject', label: T('menu.newProject'), key: () => SC.show('newProject'), disabled: noHub, run: () => toHub('?menu=new') },
         { id: 'open', label: T('menu.open'), key: () => SC.show('open'), disabled: noHub, run: () => toHub('?menu=open') },
         { id: 'importFolder', label: T('menu.importFolder'), disabled: noHub, run: () => toHub('?menu=folder') },

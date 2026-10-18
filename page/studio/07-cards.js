@@ -186,7 +186,7 @@
     rows.push(`<h3 style="margin-top:14px">${T('st.insp.selected')}</h3>`);
     if (!n) rows.push(`<div class="empty">${T('st.insp.pick')}</div>`);
     else {
-      const i = sorted().indexOf(n) + 1, st = statusOf(n), m = n.mark;
+      const i = reviewed().indexOf(n) + 1, st = statusOf(n), m = n.mark;
       const gest = !m ? '—' : m.kind === 'pin' ? T('st.insp.pin', { x: m.points[0][0], y: m.points[0][1], w: CW, h: CH }) : T('st.insp.draw', { n: m.strokes?.length ?? 1, x0: Math.min(...m.points.map((p) => p[0])), x1: Math.max(...m.points.map((p) => p[0])), y0: Math.min(...m.points.map((p) => p[1])), y1: Math.max(...m.points.map((p) => p[1])) });
       const t0 = n.target?.hits?.length ? humanTarget(n.target.hits[0]) : null;
       rows.push(dl([

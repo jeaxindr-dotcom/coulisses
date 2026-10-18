@@ -13,13 +13,16 @@
 // Nothing happens when the preview is not inside a page (the server's own captures, a test opening player.html alone).
 (() => {
   if (window.parent === window) return;
-  const parentOrigin = (location.ancestorOrigins && location.ancestorOrigins[0]) || '*';
-  const loop = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
+  const parentOrigin = (location.ancestorOrigins && location.ancestorOrigins[0]) || (document.referrer ? new URL(document.referrer).origin : '*');
+  // the studio page only: a loopback address on this very port (another local page framing the preview cannot drive it)
+  const loop = (o) => { try { const u = new URL(o); return /^(127\.0\.0\.1|localhost|\[::1\])$/i.test(u.hostname) && u.port === location.port; } catch { return false; } };
+  let seen = 0;   // the last call of the page this preview has done (in every state and event: the page knows what is fresh)
   const plainOf = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const post = (m) => {
     const msg = { coulissesPreview: 1, ...m };
-    try { window.parent.postMessage(msg, parentOrigin); }
-    catch { try { window.parent.postMessage(plainOf(msg), parentOrigin); } catch { /* not to be sent */ } }   // (a value that cannot be copied: as JSON)
+    try { window.parent.postMessage(msg, parentOrigin); return; } catch { /* below */ }
+    try { window.parent.postMessage(plainOf(msg), parentOrigin); return; } catch { /* below */ }   // (a value that cannot be copied: as JSON)
+    if (m.re) try { window.parent.postMessage({ coulissesPreview: 1, re: m.re, ok: false, error: 'not to be sent' }, parentOrigin); } catch { /* */ }   // (the page's call still ends)
   };
   const sp = () => window.StudioPlayer;
   const stageState = () => {
@@ -29,29 +32,31 @@
   };
   const stateOf = (withStage) => {
     const p = sp(); if (!p) return null;
-    const s = { frame: p.frame(), playing: !!p.isPlaying(), ready: p.frameReady?.() !== false, loading: !!p.frameLoading?.(), crashed: !!p.crashed?.(), scene3d: !!p.stage?.scene3d };
+    const s = { seen, frame: p.frame(), playing: !!p.isPlaying(), ready: p.frameReady?.() !== false, loading: !!p.frameLoading?.(), crashed: !!p.crashed?.(), scene3d: !!p.stage?.scene3d };
     if (withStage) s.stage = stageState();
     return s;
   };
-  let stageT = 0;
-  const pushStage = () => { clearTimeout(stageT); stageT = setTimeout(() => post({ state: stateOf(true) }), 0); };
+  let stageT = 0, inCall = false;
+  const pushStage = () => { if (inCall || stageT) return; stageT = setTimeout(() => { stageT = 0; post({ state: stateOf(true) }); }, 100); };
   // a call the page made « quiet » (an undo, a redo: its own offset put back): the staging events it causes say so, the
   // page does not count them as a new step (they used to come during the call itself, the page then quiet)
   let quiet = false;
   window.addEventListener('message', async (e) => {
-    if (e.source !== window.parent || !loop.test(e.origin)) return;
+    if (e.source !== window.parent || !loop(e.origin)) return;
     const d = e.data; if (!d || d.coulissesPreview !== 1) return;
     if (d.shortcuts) { try { await window.Shortcuts?.reload?.(); } catch { /* the defaults */ } return; }   // the user's keys changed (Aide › Raccourcis clavier)
     if (typeof d.call !== 'string') return;
     let value, ok = true, error = null;
+    seen = Math.max(seen, d.id || 0); inCall = true;
     try {
       const parts = d.call.split('.'), name = parts.pop();
       let o = sp(); for (const k of parts) o = o?.[k];
       if (!o) throw new Error(`StudioPlayer.${d.call}: absent`);
       let r;
-      if (typeof o[name] === 'function') { quiet = !!d.quiet; try { r = o[name](...(d.args ?? [])); } finally { quiet = false; } } else r = o[name];
+      if (typeof o[name] === 'function') { quiet = !!d.quiet; try { r = o[name](...(d.args ?? [])); } finally { quiet = false; inCall = false; } } else r = o[name];
       value = await r;
     } catch (err) { ok = false; error = String(err?.message ?? err); }
+    inCall = false;
     if (d.id) post({ re: d.id, ok, value: ok ? value : undefined, error });
     post({ state: stateOf(d.call.startsWith('stage.') || d.call === 'recover') });
   });
@@ -59,8 +64,8 @@
   (function hello() {
     const p = sp();
     if (!p) { setTimeout(hello, 50); return; }
-    post({ hello: { durationInFrames: p.durationInFrames, fps: p.fps, width: p.width, height: p.height, ok: p.ok, generic: !!p.generic, composition: p.composition ?? null, episode: p.episode ?? null, stage: !!p.stage, hyperframes: !!p.hyperframes }, state: stateOf(true) });
-    p.on((ev) => post({ ev: plainOf(ev) }));
-    p.stage?.on?.((ev) => { post({ stageEv: plainOf(quiet ? { ...ev, quiet: true } : ev) }); pushStage(); });
+    post({ hello: { v: new URLSearchParams(location.search).get('v'), durationInFrames: p.durationInFrames, fps: p.fps, width: p.width, height: p.height, ok: p.ok, generic: !!p.generic, composition: p.composition ?? null, episode: p.episode ?? null, stage: !!p.stage, hyperframes: !!p.hyperframes }, state: stateOf(true) });
+    p.on((ev) => post({ ev: { ...ev, seen } }));
+    p.stage?.on?.((ev) => { post({ stageEv: quiet ? { ...ev, quiet: true } : ev }); pushStage(); });
   })();
 })();

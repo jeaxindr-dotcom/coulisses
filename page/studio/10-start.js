@@ -3,7 +3,7 @@
 // so they share their names as the one inline script did; hence the two-space indent.
   // ---------- start ----------
   (async () => {
-    for (const n of ['s1', 's2', 's9', 's11', 's12', 'acc', 'mark', 'work', 'done', 'range', 'head', 'lime']) C[n] = css('--' + n);
+    for (const n of ['s9', 's11', 'acc', 'mark', 'work', 'done', 'range', 'head', 'lime']) C[n] = css('--' + n);
     try {
       META = await (await fetch('/api/meta')).json();
       const data0Notes = META.newProject ? ((await (await fetch('/api/notes')).json()).notes ?? []).length : 0;
@@ -27,11 +27,19 @@
       if (PROJ) { /* no episode plan: the montage plan (if any) gives the tracks */ }
       else if (!SNAP) { $('#warn').style.display = 'block'; $('#warn').textContent = T('st.start.noPlan'); }
       else if (!META.snapshotMatches) { $('#warn').style.display = 'block'; $('#warn').textContent = T('st.start.stalePlan'); }
-      const data = await (await fetch('/api/notes')).json();
+      // the notes: read, or nothing is saved (a file there but unreadable answers 503: said, the page saves nothing over it)
+      const nr = await fetch('/api/notes', { cache: 'no-store' });
+      const data = nr.ok ? await nr.json() : null;
+      if (!data || !Array.isArray(data.notes)) {
+        $('#warn').style.display = 'block';
+        $('#warn').textContent = FR ? `Les notes n'ont pas pu être lues (${nr.status === 503 ? 'fichier illisible' : 'pas de réponse'}) : rien ne sera enregistré tant qu'elles ne le sont pas. Fichier › Actualiser.` : `The notes could not be read (${nr.status === 503 ? 'unreadable file' : 'no answer'}): nothing is saved until they are. File › Reload.`;
+        throw new Error('notes not read');
+      }
       notes = (data.notes || []).map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
-      HIST.last = JSON.stringify(notes);
+      HIST.last = JSON.stringify(notes); notesLoaded(data);
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
       STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
+      restoreDrafts();   // (what was being typed before a reload of this tab)
       buildLanes(); setTab(tabR); setTab(tabL); fitMedia(); resize(); renderAll(); updateHud();
       loadLive();
       setSave(notes.length ? T('st.start.loaded', { n: notes.length }) : T('st.start.ready'), 'ok');

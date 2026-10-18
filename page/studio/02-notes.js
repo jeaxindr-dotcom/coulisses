@@ -3,6 +3,12 @@
 // so they share their names as the one inline script did; hence the two-space indent.
   // ---------- notes ----------
   const sorted = () => [...notes].sort((a, b) => a.frame - b.frame || (a.end ?? a.frame) - (b.end ?? b.frame));
+  // the notes of the review, numbered alike everywhere (cards, timeline, pins, the marks sent, the inspector, « Comparer »):
+  // without the requests of the Agent tab (they shifted the numbers outside the cards, and could be moved or deleted in the
+  // Notes band)
+  const reviewed = () => sorted().filter((n) => n.kind !== 'prompt');
+  // a time of the plan (rounded to the ms) to its frame: the frame it starts (k/30 s read as 3.333 s was frame 99, not 100)
+  const frameOfT = (t) => Math.round(t * FPS);
   const byId = (id) => notes.find((n) => n.id === id);
   const drafts = () => sorted().filter((n) => n.draft && n.kind !== 'prompt');
   const reply = (n) => REPLIES.notes?.[n.id] ?? null;
@@ -162,7 +168,24 @@
   // ---------- saving ----------
   let saveT = null, saving = false, dirty = false;
   const setSave = (txt, cls) => { const s = $('#save'); s.textContent = txt; s.className = cls || ''; };
-  const payload = () => JSON.stringify({ episode: META.episode, title: META.title, fps: FPS, render: META.render, updated: now(), notes: sorted() });
+  // the notes file as the server last gave or took it (studio-server.mjs readNotes): its revision goes with each save, a
+  // save on an older one (another tab saved since) comes back 409 with the notes as they are now — merged (mergeNotes),
+  // saved again. NOTES_OK: the notes were read at the start; until then nothing is saved (code review 18/10/2026: a failed
+  // read showed 0 notes and the first save wrote them over)
+  let NOTES_OK = false, NOTES_REV, NOTES_KNOWN = new Set();
+  const notesLoaded = (data) => { NOTES_OK = true; NOTES_REV = data?.rev; NOTES_KNOWN = new Set(notes.map((n) => n.id)); NOTES_LAST_SAVE = Date.now(); };
+  const payload = () => JSON.stringify({ episode: META.episode, title: META.title, fps: FPS, render: META.render, updated: now(), notes: sorted(), ...(NOTES_REV !== undefined ? { rev: NOTES_REV } : {}) });
+  // two copies of the notes, this page's and the file's: a note only one of them has is new there (kept) unless it was
+  // known at the last save (it was deleted on the other side, and not changed since here: dropped); one both have: the
+  // newer change wins
+  function mergeNotes(mine, theirs) {
+    const t = (n) => Date.parse(n?.updated ?? n?.created ?? 0) || 0, saved = NOTES_LAST_SAVE;
+    const A = new Map(mine.map((n) => [n.id, n])), B = new Map(theirs.map((n) => [n.id, n])), out = [];
+    for (const [id, a] of A) { const b = B.get(id); if (b) out.push(t(b) > t(a) ? b : a); else if (!NOTES_KNOWN.has(id) || t(a) > saved) out.push(a); }
+    for (const [id, b] of B) if (!A.has(id) && (!NOTES_KNOWN.has(id) || t(b) > saved)) out.push(b);
+    return out.map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
+  }
+  let NOTES_LAST_SAVE = Date.now();
   // Ctrl+Z / Ctrl+Y (user request, 08/10/2026: « les raccourcis habituels »): the user's own actions in the page — a note
   // added, deleted, moved or written, a mark, an edit in the queue, a staging offset — 60 steps back, kept in memory. The
   // words typed in a field keep the browser's own undo while it has the focus, and typing in a note makes one step per
@@ -229,27 +252,75 @@
   window.__undo = { state: () => ({ back: HIST.back.length, fwd: HIST.fwd.length, top: HIST.back.at(-1)?.label ?? null }) };   // for tests
   async function flush() {
     if (saving) { saveT = setTimeout(flush, 300); return; }
+    if (!NOTES_OK) { setSave(T('st.save.notLoaded') === 'st.save.notLoaded' ? (FR ? 'Notes non lues : rien n’est enregistré (Fichier › Actualiser)' : 'Notes not read: nothing is saved (File › Reload)') : T('st.save.notLoaded'), 'err'); return; }
     saving = true; dirty = false;
     try {
-      const r = await fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload() });
-      if (!r.ok) throw new Error(await r.text());
+      for (let tries = 0; ; tries++) {
+        const r = await fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload() });
+        if (r.status === 409 && tries < 3) {   // another tab saved since: its notes and these, merged, then saved again
+          const cur = (await r.json()).current;
+          notes = mergeNotes(notes, cur?.notes ?? []); NOTES_REV = cur?.rev; HIST.last = JSON.stringify(notes); renderAll();
+          continue;
+        }
+        if (!r.ok) throw new Error(await r.text());
+        const res = await r.json().catch(() => ({}));
+        if (res.rev !== undefined) NOTES_REV = res.rev;
+        NOTES_KNOWN = new Set(notes.map((n) => n.id)); NOTES_LAST_SAVE = Date.now();
+        break;
+      }
       setSave(T('st.save.saved', { t: hm5(new Date()) }), 'ok');
-    } catch (e) { dirty = true; setSave(T('st.save.failed'), 'err'); }
+    } catch (e) { dirty = true; setSave(T('st.save.failed'), 'err'); clearTimeout(saveT); saveT = setTimeout(flush, 3000); }   // (tried again, not only at the next change)
     saving = false;
   }
-  async function flushNow() { clearTimeout(saveT); while (saving) await new Promise((r) => setTimeout(r, 50)); if (dirty) await flush(); return !dirty; }
-  window.addEventListener('beforeunload', () => { if (dirty) fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload(), keepalive: true }); });
+  // what is typed but lives only in this page (an answer being written under a note, the request to the agent, the words
+  // under the queue): kept for this tab when the page goes (a reload by the agent — new video, first export —, Fichier ›
+  // Actualiser, F5), given back at the start (code review 18/10/2026: lost at each automatic reload)
+  const draftKey = () => `coulisses-drafts:${META?.notesFile ?? location.port}`;
+  function keepDrafts() {
+    try {
+      const d = { pending: {}, agent: $('#agentText')?.value ?? '', words: $('#qwords')?.value ?? '' };
+      for (const [id, p] of Object.entries(pending)) if (p?.text?.trim() || p?.images?.length) d.pending[id] = p;
+      if (Object.keys(d.pending).length || d.agent.trim() || d.words.trim()) sessionStorage.setItem(draftKey(), JSON.stringify(d)); else sessionStorage.removeItem(draftKey());
+    } catch { /* private window: as before */ }
+  }
+  function restoreDrafts() {
+    try {
+      const d = JSON.parse(sessionStorage.getItem(draftKey()) ?? 'null'); sessionStorage.removeItem(draftKey());
+      if (!d) return;
+      for (const [id, p] of Object.entries(d.pending ?? {})) if (byId(id) && !pending[id]) pending[id] = p;
+      if (d.agent && !$('#agentText').value) $('#agentText').value = d.agent;
+      if (d.words && !$('#qwords').value) $('#qwords').value = d.words;
+    } catch { /* */ }
+  }
+  window.addEventListener('pagehide', keepDrafts);
+  // a reload asked by the page itself (a new video, the first export, the language, Fichier › Actualiser): only once the
+  // notes are saved — never over changes the server did not take (they would be lost); false: not reloaded, said
+  async function reloadSafely(f = curFrame()) {
+    if (NOTES_OK && !(await flushNow())) { setSave(T('st.save.failed'), 'err'); return false; }   // (notes never read: nothing of them to lose — Actualiser is the way out)
+    keepDrafts(); location.hash = `f=${f}`; location.reload(); return true;
+  }
+  async function flushNow() { clearTimeout(saveT); while (saving) await new Promise((r) => setTimeout(r, 50)); if (dirty) await flush(); return !dirty && NOTES_OK; }
+  // leaving with changes not saved yet: sent on the way out when small enough (the browser refuses a keepalive body over
+  // 64 KB — a page with drawn or graded notes is larger), else the browser asks to stay while the save runs
+  window.addEventListener('beforeunload', (e) => {
+    if (!dirty || !NOTES_OK) return;
+    const body = payload();
+    if (body.length < 60000) { fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }); return; }
+    flush(); e.preventDefault(); e.returnValue = '';
+  });
   let AGENT_PICK = store.get('agent', 'claude');   // chosen in « Connecter à l'agent »; the agent watching the tool wins
   const AGENT_LABELS = { claude: 'Claude Code', codex: 'Codex' };
   const agentName = () => (STATUS.agent?.watching && STATUS.agent?.agent?.name) || AGENT_LABELS[AGENT_PICK] || T('st.agent.yours');
-  let repliesTxt = '', statusTxt = '', offline = false;
+  let repliesTxt = '', statusTxt = '', statusKey = '', offline = false;
   async function pollReplies() {
     try {
       const t = await (await fetch('/api/replies', { cache: 'no-store' })).text();
       const s = await (await fetch('/api/status', { cache: 'no-store' })).text();
       let changed = false;
       if (t !== repliesTxt) { repliesTxt = t; REPLIES = JSON.parse(t); if (!REPLIES.notes) REPLIES.notes = {}; applyRemaps(); changed = true; }
-      if (s !== statusTxt) { statusTxt = s; STATUS = JSON.parse(s); onStatus(); changed = true; }
+      // (the agent's heartbeat changes every 5 s while it watches: taken, but the cards are not built again for it —
+      // code review 18/10/2026: a field being typed in lost its input, its selection, its own undo every 5 s)
+      if (s !== statusTxt) { const key = s.replace(/"beat":"[^"]*"/, ''); if (key !== statusKey) { statusKey = key; changed = true; } statusTxt = s; STATUS = JSON.parse(s); onStatus(); }
       if (changed) renderAll();
       loudMeter();   // the sound measured (part 14): asked until it is there, the meter at the playhead
       wordsFetch();   // the words heard (part 15): a new video's, the transcription's progress
@@ -262,7 +333,7 @@
       offline = false;
       try {
         const m = await (await fetch('/api/meta', { cache: 'no-store' })).json();
-        if (m.render && META.render && (m.render.size !== META.render.size || m.render.mtime !== META.render.mtime)) { setSave(T('st.save.newVideo'), 'ok'); const f = curFrame(); await flushNow(); location.hash = `f=${f}`; location.reload(); return; }
+        if (m.render && META.render && (m.render.size !== META.render.size || m.render.mtime !== META.render.mtime)) { setSave(T('st.save.newVideo'), 'ok'); if (await reloadSafely()) return; }
         setSave(T('st.save.back'), 'ok');
       } catch { /* next round */ }
     }
@@ -277,7 +348,7 @@
       (n.before ??= []).push({ frame: n.frame, end: n.end, render: n.render });
       n.frame = m.frame; n.end = m.end ?? null; n.render = META.render; stamp(n); changed = true;
     }
-    if (changed) { save(); setSave(T('st.save.remapped'), 'ok'); }
+    if (changed) { persist(); HIST.last = JSON.stringify(notes); setSave(T('st.save.remapped'), 'ok'); }   // (not a step of the user's undo: Ctrl+Z would put the notes back on the old frames)
   }
   function onStatus() {
     const a = STATUS.agent ?? {}, b = $('#agent');

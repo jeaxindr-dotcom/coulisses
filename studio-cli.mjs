@@ -26,9 +26,9 @@
 // there, no live preview (frame / sheet use the video), no staging, and no render from the studio.
 import fs from 'node:fs';
 import path from 'node:path';
-import { optionsFrom, episode, readJson, writeJson, nowIso, stillSource, pad3, flagsOf } from './lib/episode.mjs';
+import { optionsFrom, readJson, writeJson, updateJson, nowIso, stillSource, pad3, flagsOf } from './lib/episode.mjs';
 import { videoFrame, codeFrame, codeFrames, tile, closeCode, probeVideo } from './lib/frames.mjs';
-import { lotNumbers, readLot, lotFile, lotMarkdown } from './lib/lots.mjs';
+import { lotNumbers, readLot, lotFile, lotMarkdown, renderMarkdown } from './lib/lots.mjs';
 import { resolveTarget } from './lib/projects.mjs';
 import { snapshot, finish, step, listRuns } from './lib/runs.mjs';
 import { runRender, markReviewed, PHASES } from './lib/render.mjs';
@@ -40,7 +40,7 @@ import { t, hhmm } from './lib/i18n.mjs';
 // « RENDU NON LANCÉ », « RENDU EN ÉCHEC », « CONTRÔLES PASSÉS », « RENDU FAIT (sans finition) ». English adds a gloss after them.
 
 const argv = process.argv.slice(2);
-const FLAGS_WITH_VALUE = new Set(['--nom', '--categorie', '--tags', '--description', '--prompt', '--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
+const FLAGS_WITH_VALUE = new Set(['--categorie', '--tags', '--description', '--prompt', '--theatre', '--episodes', '--remotion', '--source', '--out', '--width', '--status', '--image', '--before', '--after', '--timeout', '--only', '--frames', '--agent', '--depuis', '--dossier', '--titre', '--chaine', '--format', '--projet', '--entree', '--module', '--timeline', '--composition', '--props', '--export', '--motif', '--nom', '--moteur', '--plan', '--profondeur', '--images']);
 const pos = []; const flags = {};
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -113,8 +113,14 @@ if (cmd === 'medias') {
 if (!cmd || !epArg) die(t('cli.usage'));
 const P = resolveTarget(epArg, optionsFrom(argv));
 const B = P.kind === 'brambleshire', CODE = B || P.kind === 'remotion' || P.kind === 'hyperframes';   // CODE: a live preview of the code exists
-const FPS = B ? readJson(P.SNAP, {})?.fps ?? 30 : (stillSource(P) ? probeVideo(stillSource(P)).fps : 30);   // a Remotion run with no export yet: frames are the code's
+// the video's frame rate, asked only by the commands that cut frames (frame, sheet): an ffprobe for every take / reply /
+// done / wait was not needed (code review 18/10/2026)
+let fpsMemo = null;
+const fpsNow = () => (fpsMemo ??= B ? readJson(P.SNAP, {})?.fps ?? 30 : (stillSource(P) ? probeVideo(stillSource(P))?.fps ?? 30 : 30));   // a Remotion run with no export yet: frames are the code's
 const replies = () => { const r = readJson(P.REPLIES, { notes: {} }); r.notes ??= {}; r.lots ??= {}; return r; };
+// the agent's answers changed under a lock, from a strict read (lib/episode.mjs updateJson): two commands run at once
+// (the agent runs several shells together), or one during finish-render's remap, no longer lose one another's answer
+const changeReplies = (fn) => updateJson(P.REPLIES, { notes: {} }, (r) => { r.notes ??= {}; r.lots ??= {}; fn(r); });
 const notesById = () => Object.fromEntries((readJson(P.NOTES, { notes: [] }).notes ?? []).map((n) => [n.id, n]));
 const rel = (f) => path.relative(P.REVUE, f).split(path.sep).join('/');
 const log = (m) => console.error(`… ${m}`);
@@ -136,9 +142,9 @@ async function main() {
           const render = readLot(P, n)?.kind === 'render';   // the marker never changes with the language
           console.log(t('cli.waitGot', { marker: render ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`, gloss: render ? `render request ${n} received` : `batch ${n} received`, ep: P.ep, md: lotFile(P, n, 'md') }));
           // (a batch written by an older Coulisses whose request failed: its request made now from the batch)
-          if (!fs.existsSync(lotFile(P, n, 'md'))) { try { fs.writeFileSync(lotFile(P, n, 'md'), lotMarkdown(P, readLot(P, n))); } catch (e) { console.log(e.message); } }
+          if (!fs.existsSync(lotFile(P, n, 'md'))) { try { const L = readLot(P, n); fs.writeFileSync(lotFile(P, n, 'md'), L?.kind === 'render' ? renderMarkdown(P, L) : lotMarkdown(P, L)); } catch (e) { console.log(e.message); } }
           console.log(fs.existsSync(lotFile(P, n, 'md')) ? fs.readFileSync(lotFile(P, n, 'md'), 'utf8') : lotFile(P, n));
-          console.log(t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').join(' ')}` }));
+          console.log(t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}` }));
           return;
         }
         if (limit && Date.now() - t0 > limit) { beat(false); console.log(t('cli.waitNone')); return; }
@@ -148,12 +154,14 @@ async function main() {
     }
     case 'take': {
       const n = +rest[0], L = readLot(P, n); if (!L) die(t('cli.noLot', { n }));
-      const r = replies();
-      if (r.lots[n] && r.lots[n].status !== 'open') die(t('cli.already', { n, status: r.lots[n].status, at: r.lots[n].at }));
-      const at = nowIso();
-      r.lots[n] = { status: 'taken', at };
-      for (const e of L.edits) { const x = (r.notes[e.id] ??= {}); x.status = 'working'; x.statusAt = at; }
-      writeJson(P.REPLIES, r);
+      let already = null;
+      changeReplies((r) => {
+        if (r.lots[n] && r.lots[n].status !== 'open') { already = r.lots[n]; return; }
+        const at = nowIso();
+        r.lots[n] = { status: 'taken', at };
+        for (const e of L.edits) { const x = (r.notes[e.id] ??= {}); x.status = 'working'; x.statusAt = at; }
+      });
+      if (already) die(t('cli.already', { n, status: already.status, at: already.at }));
       console.log(L.kind === 'render' ? t('cli.takenRender', { n }) : t('cli.taken', { n, k: L.edits.length }));
       return;
     }
@@ -167,9 +175,9 @@ async function main() {
       const f = +rest[0], source = flag('--source', CODE ? 'code' : 'video');
       if (source === 'code' && !CODE) die(t('cli.noCodeFrame'));
       const out = path.resolve(flag('--out', path.join(P.IMAGES, `claude-${source}-${f}.jpg`)));
-      if (source === 'code') await codeFrame(P, f, out, { log }); else await videoFrame(stillSource(P), f, FPS, out);
+      if (source === 'code') await codeFrame(P, f, out, { log }); else await videoFrame(stillSource(P), f, fpsNow(), out);
       const w = +flag('--width', 0);
-      if (w) { const s = out.replace(/(\.\w+)$/, '-w$1'); await videoFrame(out, 0, FPS, s, { width: w }); fs.renameSync(s, out); }
+      if (w) { const s = out.replace(/(\.\w+)$/, '-w$1'); await videoFrame(out, 0, fpsNow(), s, { width: w }); fs.renameSync(s, out); }
       console.log(out);
       return;
     }
@@ -186,7 +194,7 @@ async function main() {
       const side = async (source, tag) => {
         const dir = path.join(tmp, tag); let files;
         if (source === 'code') files = await codeFrames(P, frames[0], frames.at(-1), step, dir, { log });
-        else { fs.rmSync(dir, { recursive: true, force: true }); files = []; for (const f of frames) { const o = path.join(dir, `${pad3(files.length)}.jpg`); await videoFrame(stillSource(P), f, FPS, o, { width: 480 }); files.push(o); } }
+        else { fs.rmSync(dir, { recursive: true, force: true }); files = []; for (const f of frames) { const o = path.join(dir, `${pad3(files.length)}.jpg`); await videoFrame(stillSource(P), f, fpsNow(), o, { width: 480 }); files.push(o); } }
         const out = path.join(P.IMAGES, `claude-${id}-${tag}.jpg`);   // « avant » / « apres »: file names, the same in both languages
         await tile(files, out, { cols: 4, width: 480, labels: frames.map((f) => `${f}${source === 'code' ? ' code' : ''}`) });
         return out;
@@ -208,20 +216,24 @@ async function main() {
         imgs.push(rel(abs));
       }
       if (!flags['--no-images']) for (const tag of ['avant', 'apres']) { const f = path.join(P.IMAGES, `claude-${id}-${tag}.jpg`); if (fs.existsSync(f) && !imgs.includes(rel(f))) imgs.push(rel(f)); }
-      const r = replies(), at = nowIso(), e = (r.notes[id] ??= {});
-      let msg = text; const m = e.remap; if (m) msg += t('cli.remap', { frame: m.frame, end: m.end != null ? ` → ${m.end}` : '' });
-      e.messages = [...(e.messages ?? []), { text: msg, images: imgs.map((file) => ({ file, at })), at, ...(AG ? { by: AG.name } : {}) }];
-      e.status = status; e.statusAt = at;
-      writeJson(P.REPLIES, r);
+      let e = null;
+      changeReplies((r) => {
+        const at = nowIso(); e = (r.notes[id] ??= {});
+        let msg = text; const m = e.remap; if (m) msg += t('cli.remap', { frame: m.frame, end: m.end != null ? ` → ${m.end}` : '' });
+        e.messages = [...(e.messages ?? []), { text: msg, images: imgs.map((file) => ({ file, at })), at, ...(AG ? { by: AG.name } : {}) }];
+        e.status = status; e.statusAt = at;
+      });
       console.log(t('cli.replied', { id, status, n: imgs.length, m: e.messages.length }));
       return;
     }
     case 'done': {
       const n = +rest[0], L = readLot(P, n); if (!L) die(t('cli.noLot', { n }));
-      const mf = finish(P, n), r = replies(), at = nowIso();
-      r.lots[n] = { status: flags['--declined'] ? 'declined' : 'done', at, message: rest[1] ?? '', files: mf ? mf.files.filter((x) => x.changed).map((x) => x.rel) : [] };
-      for (const e of L.edits) { const x = r.notes[e.id]; if (x?.status === 'working') { x.status = 'open'; x.statusAt = at; } }   // never left « en cours »
-      writeJson(P.REPLIES, r);
+      const mf = finish(P, n);
+      const r = changeReplies((r) => {
+        const at = nowIso();
+        r.lots[n] = { status: flags['--declined'] ? 'declined' : 'done', at, message: rest[1] ?? '', files: mf ? mf.files.filter((x) => x.changed).map((x) => x.rel) : [] };
+        for (const e of L.edits) { const x = r.notes[e.id]; if (x?.status === 'working') { x.status = 'open'; x.statusAt = at; } }   // never left « en cours »
+      });
       if (L.kind === 'render') { markReviewed(P, rest[1] ?? ''); console.log(t('cli.doneRender', { n })); return; }
       console.log(t('cli.done', { n, status: r.lots[n].status, extra: mf ? t('cli.doneFiles', { k: r.lots[n].files.length }) : t('cli.doneNoSnap') }));
       return;
@@ -232,7 +244,7 @@ async function main() {
       if (n && !L) die(t('cli.noLot', { n }));
       const only = String(flag('--only', PHASES.join(','))).split(',').map((x) => x.trim()).filter((x) => PHASES.includes(x));
       if (!only.length) die(`--only : ${PHASES.join(', ')}`);
-      if (n) { const r = replies(); if (!r.lots[n]) { r.lots[n] = { status: 'taken', at: nowIso() }; writeJson(P.REPLIES, r); } }
+      if (n) changeReplies((r) => { if (!r.lots[n]) r.lots[n] = { status: 'taken', at: nowIso() }; });
       const again = `node "${process.argv[1]}" ${argv.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}`;
       const S = await runRender(P, { lot: n, only, frames: flag('--frames'), out: flag('--out'), log });
       const hm = (iso) => (iso ? hhmm(iso) : '?');

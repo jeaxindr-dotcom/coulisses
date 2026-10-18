@@ -7,7 +7,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
-import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
+import { removeTestNotes, closeTestLots, AGENT_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs): the CLI below, and the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,9 +21,9 @@ let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
-const TEST_TEXTS = ['Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+const TEST_TEXTS = AGENT_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
 await requireFrench(`http://localhost:${PORT}/`);
-closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
+closeTestLots(REVUE, cli, SANDBOX_TEXTS);   // (the batches the other suites of the sandbox left open too: `wait` would take the first one) await removeTestNotes(PORT, SANDBOX_TEXTS);
 
 // 1) the session starts watching
 const w = spawn('node', [CLI, 'wait', 'E03', '--episodes', SANDBOX], { stdio: ['ignore', 'pipe', 'pipe'] });

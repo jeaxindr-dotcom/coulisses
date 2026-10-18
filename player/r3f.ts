@@ -104,16 +104,23 @@ export const hasScene = () => roots().some((r: any) => r?.store?.getState?.().sc
 // what is under (x, y) of the W × H frame (the Player letterboxes the frame inside #stage)
 export function pick(x: number, y: number, W: number, H: number) {
   const out: any[] = [];
-  for (const canvas of Array.from(document.querySelectorAll('canvas'))) {
+  const stage = document.getElementById('stage')!.getBoundingClientRect();
+  // frame pixels -> this page's pixels (the Player letterboxes the frame inside the page)
+  const k = Math.min(stage.width / W, stage.height / H);
+  const px = stage.left + (stage.width - W * k) / 2 + (x + 0.5) * k, py = stage.top + (stage.height - H * k) / 2 + (y + 0.5) * k;
+  const all = Array.from(document.querySelectorAll('canvas'));
+  const top = (document.elementsFromPoint(px, py).filter((el) => el.tagName === 'CANVAS') as HTMLCanvasElement[]);
+  const order = [...top, ...all.reverse().filter((c) => !top.includes(c))];
+  for (const canvas of order) {
+    if (out.length) break;   // (the canvas on top that names something: the ones below it are hidden by it)
     const root: any = (_roots as any).get(canvas);
     const st = root?.store?.getState?.();
     if (!st?.camera || !st?.scene) continue;
+    if (getComputedStyle(canvas).visibility === 'hidden' || +getComputedStyle(canvas).opacity === 0) continue;
     indexFibers(root);
-    const box = canvas.getBoundingClientRect(), stage = document.getElementById('stage')!.getBoundingClientRect();
-    // frame pixels -> this page's pixels (the Player letterboxes the frame inside the page)
-    const k = Math.min(stage.width / W, stage.height / H);
-    const px = stage.left + (stage.width - W * k) / 2 + (x + 0.5) * k, py = stage.top + (stage.height - H * k) / 2 + (y + 0.5) * k;
+    const box = canvas.getBoundingClientRect();
     if (px < box.left || px > box.right || py < box.top || py > box.bottom) continue;
+    if (sleeping) { st.scene.updateMatrixWorld(); st.camera.updateMatrixWorld(); }
     const ndc = new THREE.Vector2(((px - box.left) / box.width) * 2 - 1, -((py - box.top) / box.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, st.camera);
@@ -138,15 +145,25 @@ export const meshCount = () => {
 };
 // asleep: React Three Fiber draws nothing (Remotion's ThreeCanvas draws at every display frame, even paused); awake: as
 // before. The studio puts a preview to sleep while it is not on screen (preloaded, or the MP4 shown)
-const asleep = new Map<any, string>();
+let sleeping = false, sweep: any = 0;
+const asleep = new WeakMap<any, string>(), held = new WeakMap<any, () => void>();
+function hold(r: any) {
+  const st = r?.store?.getState?.(); if (!st?.setFrameloop) return;
+  if (!asleep.has(r)) asleep.set(r, st.frameloop && st.frameloop !== 'never' ? st.frameloop : 'always');
+  if (st.frameloop !== 'never') st.setFrameloop('never');
+  if (!held.has(r)) held.set(r, r.store.subscribe((s: any) => { if (sleeping && s.frameloop !== 'never') s.setFrameloop('never'); }));
+}
 export function sleep(on: boolean) {
-  for (const r of roots()) {
-    const st = r?.store?.getState?.(); if (!st?.setFrameloop) continue;
-    if (on) { if (!asleep.has(r)) asleep.set(r, st.frameloop ?? 'always'); st.setFrameloop('never'); }
-    else if (asleep.has(r)) { st.setFrameloop(asleep.get(r)); asleep.delete(r); }
+  sleeping = on; clearInterval(sweep); sweep = 0;
+  if (on) { for (const r of roots()) hold(r); sweep = setInterval(() => { for (const r of roots()) hold(r); }, 500); }
+  else for (const r of roots()) {
+    const st = r?.store?.getState?.(), was = asleep.get(r);
+    held.get(r)?.(); held.delete(r); asleep.delete(r);
+    if (was && st?.setFrameloop) st.setFrameloop(was);
   }
   return on;
 }
+export const isAsleep = () => sleeping;
 export const settle = async (waitCanvas = true) => {
   for (let i = 0; i < 300 && waitCanvas && !document.querySelector('canvas'); i++) await new Promise((r) => setTimeout(r, 100));
   // every pick (a seek can mount an actor that enters later): ~0.4 s when nothing loads, up to 24 s while it does

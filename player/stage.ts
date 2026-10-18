@@ -13,7 +13,7 @@ import { stageModeKey, toParent } from './keys';
 
 type V3 = [number, number, number];
 export interface Delta { p: V3; r: V3; s: number }          // position (world units), rotation (radians), uniform scale factor
-interface Edit { id: string; delta: Delta; from: number; to: number; obj: THREE.Object3D | null; base: { p: THREE.Vector3; r: THREE.Euler; s: THREE.Vector3 } | null; applied: { p: THREE.Vector3; r: THREE.Euler; s: THREE.Vector3 } | null }
+interface Edit { id: string; delta: Delta; from: number; to: number; obj: THREE.Object3D | null; base: { p: THREE.Vector3; r: THREE.Euler; s: THREE.Vector3 } | null; applied: { p: THREE.Vector3; r: THREE.Euler; s: THREE.Vector3 } | null; retryAt?: number }
 interface Deps {
   roots: () => any[];                                   // the R3F roots (one per canvas)
   index: (root: any) => void;                           // map THREE objects -> their React fibers
@@ -163,15 +163,24 @@ export function createStage(D: Deps) {
 
   // ---- every frame, before R3F renders: offsets on top of the engine's transforms, the free camera ----
   addEffect(() => {
+    if (!on && !edits.size && !cutouts.size) return;
     const f = D.frame();
     if (cutouts.size) { const sc = mainRoot()?.store.getState().scene; if (sc) for (const c of cutouts.values()) if (c.group.parent !== sc) sc.add(c.group); }
     for (const e of edits.values()) {
       let o = e.obj;
-      if (!o || !o.parent) { o = e.obj = resolve(e.id); e.base = e.applied = null; }
+      if (!o || !o.parent) {
+        const now = performance.now(); if ((e.retryAt ?? 0) > now) continue;
+        e.retryAt = now + 250; o = e.obj = resolve(e.id); e.base = e.applied = null;
+      }
       if (!o) continue;
       const a = e.applied;
       // React wrote a new transform since our last frame (or first time): it is the new base
-      if (!a || !o.position.equals(a.p) || !o.rotation.equals(a.r) || !o.scale.equals(a.s) || !e.base) e.base = { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() };
+      if (!a || !e.base) e.base = { p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() };
+      else {
+        if (!o.position.equals(a.p)) e.base.p.copy(o.position);
+        if (!o.rotation.equals(a.r)) e.base.r.copy(o.rotation);
+        if (!o.scale.equals(a.s)) e.base.s.copy(o.scale);
+      }
       const b = e.base, inScope = f >= e.from && f <= e.to, d = inScope ? e.delta : ZERO;
       if (cutouts.has(e.id)) o.visible = inScope || (on && selected === e.id);
       o.position.set(b.p.x + d.p[0], b.p.y + d.p[1], b.p.z + d.p[2]);
@@ -218,12 +227,14 @@ export function createStage(D: Deps) {
     return e;
   }
   function select(id: string | null) {
+    const prev = selected ? edits.get(selected) : null;
+    if (prev && prev.id !== id && !cutouts.has(prev.id) && isZero(prev.delta)) edits.delete(prev.id);
     selected = id;
     if (!tc || !st) return;
     if (!id) { tc.detach(); emit({ type: 'deselect' }); return; }
     const e = ensure(id);
-    if (!e.obj) e.obj = resolve(id);
-    if (!e.obj) { emit({ type: 'deselect' }); return; }
+    if (!e.obj || !e.obj.parent) e.obj = resolve(id);
+    if (!e.obj) { selected = null; tc.detach(); if (!cutouts.has(id) && isZero(e.delta)) edits.delete(id); emit({ type: 'deselect' }); return; }
     if (!e.base) e.base = { p: e.obj.position.clone(), r: e.obj.rotation.clone(), s: e.obj.scale.clone() };
     tc.attach(e.obj);
     if (box) { st.scene.remove(box); box.dispose?.(); }
@@ -356,7 +367,7 @@ export function createStage(D: Deps) {
       select(null);
       tc?.detach(); if (helper && st) st.scene.remove(helper); tc?.dispose(); tc = null; helper = null;
       orbit?.dispose(); orbit = null; freeCam = null;
-      if (box && st) { st.scene.remove(box); box = null; }
+      if (box && st) { st.scene.remove(box); box.dispose?.(); box = null; }
       canvas?.removeEventListener('pointerdown', onDown); canvas?.removeEventListener('pointerup', onUp); canvas?.removeEventListener('pointermove', onMove);
       window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp);
       if (canvas) canvas.style.cursor = '';
@@ -407,15 +418,13 @@ export function createStage(D: Deps) {
       return was;
     },
     // the 3D image as the shot's camera sees it, with the offsets, without gizmo (the after image sent to Claude)
-    snapshot: () => new Promise<string>((res) => { capture = res; setTimeout(() => { if (capture === res) { capture = null; res(''); } }, 3000); }),
+    snapshot: () => new Promise<string>((res) => { capture = res; setTimeout(() => { if (capture === res) capture = null; res(''); }, 3000); }),
     // where the object is on the 1920×1080 frame (its centre), to pin the note on it
     screenPos: (id: string) => {
       const e = edits.get(id), o = e?.obj ?? resolve(id), root = mainRoot(); if (!o || !root) return null;
       const cam = root.store.getState().camera as THREE.Camera, c = root.store.getState().gl.domElement as HTMLCanvasElement;
       const b = new THREE.Box3().setFromObject(o), v = b.getCenter(new THREE.Vector3());
-      const saved = cam.matrixWorldInverse.clone();
       if (scenePose && freeCam) { const tmp = (cam as any).clone(); tmp.position.copy(scenePose.p); tmp.quaternion.copy(scenePose.q); tmp.updateMatrixWorld(); v.project(tmp); } else v.project(cam);
-      cam.matrixWorldInverse.copy(saved);
       const FW = D.W ?? 1920, FH = D.H ?? 1080;
       const stage = document.getElementById('stage')!.getBoundingClientRect(), r = c.getBoundingClientRect(), k = Math.min(stage.width / FW, stage.height / FH);
       const px = r.left + (v.x + 1) / 2 * r.width, py = r.top + (1 - v.y) / 2 * r.height;

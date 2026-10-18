@@ -50,7 +50,7 @@
     if (!lw) return;
     if (ov.width !== Math.round(lw * q) || ov.height !== Math.round(lh * q)) { ov.width = Math.round(lw * q); ov.height = Math.round(lh * q); }
     const g = ov.getContext('2d'); g.setTransform(q, 0, 0, q, 0, 0); g.clearRect(0, 0, lw, lh);
-    const k = lw / CW, num = new Map(sorted().map((n, i) => [n.id, i + 1]));
+    const k = lw / CW, num = new Map(reviewed().map((n, i) => [n.id, i + 1]));
     for (const n of visibleNotes()) {
       const done = statusOf(n) === 'done';
       paintMark(g, n.mark, String(num.get(n.id)), k, n.id === sel ? C.acc : (done ? C.done : C.mark), done && n.id !== sel);
@@ -80,6 +80,7 @@
     el.style.left = px / VZ.k + 'px';
     el.style.top = Math.max(v.y0 + h / 2 + 6, Math.min(v.y1 - h / 2 - 6, py)) / VZ.k + 'px';
   }
+  let recoverF = null, recoverAt = 0, recoverN = 0;
   async function hoverAt(e) {
     if (tool !== 'select' || popFor || stroke || !M.paused) { hideHover(); return; }
     const t = performance.now(); if (t - hoverT < 70 || hoverPending) return;
@@ -89,7 +90,12 @@
       const f = curFrame();
       // the preview stopped by an error (E11, 17/10/2026: behind the MP4, nothing said it, and nothing was named any more):
       // mounted again here; the next move names it
-      if (crash) { const at = crash.at ?? f; codeRecover(f); if (mode !== 'code') setSave(T('st.code.recovered', { f: at }), ''); return; }
+      if (crash) {
+        // (stopped again at the same frame: mounted again after 4 s, then 8 s… — not at every move of the pointer)
+        const same = recoverF === f; if (same && performance.now() - recoverAt < 4000 * recoverN) { hideHover(); return; }
+        recoverN = same ? recoverN + 1 : 1; recoverF = f; recoverAt = performance.now();
+        const at = crash.at ?? f; codeRecover(f); if (mode !== 'code') setSave(T('st.code.recovered', { f: at }), ''); return;
+      }
       if (sp.frame() !== f) { sp.pause(); sp.seek(f); return; }   // the next move names it
       const pt = toComp(e), h = await sp.hover(f, pt[0], pt[1]), tag = $('#hoverTag');   // (the preview's own process answers)
       if (h === undefined || popFor || stroke || !M.paused) return;

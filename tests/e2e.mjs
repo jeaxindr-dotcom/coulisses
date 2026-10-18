@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launch, requireFrench } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
-import { removeTestNotes, closeTestLots } from './sandbox-clean.mjs';
+import { removeTestNotes, closeTestLots, E2E_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 
 process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i18n.mjs): the CLI below, and the studio started by hand
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,9 +23,9 @@ let ok = 0, ko = 0;
 const check = (cond, what) => { if (cond) { ok++; console.log(`  ✓ ${what}`); } else { ko++; console.log(`  ✗ ${what}`); } };
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
-const TEST_TEXTS = [/^L'aperçu du code plante à cette image : test/, 'Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+const TEST_TEXTS = E2E_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
 await requireFrench(URL);
-closeTestLots(REVUE, cli, TEST_TEXTS); await removeTestNotes(PORT, TEST_TEXTS);
+closeTestLots(REVUE, cli, SANDBOX_TEXTS); await removeTestNotes(PORT, SANDBOX_TEXTS);   // (what every suite of the sandbox left: each starts clean)
 const p = await launch();
 try {
   await p.goto(URL);

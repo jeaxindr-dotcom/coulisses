@@ -15,7 +15,7 @@ const W = C.width || 1920, H = C.height || 1080, FPS = C.fps || 30;
 const root = document.querySelector('[data-composition-id]');
 const listeners = new Set();
 const P = () => window.__player ?? null;
-const frameNow = () => Math.max(0, Math.round((P()?.getTime?.() ?? 0) * FPS));
+const frameNow = () => Math.max(0, Math.min(durationInFrames - 1, Math.floor((P()?.getTime?.() ?? 0) * FPS + 1e-6)));
 const emit = (type) => { const frame = frameNow(); for (const l of listeners) l({ type, frame }); };
 // the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
 const R = createReady({ root: () => document, playing: () => !!P()?.isPlaying?.(), emit });

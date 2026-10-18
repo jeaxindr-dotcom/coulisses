@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { optionsFrom, readJson, stamp } from './lib/episode.mjs';
-import { STUDIO, INSTALLED, CACHE } from './lib/place.mjs';
+import { STUDIO, INSTALLED, CACHE, DATA } from './lib/place.mjs';
 import { ffmpeg, sweepStaleTemp } from './lib/frames.mjs';
 import { renderState } from './lib/render.mjs';
 import { registry, importProject, removeProject, project, revueOf, folderOf, setFolder, renameFolder } from './lib/projects.mjs';
@@ -26,7 +26,6 @@ import { drives, startScan, scanState, stopScan } from './lib/scan.mjs';
 import { workspace, startInstall, installState, createProject, projectsRoot, FORMATS } from './lib/new-project.mjs';
 import { hfFor } from './lib/hyperframes.mjs';
 import { homeUpdates, runHomeUpdate, homeUpdateState } from './lib/updates.mjs';
-import { DATA } from './lib/place.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
@@ -74,14 +73,15 @@ function durationOf(file, st) {
   return durations.get(key) ?? null;
 }
 function projects() {
-  return registry().projects.map(({ id, revue }) => {
-    const st = studios.get(id), live = st ? { url: st.url, paused: !!st.paused } : null;
+  const reg = registry();
+  return reg.projects.map(({ id, revue }) => {
+    const st = studios.get(id), live = st && (st.paused || (st.proc.exitCode === null && st.url)) ? { url: st.url, paused: !!st.paused } : null;
     try {
       const p = project(revue), v = p.summary.video;
       const engine = p.kind === 'remotion' ? 'remotion' : p.kind === 'hyperframes' ? 'hyperframes' : null;   // the home screen's tag (09/10/2026)
-      return { id, project: true, kind: p.kind, engine, channel: p.summary.channel ?? null, folder: folderOf(id, p.summary.channel ?? null), coulisses: p.coulisses ?? null, format: p.summary.format, title: p.title, root: p.EP, revue, video: v, thumb: !!v,
+      return { id, project: true, kind: p.kind, engine, channel: p.summary.channel ?? null, folder: folderOf(id, p.summary.channel ?? null, reg), coulisses: p.coulisses ?? null, format: p.summary.format, title: p.title, root: p.EP, revue, video: v, thumb: !!v,
         duration: v ? durationOf(p.summary.videoPath, v) : null, ...reviewStats(revue), studio: live };
-    } catch (e) { return { id, project: true, missing: true, revue, folder: folderOf(id, null), title: path.basename(path.dirname(revue)), why: e.message, studio: live }; }
+    } catch (e) { return { id, project: true, missing: true, revue, folder: folderOf(id, null, reg), title: path.basename(path.dirname(revue)), why: e.message, studio: live }; }
   });
 }
 // the Theatre section of the home screen: its name is the channel its episodes' .coulisses give (the user's own), else
@@ -101,6 +101,7 @@ let theatreMemo = { at: 0, v: null };
 function theatreChannel() { if (Date.now() - theatreMemo.at > 5000) theatreMemo = { at: Date.now(), v: theatreInfo().name ?? 'Theatre' }; return theatreMemo.v; }
 function episodes() {
   if (!fs.existsSync(O.episodesDir)) return [];
+  const reg = registry();
   return fs.readdirSync(O.episodesDir).filter((d) => /^E\d+ - /i.test(d)).sort().map((folder) => {
     const id = folder.split(' - ')[0].toUpperCase(), dir = path.join(O.episodesDir, folder), revue = path.join(dir, 'revue');
     const mp4 = path.join(dir, `${folder}.mp4`), video = fs.existsSync(mp4) ? stamp(mp4) : null;
@@ -113,11 +114,11 @@ function episodes() {
     const render = R && (R.state === 'running' || ((R.state === 'rendered' || R.state === 'blocked' || R.state === 'failed') && Date.now() - Date.parse(R.updatedAt) < 3 * 86400e3))
       ? { state: R.state, phase: R.phase, pct: R.render?.stage === 'frames' ? Math.floor(R.render.pct) : null } : null;
     return {
-      render, engine: 'remotion', channel: theatreChannel(), folder: folderOf(id, theatreChannel()), dir: folder,
+      render, engine: 'remotion', channel: theatreChannel(), folder: folderOf(id, theatreChannel(), reg), dir: folder,
       id, title: folder.replace(/^E\d+ - /i, ''), video, duration: snap ? snap.frames / (snap.fps || 30) : null,
       notes: notes.length, open: notes.filter((n) => !done(n)).length, drafts: notes.filter((n) => n.draft).length, lots,
       thumb: fs.existsSync(path.join(dir, 'thumbnail.jpg')) || !!video, reviewed: notes.length ? notes.map((n) => n.updated || n.created).filter(Boolean).sort().at(-1) : null,
-      studio: st ? { url: st.url, paused: !!st.paused } : null,
+      studio: st && (st.paused || (st.proc.exitCode === null && st.url)) ? { url: st.url, paused: !!st.paused } : null,
     };
   });
 }
@@ -156,14 +157,14 @@ function open(id) {
   st.proc = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), ...target, '--no-open', '--hub', hubUrl, ...again, ...(proj ? [] : PASS)], { cwd: STUDIO, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   st.ready = new Promise((resolve, reject) => {
     let buf = '';
-    const timer = setTimeout(() => reject(new Error(t('hubsrv.noAnswer', { log: path.join(LOGS, `${id}.log`) }))), 60000);
+    const timer = setTimeout(() => { reject(new Error(t('hubsrv.noAnswer', { log: path.join(LOGS, `${id}.log`) }))); if (studios.get(id) === st) studios.delete(id); killTree(st.proc.pid); }, 60000);
     st.proc.stdout.on('data', (d) => {
-      out.write(d); buf += d;
+      out.write(d); buf = st.url ? '' : (buf + d).slice(-8000);
       const m = /(?:Ouvre :|Open:) (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(buf);   // the studio's language (studio-server.mjs)
       if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); }
     });
-    st.proc.stderr.on('data', (d) => { out.write(d); buf += d; });
-    st.proc.on('exit', (c) => { clearTimeout(timer); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || t('hubsrv.exit', { code: c }))); });
+    st.proc.stderr.on('data', (d) => { out.write(d); buf = (buf + d).slice(-8000); });
+    st.proc.on('exit', (c) => { clearTimeout(timer); out.end(); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || t('hubsrv.exit', { code: c }))); });
   });
   studios.set(id, st);
   log(t('hubsrv.starting', { id }));
@@ -206,13 +207,15 @@ function doImport(p) {
 // ---------- http ----------
 const send = (res, code, type, body) => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-cache' }); res.end(body); };
 const json = (res, data, code = 200) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(data));
-const page = (title, msg) => `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">${t('hubsrv.back')}</a></p></div>`;
+const escH = (x) => String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const page = (title0, msg0) => { const title = escH(title0), msg = escH(msg0); return `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="background:#090b12;color:#f4f5fa;font:15px 'Segoe UI';display:grid;place-items:center;height:100vh;margin:0"><div style="max-width:640px;text-align:center"><h2 style="font-weight:600">${title}</h2><p style="color:#aeb2c4;white-space:pre-wrap">${msg}</p><p><a style="color:#c9f26b" href="/">${t('hubsrv.back')}</a></p></div>`; };
 const server = http.createServer(async (req, res) => {
   if (!fromApp(req)) return refuse(res);   // only Coulisses itself (lib/guard.mjs)
-  const url = new URL(req.url, 'http://x'), pn = decodeURIComponent(url.pathname), ep = normId(url.searchParams.get('ep')) ?? '';
+  const url = new URL(req.url, 'http://x'), ep = normId(url.searchParams.get('ep')) ?? '';
+  let pn; try { pn = decodeURIComponent(url.pathname); } catch { return send(res, 400, 'text/plain; charset=utf-8', 'bad address'); }
   try {
     // the home screen, in the user's language (lib/i18n.mjs: {{key}} and window.T)
-    if (pn === '/' || pn === '/index.html') return send(res, 200, 'text/html; charset=utf-8', renderPage(fs.readFileSync(path.join(STUDIO, 'hub.html'), 'utf8'), { prefixes: ['hub.', 'common.', 'menu.'] }));
+    if (pn === '/' || pn === '/index.html') return send(res, 200, 'text/html; charset=utf-8', renderPage(fs.readFileSync(path.join(STUDIO, 'hub.html'), 'utf8'), { prefixes: ['hub.', 'common.', 'menu.', 'hf.noneShort'] }));
     // « Langue · Language »: the user's choice for the whole app (%LOCALAPPDATA%\Coulisses\settings.json)
     if (pn === '/api/lang' && req.method === 'POST') {
       const b = await readBody(req);
@@ -300,7 +303,7 @@ const server = http.createServer(async (req, res) => {
       log(t('hubsrv.importMany', { ok: out.filter((x) => x.ok).length, n: out.length }));
       return json(res, { ok: true, results: out });
     }
-    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, theatre: theatreInfo(), episodes: episodes(), projects: projects() });
+    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes(), projects: projects() });
     if (pn.startsWith('/thumb/')) { const f = await thumb(normId(pn.slice(7)) ?? ''); if (!f) return send(res, 404, 'text/plain', 'no thumbnail'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=3600' }); return fs.createReadStream(f).pipe(res); }
     const go = /^\/go\/(E\d+|P[0-9a-f]{8})$/i.exec(pn);
     if (go) {

@@ -19,7 +19,7 @@ export function createReady(opts: { root: () => ParentNode | null; playing: () =
   const why = (): string | null => {
     if (buffering) return 'buffering';
     const r = opts.root(); if (!r) return null;
-    for (const v of Array.from(r.querySelectorAll('video'))) if ((v.readyState < 2 || v.seeking) && shown(v)) return 'video';
+    for (const v of Array.from(r.querySelectorAll('video'))) if (!v.error && v.networkState !== 3 && (v.readyState < 2 || v.seeking) && shown(v)) return 'video';
     for (const im of Array.from(r.querySelectorAll('img'))) if (!im.complete && shown(im)) return 'image';
     if ((document as any).fonts?.status === 'loading') return 'font';
     return null;
@@ -34,6 +34,14 @@ export function createReady(opts: { root: () => ParentNode | null; playing: () =
     else if (loading) { loading = false; opts.emit('loaded'); }   // never stuck
   };
   const watch = () => { t0 = performance.now(); if (!raf) raf = requestAnimationFrame(tick); };
+  const waiters = new Set<{ res: () => void; t: number; armed: boolean }>();
+  let pollRaf = 0;
+  const poll = () => {
+    pollRaf = 0;
+    const done = !why(), now = performance.now();
+    for (const w of [...waiters]) if (w.armed && (done || now - w.t > 30000)) { waiters.delete(w); w.res(); }
+    if (waiters.size) pollRaf = requestAnimationFrame(poll);
+  };
   return {
     watch,
     setBuffering: (b: boolean) => { buffering = b; watch(); },
@@ -42,6 +50,9 @@ export function createReady(opts: { root: () => ParentNode | null; playing: () =
     why,
     // the frame complete (a pick, a capture, the « after » image of a staging), at most 30 s
     // (two frames first: the Player has drawn the frame asked, its new media are in the page)
-    when: () => new Promise<void>((res) => { const t = performance.now(); const go = () => (!why() || performance.now() - t > 30000 ? res() : requestAnimationFrame(go)); requestAnimationFrame(() => requestAnimationFrame(go)); }),
+    when: () => new Promise<void>((res) => {
+      const w = { res, t: performance.now(), armed: false }; waiters.add(w);
+      requestAnimationFrame(() => requestAnimationFrame(() => { w.armed = true; if (!pollRaf) pollRaf = requestAnimationFrame(poll); }));
+    }),
   };
 }

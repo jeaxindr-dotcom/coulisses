@@ -36,24 +36,30 @@ for (const d of DIRS) for (const f of fs.readdirSync(path.join(HERE, d))) if (fs
 const manifestFile = path.join(TO, 'installed.json');
 const before = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : null;
 // files changed in the installed copy since the last install
-const touched = before ? Object.entries(before.files).filter(([f, h]) => fs.existsSync(path.join(TO, f)) && sha(path.join(TO, f)) !== h).map(([f]) => f) : [];
+const touched = before ? Object.entries(before.files).filter(([f, h]) => { const dst = path.join(TO, f), src = path.join(HERE, f); if (!fs.existsSync(dst)) return false; const now = sha(dst); return now !== h && !(fs.existsSync(src) && sha(src) === now); }).map(([f]) => f) : [];
 if (touched.length && !FORCE) {
   console.error(t('inst.touched', { to: TO, files: touched.join(', ') }));
   process.exit(3);   // « Coulisses Setup.exe » offers to overwrite them (exit code 3, whatever the language)
 }
-const files = {};
-let changed = 0;
-for (const f of list) {
-  const src = path.join(HERE, f), dst = path.join(TO, f), h = sha(src);
-  files[f.split(path.sep).join('/')] = h;
-  if (fs.existsSync(dst) && sha(dst) === h) continue;
-  changed++;
-  console.log(`${t(fs.existsSync(dst) ? 'inst.updated' : 'inst.added')}  ${f}`);
-  if (!DRY) { fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(src, dst); }
+const files = {}, done = {};
+let changed = 0, complete = false;
+try {
+  for (const f of list) {
+    const src = path.join(HERE, f), dst = path.join(TO, f), h = sha(src), key = f.split(path.sep).join('/');
+    files[key] = h;
+    if (fs.existsSync(dst) && sha(dst) === h) { done[key] = h; continue; }
+    changed++;
+    console.log(`${t(fs.existsSync(dst) ? 'inst.updated' : 'inst.added')}  ${f}`);
+    if (!DRY) { fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(src, dst); }
+    done[key] = h;
+  }
+  // files of an earlier install that this version no longer has
+  for (const f of Object.keys(before?.files ?? {})) if (!files[f] && fs.existsSync(path.join(TO, f))) { console.log(`${t('inst.removed')}${f}`); if (!DRY) fs.rmSync(path.join(TO, f)); }
+  complete = true;
+} finally {
+  // (cut short: the files copied so far with their new print, the others with the one they had)
+  if (!DRY) fs.writeFileSync(manifestFile, JSON.stringify({ installed: new Date().toISOString(), from: HERE, app: 'Coulisses', ...(complete ? {} : { partial: true }), files: complete ? files : { ...(before?.files ?? {}), ...done } }, null, 1));
 }
-// files of an earlier install that this version no longer has
-for (const f of Object.keys(before?.files ?? {})) if (!files[f] && fs.existsSync(path.join(TO, f))) { console.log(`${t('inst.removed')}${f}`); if (!DRY) fs.rmSync(path.join(TO, f)); }
-if (!DRY) fs.writeFileSync(manifestFile, JSON.stringify({ installed: new Date().toISOString(), from: HERE, app: 'Coulisses', files }, null, 1));
 console.log(t('inst.copied', { dry: DRY ? t('inst.dry') : '', n: changed, to: TO, extra: t(changed ? 'inst.restart' : 'inst.upToDate') }));
 
 // ---- moving from the old place, inside the Brambleshire pipeline ----

@@ -71,7 +71,7 @@
     return [out, Math.max(1, rows.length)];
   }
   function laneLayout() {
-    const ranges = sorted().filter((n) => n.end !== null), [rows, nrows] = rangeRows(ranges);
+    const ranges = reviewed().filter((n) => n.end !== null), [rows, nrows] = rangeRows(ranges);
     const notesH = Math.max(36, Math.min(92, 24 + nrows * 15));
     Y = { ruler: [0, 22], notes: [22, 22 + notesH], rows, nrows, top: 22 + notesH + 1 };
     for (const l of lanes) l.h = Math.max(10, Math.round(l.bh * vzoom));
@@ -163,6 +163,7 @@
         }
       } else if (l.id === 'sfx' && L) {
         for (const s of L.sfx) {
+          if (!vis(s.t, s.t + 9.5)) continue;   // (out of view: its waveform not even asked for)
           const pk = peaks(s.src), d = Math.min(9.5, pk?.dur ?? 0.6);
           if (!vis(s.t, s.t + d)) continue;
           const x0 = tx(s.t), x1 = tx(s.t + d);
@@ -189,7 +190,7 @@
         }
       }
     }
-    for (const n of sorted()) {
+    for (const n of reviewed()) {
       const x = tx(n.frame / FPS); if (x < -2 || x > W + 2) continue;
       g.fillStyle = n.id === sel ? 'rgba(201,242,107,0.10)' : 'rgba(255,255,255,0.025)';
       if (n.end !== null) g.fillRect(tx(n.frame / FPS), Y.top, Math.max(1, tx((n.end + 1) / FPS) - tx(n.frame / FPS)), H - Y.top);
@@ -213,9 +214,9 @@
     if (sub * pps >= 8) { g.fillStyle = 'rgba(255,255,255,0.06)'; for (let t = Math.ceil(view.a / sub) * sub; t <= view.b; t += sub) g.fillRect(Math.round(tx(t)), 18, 1, 4); }
     shapes = [];
     const n0 = Y.notes[0], n1 = Y.notes[1];
-    const ranges = sorted().filter((n) => n.end !== null), points = sorted().filter((n) => n.end === null);
+    const ranges = reviewed().filter((n) => n.end !== null), points = reviewed().filter((n) => n.end === null);
     const rTop = n0 + 22, rH = Math.max(8, Math.min(12, (n1 - rTop - 3) / Y.nrows - 3));
-    const numOf = new Map(sorted().map((n, i) => [n.id, i + 1]));
+    const numOf = new Map(reviewed().map((n, i) => [n.id, i + 1]));
     const colorOf = (n, done, isSel, base) => isSel ? C.acc : done ? C.done : statusOf(n) === 'working' ? C.work : n.draft ? C.mark : base;
     for (const n of ranges) {
       const x0 = tx(n.frame / FPS), x1 = tx((n.end + 1) / FPS), y = rTop + Y.rows.get(n.id) * (rH + 3);
@@ -372,7 +373,7 @@
     if (inNotes(y) && !hit(x, y)) { addNote(fx(x)); return; }
     const th = y >= Y.top ? trackHit(x, y) : null;
     if (th?.lane.id === 'trk' && th.item) {
-      const c = th.item, n = addNote(Math.floor(c.t0 * FPS), Math.max(Math.floor(c.t0 * FPS) + 1, Math.ceil(c.t1 * FPS) - 1));
+      const c = th.item, n = addNote(frameOfT(c.t0), Math.max(frameOfT(c.t0) + 1, frameOfT(c.t1) - 1));
       if (n) setSave(T('st.note.onClip', { label: c.label }), 'ok');
       return;
     }
@@ -383,7 +384,7 @@
       return;
     }
     if (th?.lane.id === 'actor' && th.item) {
-      const s = th.item, n = addNote(Math.floor(s.t * FPS), Math.max(Math.floor(s.t * FPS) + 1, Math.ceil((s.t + s.dur) * FPS) - 1));
+      const s = th.item, n = addNote(frameOfT(s.t), Math.max(frameOfT(s.t) + 1, frameOfT(s.t + s.dur) - 1));
       if (n) setSave(T('st.note.onLine', { id: s.id }), 'ok');
     }
   });

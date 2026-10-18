@@ -89,7 +89,7 @@
         showCodeStatus(); resolve(sp);
       };
       // the preview's own process (page/studio/00-remote.js, player/bridge.js): its player once it says it is there
-      const rem = remotePlayer(el.contentWindow); job.remote = rem;
+      const rem = remotePlayer(el.contentWindow, String(ver)); job.remote = rem;
       (async () => {
         const sp = await Promise.race([rem.hello, new Promise((r) => setTimeout(() => r(null), 60000))]);
         if (job.dropped || !sp) { rem.api.dispose(); return finish(null); }
@@ -211,10 +211,15 @@
       Promise.resolve(sp.whenFrameReady?.()).then(done, done);
     });
   }
+  let modeWant = null;
   async function setMode(m) {
-    if (m === mode) return;
+    if (m === mode && modeWant === null) return;
+    modeWant = m;
     const f = curFrame(), was = !M.paused; M.pause();
-    if (m === 'code' && !(await loadCode())) return;
+    if (m === 'code' && !(await loadCode())) { if (modeWant === m) modeWant = null; return; }
+    if (modeWant !== m) return;   // (another choice came while the code loaded: that one)
+    modeWant = null;
+    if (m === mode) return;
     if (m === 'video' && SP) SP.pause();
     mode = m;
     codeWait(m === 'code' && SP?.frameLoading?.()); codeWaitEl.classList.remove('pend', 'pend-key'); pendF = null; cwSeq++;
@@ -329,5 +334,4 @@
     if (comp) return { name: pretty(key) || comp, kind: comp.toLowerCase() };
     const tx = h.textures?.[0]; return tx ? { name: tx.split('/').pop().replace(/\.\w+$/, ''), kind: 'texture' } : { name: h.type ?? '?', kind: '3D' };
   }
-  const targetText = (h) => { const t = humanTarget(h); return t ? `${t.name} · ${t.kind}` : ''; };
 

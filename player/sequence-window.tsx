@@ -16,8 +16,9 @@ const PRE = 60, POST = 30;   // frames: 2 s before, 1 s after
 const Windowed = forwardRef<any, any>(function WindowedSequence(props, ref) {
   const f: number = (R as any).useCurrentFrame();
   const from = Number.isFinite(props.from) ? props.from : 0, dur = Number.isFinite(props.durationInFrames) ? props.durationInFrames : Infinity;
-  const pre = Math.max(PRE, (props.premountFor ?? 0) + 30), post = Math.max(POST, (props.postmountFor ?? 0) + 30);
-  if (f < from - pre || f >= from + dur + post) return null;
+  // (as Remotion's own span of a sequence: a loop never ends, a playbackRate stretches it)
+  const span = props.loop ? Infinity : dur / (props.playbackRate > 0 ? props.playbackRate : 1);
+  if (f < from - PRE || f >= from + span + POST) return null;
   return <Real {...props} ref={ref} />;
 });
 export const Sequence = forwardRef<any, any>(function Sequence(props, ref) {

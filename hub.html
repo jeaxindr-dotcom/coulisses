@@ -513,6 +513,13 @@
   $('#updBtn').onclick = openUpdates;
   loadUpd();   // the check of the day (the server answers from its memory when it checked less than a day ago)
   let timer = null, impCard = null;
+  let shown = !inStudioFrame;
+  if (inStudioFrame) window.addEventListener('message', (e) => {
+    if (e.source !== window.parent) return;
+    const d = e.data ?? {};
+    if (d.coulisses === 'shown') { const was = shown; shown = true; if (!was) load(); }
+    else if (d.coulisses === 'hidden') { shown = false; clearTimeout(timer); }
+  });
   async function load(once) {
     try {
       const r = await (await fetch('/api/episodes', { cache: 'no-store' })).json();
@@ -530,7 +537,7 @@
         renderFolders(all);
       }
     } catch { /* the hub restarts: retried */ }
-    if (!once) { clearTimeout(timer); timer = setTimeout(load, 5000); }
+    if (!once && shown) { clearTimeout(timer); timer = setTimeout(load, 5000); }
   }
   // « Langue · Language »: kept for the user (settings.json), the page comes back in the new language
   async function setLanguage(l) {

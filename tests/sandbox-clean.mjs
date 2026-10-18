@@ -7,6 +7,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 const isTest = (texts, t) => texts.some((x) => (x instanceof RegExp ? x.test(t ?? '') : x === t));
 
+// the notes each suite of the sandbox types (one list, so that a suite can also close what the others sent: 18/10/2026,
+// the batch « Étalonnage de la scène… » left open by tests/grade.mjs woke the `wait` of tests/e2e-agent.mjs at once,
+// which then missed its own batch — three failures in every full run)
+export const E2E_TEXTS = [/^L'aperçu du code plante à cette image : test/, 'Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+export const STAGING_TEXTS = [/^Mise en scène : (ladder \(décor\)|library \(toile de fond\)) — déplacer de x \+0,[24]0 ; portée : la scène « Root Library »/];
+export const GRADE_TEXTS = [/^Étalonnage de la scène « Root Library » :/];
+export const AGENT_TEXTS = ['Hazel devrait cligner des yeux ici', 'Le portail : plus de lumière', 'La glycine de droite bouge trop', 'Test connexion : la lanterne clignote', /^Mise en scène : ladder \(décor\)/];
+export const SANDBOX_TEXTS = [...E2E_TEXTS, ...STAGING_TEXTS, ...GRADE_TEXTS, ...AGENT_TEXTS];
+
 // the test's own notes, out of the list (the studio of the sandbox must be running on `port`)
 // An EMPTY pending note goes too (09/10/2026: one made by hand in the sandbox with N, never written — no text, no mark,
 // no image, no offset — kept « Envoyer à l'agent » greyed, and three suites waited for a batch that never left)

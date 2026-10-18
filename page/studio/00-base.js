@@ -198,8 +198,7 @@
     await flushNow();
     const r = await fetch('/api/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: l }) }).then((x) => x.json()).catch(() => null);
     if (!r?.ok) return false;
-    location.hash = `f=${curFrame()}`; location.reload();
-    return true;
+    return reloadSafely();
   }
   // the « … » menu of a card
   const menu = $('#menu');

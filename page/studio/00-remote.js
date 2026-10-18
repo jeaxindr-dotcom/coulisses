@@ -25,21 +25,33 @@
   window.Shortcuts?.onChange?.(() => { for (const w of remotes.keys()) try { w.postMessage({ coulissesPreview: 1, shortcuts: 1 }, PREVIEW_ORIGIN); } catch { /* gone */ } });
   const ZERO_D = { p: [0, 0, 0], r: [0, 0, 0], s: 1 };
   const zeroDelta = (d) => !d || ((d.p ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && (d.r ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && Math.abs((d.s ?? 1) - 1) < 1e-9);
-  function remotePlayer(win) {
+  // ver: the version this player loads (?v= of its address): a hello from the document that frame is leaving is not its own
+  // Calls end: an answer, or after their time (a preview whose process hangs or crashed never answers: the pointer,
+  // the staging, the identify kept waiting for ever — code review 18/10/2026); whenReady / whenFrameReady have none (their
+  // callers race them with their own). The page's own writes (a seek, play / pause, an offset) are numbered: the state
+  // the preview sent before it had them (its `seen`) does not take them back.
+  const NO_LIMIT = new Set(['whenReady', 'whenFrameReady']), WRITE_F = new Set(['seek', 'play', 'pause', 'recover']), WRITE_S = new Set(['stage.setDelta', 'stage.reset', 'stage.select', 'stage.addCutout']);
+  function remotePlayer(win, ver = null) {
     const M = { hello: null, frame: 0, playing: false, ready: true, loading: false, crashed: false, st: null, infos: new Map() };
-    let seq = 0, helloRes = null;
+    let seq = 0, helloRes = null, wroteF = 0, wroteS = 0, gone = false;
     const waits = new Map(), evOn = new Set(), stOn = new Set();
     const hello = new Promise((r) => { helloRes = r; });
     const callWith = (extra, path, ...args) => new Promise((res, rej) => {
-      const id = ++seq; waits.set(id, { res, rej });
-      try { win.postMessage({ coulissesPreview: 1, call: path, id, args: plain(args), ...extra }, PREVIEW_ORIGIN); } catch (e) { waits.delete(id); rej(e); }
+      if (gone) { rej(new Error('preview gone')); return; }
+      const id = ++seq;
+      if (WRITE_F.has(path)) wroteF = id; if (WRITE_S.has(path)) wroteS = id;
+      const timer = NO_LIMIT.has(path) ? 0 : setTimeout(() => { if (waits.delete(id)) rej(new Error(`preview: no answer (${path})`)); }, path === 'stage.snapshot' || path === 'pickMany' || path === 'pick' ? 30000 : 15000);
+      waits.set(id, { res, rej, timer });
+      try { win.postMessage({ coulissesPreview: 1, call: path, id, args: plain(args), ...extra }, PREVIEW_ORIGIN); } catch (e) { clearTimeout(timer); waits.delete(id); rej(e); }
     });
     const call = (path, ...args) => callWith(null, path, ...args);
     const send = (path, ...args) => { call(path, ...args).catch(() => {}); };
     const setState = (s) => {
       if (!s) return;
-      M.frame = s.frame ?? M.frame; M.playing = !!s.playing; M.ready = s.ready !== false; M.loading = !!s.loading; M.crashed = !!s.crashed; M.scene3d = !!s.scene3d;
-      if (s.stage !== undefined) {
+      const freshF = !(s.seen < wroteF), freshS = !(s.seen < wroteS);   // (sent before the preview had the page's last write: not its frame / offsets)
+      if (freshF) { M.frame = s.frame ?? M.frame; M.playing = !!s.playing; }
+      M.ready = s.ready !== false; M.loading = !!s.loading; M.crashed = !!s.crashed; M.scene3d = !!s.scene3d;
+      if (s.stage !== undefined && freshS) {
         M.st = s.stage;
         if (s.stage) {   // the objects moved, as the preview says; the one chosen kept (its info from its « select »)
           const keep = s.stage.selected ? M.infos.get(s.stage.selected) : null;
@@ -49,14 +61,15 @@
       }
     };
     function receive(d) {
-      if (d.hello) { M.hello = d.hello; setState(d.state); helloRes(api); return; }
-      if (d.re) { const w = waits.get(d.re); if (w) { waits.delete(d.re); if (d.ok) w.res(d.value); else w.rej(new Error(d.error ?? 'preview')); } return; }
+      if (d.hello) { if (ver !== null && d.hello.v !== undefined && String(d.hello.v) !== String(ver)) return; M.hello = d.hello; setState(d.state); helloRes(api); return; }
+      if (d.re) { const w = waits.get(d.re); if (w) { clearTimeout(w.timer); waits.delete(d.re); if (d.ok) w.res(d.value); else w.rej(new Error(d.error ?? 'preview')); } return; }
       if (d.state) setState(d.state);
       if (d.ev) {
         const ev = d.ev;
-        if (Number.isFinite(ev.frame)) M.frame = ev.frame;
-        if (ev.type === 'play') M.playing = true;
-        else if (ev.type === 'pause' || ev.type === 'ended') M.playing = false;
+        const freshF = !(ev.seen < wroteF);   // (a frame of before the page's last seek: not taken)
+        if (freshF && Number.isFinite(ev.frame)) M.frame = ev.frame;
+        if (freshF && ev.type === 'play') M.playing = true;
+        else if (freshF && (ev.type === 'pause' || ev.type === 'ended')) M.playing = false;
         else if (ev.type === 'loading') { M.loading = true; M.ready = false; }
         else if (ev.type === 'loaded') { M.loading = false; M.ready = true; }
         else if (ev.type === 'error') M.crashed = true;
@@ -111,8 +124,12 @@
       objects: () => call('objects'), cameraPos: () => call('cameraPos'),
       on: (fn) => { evOn.add(fn); return () => evOn.delete(fn); },
       // the frame of this player gone: its waiting calls end, its messages are no longer read
-      dispose: () => { remotes.delete(win); for (const w of waits.values()) w.rej(new Error('preview gone')); waits.clear(); evOn.clear(); stOn.clear(); },
+      dispose: () => {
+        gone = true; if (remotes.get(win) === entry) remotes.delete(win);
+        for (const w of waits.values()) { clearTimeout(w.timer); w.rej(new Error('preview gone')); } waits.clear(); evOn.clear(); stOn.clear(); helloRes(null);
+      },
     };
-    remotes.set(win, { receive });
+    const entry = { receive };
+    remotes.set(win, entry);
     return { api, hello };
   }
