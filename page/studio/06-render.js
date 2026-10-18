@@ -470,7 +470,7 @@
     const at = (e) => { const r = w.getBoundingClientRect(); setWipe(((e.clientX - r.left) / r.width) * 100); };
     w.addEventListener('pointerdown', (e) => { drag = true; w.setPointerCapture(e.pointerId); at(e); });
     w.addEventListener('pointermove', (e) => { if (drag) at(e); });
-    w.addEventListener('pointerup', () => { drag = false; });
+    w.addEventListener('pointerup', () => { drag = false; }); w.addEventListener('pointercancel', () => { drag = false; });
   }
   $('#cmpPrev').onclick = () => cmpStep(-1); $('#cmpNext').onclick = () => cmpStep(1);
   $('#cmpFlip').onclick = () => setWipe(cmpX > 50 ? 0 : 100);

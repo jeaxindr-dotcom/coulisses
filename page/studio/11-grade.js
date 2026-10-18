@@ -671,7 +671,7 @@
     if (i === 0) px = 0; else if (i === n - 1) px = 1; else px = Math.max(pts[i - 1][0] + 0.01, Math.min(pts[i + 1][0] - 0.01, px));
     pts[i] = [+px.toFixed(4), +py.toFixed(4)]; cvPut(pts);
   });
-  curveCv.addEventListener('pointerup', () => { CV.drag = null; cgDrawCurves(); });
+  curveCv.addEventListener('pointerup', () => { CV.drag = null; cgDrawCurves(); }); curveCv.addEventListener('pointercancel', () => { CV.drag = null; cgDrawCurves(); });
   function cvRemove(e) {
     const G = cvGeom(), C = cvCurves(), i = cvHit(G, C, e.clientX - G.r.left, e.clientY - G.r.top); if (i < 0) return;
     const pts = C[CV.ch].map((p) => [...p]);
@@ -812,7 +812,7 @@
     const at = (e) => { const m = media.getBoundingClientRect(); CG.wipe = 1 - Math.max(0, Math.min(1, (e.clientX - m.left) / m.width)); place(); cgApply(true); };
     handle.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); wiping = true; handle.setPointerCapture(e.pointerId); });
     handle.addEventListener('pointermove', (e) => { if (wiping) at(e); });
-    handle.addEventListener('pointerup', () => { wiping = false; });
+    handle.addEventListener('pointerup', () => { wiping = false; }); handle.addEventListener('pointercancel', () => { wiping = false; });
     handle.addEventListener('dblclick', () => { CG.wipe = CG.wipe < 0.999 ? 1 : 0.5; place(); cgApply(true); });
     new ResizeObserver(place).observe(st);
     window.__cgPlaceWipe = place;
@@ -834,7 +834,7 @@
     const go = (e) => { const r = strip.getBoundingClientRect(); M.pause(); seekFrame(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (FRAMES - 1)); };
     strip.addEventListener('pointerdown', (e) => { drag = true; strip.setPointerCapture(e.pointerId); go(e); });
     strip.addEventListener('pointermove', (e) => { if (drag) go(e); });
-    strip.addEventListener('pointerup', () => { drag = false; cgSync(); });
+    strip.addEventListener('pointerup', () => { drag = false; cgSync(); }); strip.addEventListener('pointercancel', () => { drag = false; cgSync(); });
   }
 
   // ---------- the page ----------

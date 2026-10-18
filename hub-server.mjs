@@ -28,6 +28,7 @@ import { hfFor } from './lib/hyperframes.mjs';
 import { homeUpdates, runHomeUpdate, homeUpdateState } from './lib/updates.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage } from './lib/i18n.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
+import { browserAccessWanted, setBrowserAccess, tailnet, viaTailnet, publicUrl, serve, unserve, servedPorts, unserveAll } from './lib/remote.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { docText, about, openOnline, logRing } from './lib/menu.mjs';
 import os from 'node:os';
@@ -161,7 +162,7 @@ function open(id) {
     st.proc.stdout.on('data', (d) => {
       out.write(d); buf = st.url ? '' : (buf + d).slice(-8000);
       const m = /(?:Ouvre :|Open:) (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(buf);   // the studio's language (studio-server.mjs)
-      if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); }
+      if (m && !st.url) { st.url = m[1]; clearTimeout(timer); resolve(st.url); if (browserAccessWanted()) serveLogged(+new URL(st.url).port); }
     });
     st.proc.stderr.on('data', (d) => { out.write(d); buf = (buf + d).slice(-8000); });
     st.proc.on('exit', (c) => { clearTimeout(timer); out.end(); if (!st.url) reject(new Error(buf.trim().split('\n').slice(-3).join(' ') || t('hubsrv.exit', { code: c }))); });
@@ -177,7 +178,24 @@ async function pause(id) {
   const st = studios.get(id); if (!st) return false;
   st.paused = true; await killTree(st.proc.pid); log(t('hubsrv.paused', { id })); return true;
 }
-async function quit() { for (const st of studios.values()) if (st.proc.exitCode === null) await killTree(st.proc.pid); log(t('hubsrv.quit')); process.exit(0); }
+async function quit() {
+  for (const st of studios.values()) if (st.proc.exitCode === null) await killTree(st.proc.pid);
+  if (mine.size) await Promise.race([Promise.all([...mine].map((p) => unserve(p))), new Promise((r) => setTimeout(r, 4000))]);   // (the ports it brought to the tailnet, taken back)
+  log(t('hubsrv.quit')); process.exit(0);
+}
+// « Accès depuis l'iPad »: this hub's port and each studio's, brought to the tailnet (lib/remote.mjs)
+const mine = new Set();   // the ports this hub brought to the tailnet (its quit takes back these only: never another hub's)
+const serveLogged = (p) => serve(p).then((r) => { if (r.ok) mine.add(p); else log(`tailscale serve ${p} : ${r.err}`); return r; });
+async function browserAccess(on) {
+  setBrowserAccess(on);
+  if (on) { await serveLogged(port); for (const st of studios.values()) if (st.url && st.proc.exitCode === null) await serveLogged(+new URL(st.url).port); }
+  else { await unserveAll(); mine.clear(); }   // (closed by the user: every port of Coulisses)
+  log(on ? 'accès depuis l\'iPad : ouvert (Tailscale)' : 'accès depuis l\'iPad : fermé');
+}
+async function browserAccessState(fresh = false) {
+  const T = tailnet({ fresh }), served = T.ok ? await servedPorts() : [];
+  return { on: browserAccessWanted(), tailscale: { ok: T.ok, why: T.why ?? null, https: !!T.https, dns: T.dns ?? null }, url: T.ok ? `https://${T.dns}:${port}/` : null, served, here: null };
+}
 for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, quit);
 
 // ---------- « Importer un projet… » ----------
@@ -303,18 +321,28 @@ const server = http.createServer(async (req, res) => {
       log(t('hubsrv.importMany', { ok: out.filter((x) => x.ok).length, n: out.length }));
       return json(res, { ok: true, results: out });
     }
-    if (pn === '/api/episodes') return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes(), projects: projects() });
+    if (pn === '/api/episodes') {
+      const fix = (x) => (x.studio?.url ? { ...x, studio: { ...x.studio, url: publicUrl(req, x.studio.url) } } : x);
+      return json(res, { installed: INSTALLED, episodesDir: O.episodesDir, episodes: episodes().map(fix), projects: projects().map(fix), remote: viaTailnet(req) });
+    }
+    if (pn === '/api/browser-access' && req.method !== 'POST') return json(res, { ...(await browserAccessState(url.searchParams.has('fresh'))), here: viaTailnet(req) });
+    if (pn === '/api/browser-access' && req.method === 'POST') {
+      if (viaTailnet(req)) return json(res, { ok: false, why: 'from the PC only' }, 403);   // (opened or closed from the PC itself)
+      const b = await readBody(req); await browserAccess(!!b.on);
+      return json(res, { ok: true, ...(await browserAccessState(true)) });
+    }
     if (pn.startsWith('/thumb/')) { const f = await thumb(normId(pn.slice(7)) ?? ''); if (!f) return send(res, 404, 'text/plain', 'no thumbnail'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'max-age=3600' }); return fs.createReadStream(f).pipe(res); }
     const go = /^\/go\/(E\d+|P[0-9a-f]{8})$/i.exec(pn);
     if (go) {
       const id = normId(go[1]);
-      try { const u = await open(id); res.writeHead(302, { Location: u }); return res.end(); }
+      try { const u = await open(id); res.writeHead(302, { Location: publicUrl(req, u) }); return res.end(); }
       catch (e) { return send(res, 500, 'text/html; charset=utf-8', page(t('hubsrv.noStart', { id }), e.message)); }
     }
     if (pn === '/import') {   // a folder or a video dropped on the app's icon: import, then open it
       try { const r = doImport(url.searchParams.get('path') ?? ''); res.writeHead(302, { Location: r.video || r.episode || r.kind === 'remotion' || r.kind === 'hyperframes' ? `/go/${r.id}` : '/' }); return res.end(); }
       catch (e) { return send(res, 400, 'text/html; charset=utf-8', page(t('hubsrv.importFail'), e.message)); }
     }
+    if (req.method === 'POST' && pn === '/api/import/pick' && viaTailnet(req)) return json(res, { ok: false, remote: true, why: t('hub.ipad.noPicker') });
     if (req.method === 'POST' && pn === '/api/import/pick') { const b = await readBody(req); const p = await pick(b.what); return json(res, p ? { ok: true, path: p } : { ok: false, cancelled: true }); }
     if (req.method === 'POST' && pn === '/api/import') {
       const b = await readBody(req);
@@ -327,9 +355,9 @@ const server = http.createServer(async (req, res) => {
       const ok = removeProject(ep); log(t('hubsrv.removed', { ep }));
       return json(res, { ok });
     }
-    if (req.method === 'POST' && pn === '/api/open') { if (!ep) return json(res, { ok: false, why: t('hubsrv.which') }, 400); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/open') { if (!ep) return json(res, { ok: false, why: t('hubsrv.which') }, 400); return json(res, { ok: true, url: publicUrl(req, await open(ep)) }); }
     if (req.method === 'POST' && pn === '/api/pause') return json(res, { ok: await pause(ep) });
-    if (req.method === 'POST' && pn === '/api/resume') { const st = studios.get(ep); if (!st) return json(res, { ok: false, why: t('hubsrv.noStudio', { ep }) }); return json(res, { ok: true, url: await open(ep) }); }
+    if (req.method === 'POST' && pn === '/api/resume') { const st = studios.get(ep); if (!st) return json(res, { ok: false, why: t('hubsrv.noStudio', { ep }) }); return json(res, { ok: true, url: publicUrl(req, await open(ep)) }); }
     if (req.method === 'POST' && pn === '/api/quit') { json(res, { ok: true }); return setTimeout(quit, 100); }
     send(res, 404, 'text/plain', 'not found');
   } catch (e) { json(res, { ok: false, why: e.message }, 500); }
@@ -341,6 +369,7 @@ server.on('listening', () => {
   log(t('hubsrv.ready', { url: hubUrl, dir: O.episodesDir }));
   if (opt('--lock')) fs.writeFileSync(opt('--lock'), JSON.stringify({ pid: process.pid, port, url: hubUrl, studio: STUDIO }));
   console.log(`HUB_READY ${hubUrl}`);
+  if (browserAccessWanted()) serveLogged(port);
   if (opt('--episode')) open(opt('--episode').toUpperCase()).catch(() => {});
   if (opt('--import')) { try { const r = doImport(opt('--import')); if (r.video || r.episode || r.kind === 'remotion' || r.kind === 'hyperframes') open(r.id).catch(() => {}); } catch (e) { log(t('hubsrv.importLog', { msg: e.message })); } }
 });

@@ -110,7 +110,7 @@
         applySizes(); fitMedia(); resize();
       };
       const up = () => { el.classList.remove('drag'); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
-      el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+      el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
     });
   }
   splitter($('#splitL'), 'l'); splitter($('#splitV'), 'x'); splitter($('#splitH'), 'y');

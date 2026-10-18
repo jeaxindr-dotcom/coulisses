@@ -16,6 +16,7 @@
   const parentOrigin = (location.ancestorOrigins && location.ancestorOrigins[0]) || (document.referrer ? new URL(document.referrer).origin : '*');
   // the studio page only: a loopback address on this very port (another local page framing the preview cannot drive it)
   const loop = (o) => { try { const u = new URL(o); return /^(127\.0\.0\.1|localhost|\[::1\])$/i.test(u.hostname) && u.port === location.port; } catch { return false; } };
+  const fromParent = (o) => o === location.origin || loop(o);   // (the same address: ?apercu=page, or the iPad through Tailscale)
   let seen = 0;   // the last call of the page this preview has done (in every state and event: the page knows what is fresh)
   const plainOf = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const post = (m) => {
@@ -42,7 +43,7 @@
   // page does not count them as a new step (they used to come during the call itself, the page then quiet)
   let quiet = false;
   window.addEventListener('message', async (e) => {
-    if (e.source !== window.parent || !loop(e.origin)) return;
+    if (e.source !== window.parent || !fromParent(e.origin)) return;
     const d = e.data; if (!d || d.coulissesPreview !== 1) return;
     if (d.shortcuts) { try { await window.Shortcuts?.reload?.(); } catch { /* the defaults */ } return; }   // the user's keys changed (Aide › Raccourcis clavier)
     if (typeof d.call !== 'string') return;

@@ -49,6 +49,7 @@ import { agentById, detectAgent } from './lib/agent.mjs';
 import { t, lang, langSource, setLang, LANGS, renderPage, writeSettings } from './lib/i18n.mjs';
 import { gpuEncoder, gpuOff } from './lib/gpu.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
+import { publicUrl, viaTailnet } from './lib/remote.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
@@ -513,7 +514,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (pn === '/video' || pn === '/video/original') return sendVideo(req, res, 'original');
     if (pn === '/video/revue') return sendVideo(req, res, 'revue');
-    if (pn === '/api/meta') return json(res, meta());
+    if (pn === '/api/meta') {   // (from the iPad, through Tailscale: the hub's address as it reaches it — lib/remote.mjs)
+      const m = meta(); if (m.hub) m.hub = publicUrl(req, m.hub); m.remote = viaTailnet(req);
+      return json(res, m);
+    }
     if (pn === '/api/status') return json(res, status());
     if (pn === '/api/notes' && req.method === 'GET') {
       const d = readNotes();

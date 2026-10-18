@@ -137,6 +137,8 @@
     if (drawing.strokes.length < 200) drawing.strokes.push(thin(s, 32));
     openPop({ kind: 'circle', strokes: drawing.strokes }, drawing.frame);
   });
+  // (a touch taken back by the system — a palm on the iPad, a gesture of iPadOS: not a stroke)
+  ov.addEventListener('pointercancel', () => { if (stroke) { stroke = null; drawOv(); } });
   $('#pickBtn').onclick = () => promptAtPick();
   window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, vz: { ...VZ }, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
     video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null }) };   // for tests

@@ -10,7 +10,8 @@
 // ?apercu=page in the studio's address: the preview in the page's own process again, as before (to compare).
 // The parts of page/studio/ are one script: studio-server.mjs joins them in their order inside one function (/studio.js),
 // so they share their names as the one inline script did; hence the two-space indent.
-  const PREVIEW_OWN = !/[?&]apercu=page\b/.test(location.search);
+  // (from the iPad, through Tailscale — lib/remote.mjs: the page's own name only; « localhost » would be the iPad itself)
+  const PREVIEW_OWN = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && !/[?&]apercu=page\b/.test(location.search);
   const PREVIEW_ORIGIN = !PREVIEW_OWN ? location.origin : `${location.protocol}//${location.hostname === 'localhost' ? '127.0.0.1' : 'localhost'}:${location.port}`;
   const previewUrl = (q) => `${PREVIEW_ORIGIN}/player.html?${q}`;
   const remotes = new Map();   // a preview frame's window -> its remote player
