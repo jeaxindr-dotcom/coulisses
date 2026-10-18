@@ -45,14 +45,14 @@ try {
 
   // 2) the studio on the code
   await p.eval(`document.querySelector('.card[data-id="${pr.id}"]').click(); return 1`);
-  await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && document.querySelector('#code').contentWindow.StudioPlayer?.durationInFrames > 1`, 120000);
+  await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && window.__preview?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(500);
   const st = await ev(`return __studio.state()`);
   check(st.size.join('×') === '1920×1080' && st.lanes.join('|') === 'Chapitres|Plans|Voix', `the code is the video: 1920×1080, tracks ${st.lanes.join(', ')}`);
   check(await ev(`return document.body.classList.contains('novideo') && /code en direct/.test(document.querySelector('#kindTag').textContent)`), 'header: « Atelier Coulisses · code en direct », no MP4 switch');
   // a pin on the title of plan s02 (frame 150), named by data-coulisses
   await p.eval(`document.querySelector('#v').currentTime = 0; __studio && 0; return 1`);
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(150); return 1`); await sleep(900);
+  await p.eval(`window.__preview.seek(150); return 1`); await sleep(900);
   const r = await ev(`const r = document.querySelector('#media').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]`);
   await p.key('c', 'KeyC', 'c'); await sleep(200);
   await p.mouse('mousePressed', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5); await p.mouse('mouseReleased', r[0] + r[2] * 0.5, r[1] + r[3] * 0.5);

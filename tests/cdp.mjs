@@ -38,10 +38,44 @@ export async function launch({ port = 9333, headless = true } = {}) {
     if (d.method === 'Runtime.exceptionThrown') logs.push(`[exception] ${d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text}`);
   });
   await s('Runtime.enable'); await s('Page.enable');
+  // the frames of the page in a process of their own (the studio's live preview, page/studio/00-remote.js): attached, so
+  // that a test can evaluate there too (frameEval) and see their errors
+  const frames = new Set();   // their sessions, oldest first
+  handlers.push((d) => {
+    if (d.method === 'Target.attachedToTarget' && d.params.targetInfo.type === 'iframe') {
+      const fsid = d.params.sessionId; frames.add(fsid);
+      send('Runtime.enable', {}, fsid).catch(() => {});
+      send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, fsid).catch(() => {});
+    }
+    if (d.method === 'Target.detachedFromTarget') frames.delete(d.params.sessionId);
+    if (frames.has(d.sessionId)) {
+      if (d.method === 'Runtime.consoleAPICalled') logs.push(`[frame ${d.params.type}] ${d.params.args.map((a) => a.value ?? a.description ?? '').join(' ')}`);
+      if (d.method === 'Runtime.exceptionThrown') logs.push(`[frame exception] ${d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text}`);
+    }
+  });
+  await s('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+  // an expression evaluated in such a frame — the newest whose address contains match ('player.html'); no frame: null
+  const frameSid = async (match) => {
+    for (const sid of [...frames].reverse()) {
+      const u = await send('Runtime.evaluate', { expression: 'location.href', returnByValue: true }, sid).catch(() => null);
+      if (String(u?.result?.value ?? '').includes(match)) return sid;
+    }
+    return null;
+  };
+  const frameEval = async (match, expr) => {
+    const sid = await frameSid(match); if (!sid) return null;
+    const r = await send('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true }, sid);
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
+    return r.result.value;
+  };
+  // a raw DevTools command in such a frame (its profiler, its memory…); no frame: null
+  const frameSend = async (match, method, params = {}) => { const sid = await frameSid(match); return sid ? send(method, params, sid) : null; };
   await s('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
   const page = {
     logs,
     send: s,   // a raw DevTools command on this page (memory counters, garbage collection…)
+    frameEval,   // an expression in a frame of the page that runs in a process of its own (the live preview)
+    frameSend,   // a raw DevTools command there
     onEvent: (fn) => handlers.push((d) => { if (d.sessionId === sessionId && d.method) fn(d); }),   // its DevTools events
     // a heap snapshot of the page, written to file (what keeps what alive)
     snapshot: async (file) => { const parts = [], h = (d) => { if (d.sessionId === sessionId && d.method === 'HeapProfiler.addHeapSnapshotChunk') parts.push(d.params.chunk); }; handlers.push(h); await s('HeapProfiler.enable'); await s('HeapProfiler.takeHeapSnapshot', { reportProgress: false }); handlers.splice(handlers.indexOf(h), 1); fs.writeFileSync(file, parts.join('')); },

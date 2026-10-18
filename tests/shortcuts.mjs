@@ -42,7 +42,7 @@ try {
   U = /Ouvre : (http:\/\/127\.0\.0\.1:[0-9]+)/.exec(out)?.[1] ?? U;
   p = await launch({ port: 9376 });
   await p.goto(U + '/');
-  await p.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames`, 60000); await sleep(1200);
+  await p.until(`window.__preview?.durationInFrames`, 60000); await sleep(1200);
 
   // a note added, then undone, then redone
   await key('n'); await soon(async () => (await S()).drafts === 1); await p.eval(`document.activeElement?.blur?.(); return 1`);
@@ -131,11 +131,11 @@ try {
   const u = rows.find((r) => r.id === 'undo'), lot = rows.find((r) => r.id === 'undoLot');
   check(u && !u.off && u.k === 'Ctrl+Z' && /^Annuler /.test(u.l) && lot?.off && rows.some((r) => r.id === 'redo' && r.k === 'Ctrl+Y'), `Édition: « ${u?.l} » ${u?.k}, « Rétablir » Ctrl+Y, then the agent's fixes (« ${lot?.l} »)`);
   // a staging offset: undone, redone
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.seek(45); return 1`); await sleep(800);
+  await p.eval(`window.__preview.seek(45); return 1`); await sleep(800);
   await key('m'); await p.until(`__studio.state().staging`, 20000); await sleep(400);
-  await p.eval(`document.querySelector('#code').contentWindow.StudioPlayer.stage.select('[data-coulisses="titre s01"]'); return 1`); await sleep(300);
-  for (let i = 0; i < 3; i++) { await p.eval(`document.querySelector('#code').contentWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return 1`); await sleep(50); }
-  const dx = () => p.eval(`return document.querySelector('#code').contentWindow.StudioPlayer.stage.info('[data-coulisses="titre s01"]').delta.p[0]`);
+  await p.eval(`window.__preview.stage.select('[data-coulisses="titre s01"]'); return 1`); await sleep(300);
+  for (let i = 0; i < 3; i++) { await p.frameEval('player.html', `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); return 1`); await sleep(50); }
+  const dx = () => p.eval(`return window.__preview.stage.info('[data-coulisses="titre s01"]').delta.p[0]`);
   const d1 = await soon(async () => ((await dx()) === 3 ? 3 : null)) ?? await dx();
   await sleep(800);   // the three arrows make one step only if Ctrl+Z comes after the burst (0.7 s)
   await key('z', { ctrl: true });
@@ -145,7 +145,9 @@ try {
   // inside the preview too, the mode keys are the user's: « Poignées : tourner » set to T (E then does nothing)
   await fetch(U + '/api/shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shortcuts: { modeRotate: ['T'] } }) });
   await p.eval(`await window.Shortcuts.reload(); return 1`);
-  const inFrame = (k) => p.eval(`document.querySelector('#code').contentWindow.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true, cancelable: true })); return 1`);
+  // (the preview, in its own process, has its own copy of the keys: told by the page, it reads them again in a moment)
+  for (let i = 0; i < 50 && !(await p.frameEval('player.html', `return window.Shortcuts.keys('modeRotate').includes('T')`)); i++) await sleep(100);
+  const inFrame =(k) => p.frameEval('player.html', `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true, cancelable: true })); return 1`);
   const rotOn = () => p.eval(`return !!document.querySelector('#scene [data-m=rotate].on')`);
   await inFrame('e'); await sleep(250); const eRot = await rotOn();
   await inFrame('t'); await sleep(250); const tRot = await rotOn();

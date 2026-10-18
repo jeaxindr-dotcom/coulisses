@@ -32,7 +32,7 @@ try {
     return { docs: d.documents, nodes: d.nodes, heapMB: Math.round((m.find((x) => x.name === 'JSHeapUsedSize')?.value ?? 0) / 1e6) };
   };
   await p.goto('http://127.0.0.1:4191/');
-  await p.until(`document.querySelector('#code')?.contentWindow?.StudioPlayer?.durationInFrames`, 60000); await sleep(1500);
+  await p.until(`window.__preview?.durationInFrames`, 60000); await sleep(1500);
   await p.send('Performance.enable'); await p.send('HeapProfiler.enable');
   const c0 = await counters(), seen = [];
   const F = path.join(PROJET, 'src', 'runs', 'essai.ts'), orig = fs.readFileSync(F, 'utf8');

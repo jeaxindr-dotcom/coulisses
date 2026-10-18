@@ -11,6 +11,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { freePort } from './where.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'guard-test');
@@ -69,9 +70,9 @@ try {
   check(JSON.parse(fs.readFileSync(path.join(imp.revue, 'studio.lock.json'), 'utf8')).pid === c.pid, '… and the lock names the new one');
   // ---------- 3. the home screen ----------
   console.log("l'accueil");
-  hub = start('hub-server.mjs', ['--port', '4196']);
-  await until(() => /HUB_READY|127\.0\.0\.1:419/.test(hub.out), 30000); await sleep(500);
-  const hp = 4196;
+  const hp = await freePort(4196);   // (not a port another program holds)
+  hub = start('hub-server.mjs', ['--port', String(hp)]);
+  await until(() => hub.out.includes('HUB_READY') || hub.out.includes(`127.0.0.1:${hp}`), 30000); await sleep(500);
   check((await ask(hp, '/api/episodes')).code === 200, 'the home screen: a tool is allowed');
   const scan = await ask(hp, '/api/scan', { origin: 'https://evil.example', 'sec-fetch-site': 'cross-site', 'content-type': 'text/plain' }, 'POST');
   check(scan.code === 403, 'another site cannot start a scan of the disk (403)');

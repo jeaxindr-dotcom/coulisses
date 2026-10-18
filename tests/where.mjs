@@ -34,3 +34,14 @@ export function skip(what, env) {
   console.log(`  (sauté : ${what} n'est pas sur ce PC — ${env} pour l'indiquer)\n\n0 ok, 0 ko`);
   process.exit(0);
 }
+
+// a port of 127.0.0.1 nobody listens on, from `from` up (18/10/2026: another project's dev server sat on 4196, the port
+// a suite always took — its studio then never answered)
+export async function freePort(from) {
+  const net = await import('node:net');
+  for (let p = from; p < from + 200; p++) {
+    const free = await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(p, '127.0.0.1', () => s.close(() => r(true))); });
+    if (free) return p;
+  }
+  return from;
+}

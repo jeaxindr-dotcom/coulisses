@@ -91,8 +91,8 @@
       // mounted again here; the next move names it
       if (crash) { const at = crash.at ?? f; codeRecover(f); if (mode !== 'code') setSave(T('st.code.recovered', { f: at }), ''); return; }
       if (sp.frame() !== f) { sp.pause(); sp.seek(f); return; }   // the next move names it
-      const pt = toComp(e), h = sp.hover(f, pt[0], pt[1]), tag = $('#hoverTag');
-      if (h === undefined) return;
+      const pt = toComp(e), h = await sp.hover(f, pt[0], pt[1]), tag = $('#hoverTag');   // (the preview's own process answers)
+      if (h === undefined || popFor || stroke || !M.paused) return;
       const tt = humanTarget(h);
       if (!tt || markHit(pt)) { hideHover(); return; }
       tag.innerHTML = `${esc(tt.name)}<span class="k">${esc(tt.kind)}</span>`; tag.style.display = 'block'; placeBeside(tag, pt);

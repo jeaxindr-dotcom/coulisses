@@ -211,7 +211,7 @@
       if (!SP?.stage) { setSave(T(dir === 'undo' ? 'st.undo.none' : 'st.redo.none'), ''); return; }
       const cur = SP.stage.info(step.id);
       to.push({ type: 'stage', id: step.id, delta: cur.delta, from: cur.from, to: cur.to, label: step.label });
-      stQuiet = true; SP.stage.setDelta(step.id, step.delta, step.from, step.to); stQuiet = false;
+      stQuiet = true; SP.stage.setDelta(step.id, step.delta, step.from, step.to, { quiet: true }); stQuiet = false;   // (its « change », from the preview's process, says quiet)
       stPrev.set(step.id, { delta: step.delta, from: step.from, to: step.to }); stAt.set(step.id, 0);
       if (stSel?.id === step.id) stSel = plain({ ...stSel, ...SP.stage.info(step.id) });
       renderScene.force = true; renderScene(); renderScene.force = false;

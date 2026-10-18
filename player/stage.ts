@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { addEffect, addAfterEffect } from '@react-three/fiber';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { stageModeKey } from './keys';
+import { stageModeKey, toParent } from './keys';
 
 type V3 = [number, number, number];
 export interface Delta { p: V3; r: V3; s: number }          // position (world units), rotation (radians), uniform scale factor
@@ -316,9 +316,9 @@ export function createStage(D: Deps) {
       setDelta(selected, { ...dd, p: [dd.p[0] + ax[0], dd.p[1] + ax[1], dd.p[2] + ax[2]] }); return;
     }
     // anything else goes to the studio page (play, frames, tools…)
-    try { (window.parent as any).dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey })); } catch { /* */ }
+    toParent('keydown', e);
   };
-  const onKeyUp = (e: KeyboardEvent) => { try { (window.parent as any).dispatchEvent(new KeyboardEvent('keyup', { key: e.key, code: e.code })); } catch { /* */ } };
+  const onKeyUp = (e: KeyboardEvent) => toParent('keyup', e);
   function setMode(m: typeof mode) { mode = m; tc?.setMode(m); emit({ type: 'mode', mode: m }); }
   function enable(want: boolean) {
     if (want === on) return on;

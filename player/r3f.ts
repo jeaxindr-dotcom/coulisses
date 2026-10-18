@@ -47,7 +47,7 @@ export function reactPath(o: THREE.Object3D) {
   }
   const segs = parts.map((p) => (p.bits.length ? `${p.name}[${p.bits.join(' ')}]` : p.name));
   // Remotion / React wrappers above the episode's own components say nothing: keep from Stage (or the cut-away) on
-  const i = segs.findIndex((p) => !/^(Provider|h|ErrorBoundary|RemotionContextProvider|Suspense|Context|Canvas|ThreeCanvas|SequenceManager\w*|Freeze)\b/.test(p));
+  const i = segs.findIndex((p) => !/^(Provider|h|ErrorBoundary|RemotionContextProvider|Suspense|Context|Canvas|ThreeCanvas|SequenceManager\w*|ForwardedSequenceRegistry|SequenceRegistry\w*|Freeze)\b/.test(p));
   return segs.slice(Math.max(0, i)).join(" › ");
 }
 // floating dust, motes, sparkles… are in front of everything and never what the user points at

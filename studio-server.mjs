@@ -507,7 +507,7 @@ const server = http.createServer(async (req, res) => {
       const html = fs.readFileSync(path.join(P.hf.projet, P.hf.index), 'utf8');
       const cfg = { ...comp, index: P.hf.index, version: hf.version };
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-      return res.end(injectHead(html, `<base href="/hf/"><script>window.__COULISSES_HF = ${JSON.stringify(cfg).replace(/</g, '\\u003c')};</script><script src="/hf-runtime.js?v=${encodeURIComponent(hf.version)}"></script><script type="module" src="/hf-player.js?v=${player.state.version}"></script>`));
+      return res.end(injectHead(html, `<base href="/hf/"><script>window.__COULISSES_HF = ${JSON.stringify(cfg).replace(/</g, '\\u003c')};</script><script src="/hf-runtime.js?v=${encodeURIComponent(hf.version)}"></script><script src="/shortcuts.js"></script><script src="/player-bridge.js"></script><script type="module" src="/hf-player.js?v=${player.state.version}"></script>`));
     }
     if (HFP && pn === '/hf-runtime.js') return sendFile(req, res, hfFor(P.hf.projet)?.runtime ?? null, 'text/javascript; charset=utf-8');
     if (HFP && pn === '/hf-player.js') return sendFile(req, res, path.join(HERE, 'player', 'hf-player.js'), 'text/javascript; charset=utf-8');
@@ -522,6 +522,8 @@ const server = http.createServer(async (req, res) => {
       return res.end(fs.readFileSync(path.join(HERE, 'player', 'player.html'), 'utf8').replace('__V__', String(player.state.version)));
     }
     if (pn === '/player.js') return sendFile(req, res, player.state.file, 'text/javascript; charset=utf-8');
+    // the preview's messages with the page (player/bridge.js): the preview is shown from another site, in its own process
+    if (pn === '/player-bridge.js') return sendFile(req, res, path.join(HERE, 'player', 'bridge.js'), 'text/javascript; charset=utf-8');
     if (pn.startsWith('/public/') && P.remotionDir) return sendFile(req, res, inside(path.join(P.remotionDir, 'public'), pn.slice(8)));
     // ---- multi-track timeline + waveforms ----
     if (pn === '/api/timeline') return json(res, { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error, data: timeline.state.data });
