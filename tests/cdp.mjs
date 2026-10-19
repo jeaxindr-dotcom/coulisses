@@ -36,7 +36,8 @@ function sweepProfiles() {
   }
 }
 
-export async function launch({ port = 9333, headless = true } = {}) {
+// args: more flags for this Chrome (a fake microphone: --use-fake-device-for-media-stream…, tests/dictate.mjs)
+export async function launch({ port = 9333, headless = true, args = [] } = {}) {
   sweepProfiles();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-cdp-'));
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
@@ -45,7 +46,7 @@ export async function launch({ port = 9333, headless = true } = {}) {
     // silent: a suite plays the episodes, never on the user's speakers (user request 19/10/2026: « coupe le son, j'arrive
     // pas à écouter mes autres projets »); the sound still runs inside (decoded, its AudioContext's clock), only not heard
     '--mute-audio',
-    '--window-size=1600,1000', '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: 'ignore' });
+    '--window-size=1600,1000', '--no-first-run', '--no-default-browser-check', ...args, 'about:blank'], { stdio: 'ignore' });
   let ver;
   for (let i = 0; i < 50 && !ver; i++) { try { ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); } catch { await new Promise((r) => setTimeout(r, 200)); } }
   const ws = new WebSocket(ver.webSocketDebuggerUrl);

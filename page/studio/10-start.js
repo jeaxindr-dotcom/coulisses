@@ -19,6 +19,8 @@
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
       markTools(); $('#bSound').title = TN('st.sound.btn');   // (« Rétablir le son », 01-preview.js)
+      $('#bMicTip').textContent = TN('st.rail.mic', { key: window.Shortcuts?.show('dictate') || 'F2' });   // (the dictation, 17-dictate.js)
+      $('#dictee .x').title = FR ? 'Échap : annuler' : 'Esc: cancel';
       document.title = PROJ ? `Coulisses — ${META.title}` : `Coulisses · ${META.episode} — ${META.title}`;
       if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; $('#crumb').href = META.hub; $('#crumb').title = T('st.start.home'); }
       else { document.body.classList.add('nohub'); $('#bHome').classList.add('off'); $('#bHome').querySelector('.why').textContent = T('menu.why.noHub'); }

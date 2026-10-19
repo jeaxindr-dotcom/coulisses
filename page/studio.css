@@ -342,6 +342,24 @@
   #pop .tg .k { color: var(--s9); font: 500 12px var(--font); }
   @keyframes pulse { 50% { opacity: .25; } }
   #pop .b { display: flex; gap: 6px; justify-content: flex-end; }
+  /* the dictation (page/studio/17-dictate.js): « Je t'écoute… », the level of the voice, how to end it */
+  #dictee { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40; display: none; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 999px;
+    background: rgba(18, 20, 30, 0.88); border: 1px solid var(--stroke-2); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45); font-size: 12.5px; color: var(--s11); white-space: nowrap; max-width: calc(100% - 32px); }
+  #dictee.on { display: inline-flex; }
+  #dictee .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ntodo); flex: none; }
+  #dictee.listen .dot { animation: dicdot 1s ease-in-out infinite; }
+  #dictee.wait .dot, #dictee.work .dot { background: var(--s9); }
+  @keyframes dicdot { 50% { opacity: .35; transform: scale(.8); } }
+  #dictee .lvl { width: 54px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; flex: none; }
+  #dictee .lvl i { display: block; height: 100%; width: 0; background: var(--nok); transition: width .06s linear; }
+  #dictee:not(.listen) .lvl { display: none; }
+  #dictee .t { color: var(--s12); font: 600 13px var(--font-d); }
+  #dictee .s, #dictee .k { overflow: hidden; text-overflow: ellipsis; }
+  #dictee .k { color: var(--s9); }
+  #dictee.work .k, #dictee.work .x { display: none; }
+  #dictee .x { width: 24px; height: 24px; padding: 0; justify-content: center; background: transparent; border-color: transparent; color: var(--s11); font-size: 15px; }
+  #dictee .x:hover { background: var(--glass-3); color: var(--s12); }
+  #rail #bMic.on { color: #fff; background: var(--ntodo); }
   #shuttle { position: absolute; top: 14px; right: 16px; display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
     background: rgba(14, 16, 26, 0.7); backdrop-filter: blur(14px); color: var(--s12); font: 600 18px/1 var(--font-d); pointer-events: none; font-variant-numeric: tabular-nums; border: 1px solid var(--stroke-2); }
   #shuttle.on { display: flex; }

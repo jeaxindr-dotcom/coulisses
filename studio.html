@@ -42,6 +42,8 @@
     <div class="sep"></div>
     <button id="bNote"><i data-ic="plus"></i><span class="tipr">{{st.rail.note}}</span></button>
     <button id="bRange"><i data-ic="range"></i><span class="tipr">{{st.rail.range}}</span></button>
+    <!-- the dictation (page/studio/17-dictate.js): held or clicked, the words said become a note -->
+    <button id="bMic"><i data-ic="mic"></i><span class="tipr" id="bMicTip">{{st.rail.mic}}</span></button>
     <div class="sep"></div>
     <button id="bStage"><i data-ic="move"></i><span class="tipr"><span>{{st.rail.stage}}</span><span class="why"></span></span></button>
     <button id="bSrc"><i data-ic="code"></i><span class="tipr"><span>{{st.rail.src}}</span><span class="why"></span></span></button>
@@ -128,6 +130,8 @@
           </div>
         </div>
         <div id="shuttle"></div>
+        <!-- the dictation listening, then transcribing (page/studio/17-dictate.js) -->
+        <div id="dictee"><span class="dot"></span><span class="lvl"><i></i></span><b class="t"></b><span class="s"></span><span class="k"></span><button class="x">×</button></div>
         <div id="stageBadge">{{st.stage.badge}}<span class="k" id="stageBadgeK">{{st.stage.clickObj}}</span></div>
         <div id="camHint">{{st.camHint}}</div>
         <button id="zoomBadge" style="display:none" title="{{st.zoom.title}}"><span class="t">100 %</span><kbd></kbd></button>
