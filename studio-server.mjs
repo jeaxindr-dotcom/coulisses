@@ -54,6 +54,7 @@ import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
 import { dictation } from './lib/dictate.mjs';
+import { planStore, mapFrames } from './lib/plans.mjs';
 import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -126,6 +127,43 @@ const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, 
 const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
+// ---- the plans of the versions (lib/plans.mjs; user request, 19/10/2026: « quand l'agent rallonge la vidéo, la note doit
+// rester collée à la même partie de la vidéo, pas à la même frame »): every version of the code's plan and of the video's is
+// kept (revue/plans/), the page asks where its notes' moments are in the version it shows (POST /api/remap)
+const PLANS = planStore(path.join(REVUE, 'plans'));
+let codePlanMemo = { v: null, sig: null };
+function codePlan() {   // the code as it is now (the live timeline) — or, a project without code, its montage plan
+  const s = timeline.state;
+  if (s?.data && s.status !== 'error' && codePlanMemo.v !== s.version) codePlanMemo = { v: s.version, sig: PLANS.save(s.data) };
+  return codePlanMemo.sig;
+}
+// the newest change of the code's files (the video exported after it shows the code as it is)
+function codeChangedAt() {
+  const roots = B ? [path.join(P.remotionDir, 'src')] : G ? [path.join(P.remotionDir, 'src'), P.EP] : HFP ? [P.hf.projet] : [];
+  const SKIP = /^(node_modules|revue|\.git|\.cache|07-renders|renders?|exports?|out)$/i, CODEF = /\.(tsx?|jsx?|mjs|cjs|json|css|html?)$/i;
+  let newest = 0, n = 0;
+  const walk = (d) => { let es = []; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch { return; } for (const e of es) { if (++n > 20000) return; const p = path.join(d, e.name); if (e.isDirectory()) { if (!SKIP.test(e.name)) walk(p); } else if (CODEF.test(e.name)) { try { newest = Math.max(newest, fs.statSync(p).mtimeMs); } catch { /* */ } } } };
+  for (const r of roots) walk(r);
+  return newest;
+}
+let exportFrom = null;   // the code's plan when an export of this studio started: the plan of the video it makes
+let videoPlanMemo = { key: null, sig: null };
+function videoPlan() {   // the plan of the video shown (null: not known — its notes stay on their frames)
+  const video = pickVideo(P), st = video ? stamp(video) : null; if (!st) return null;
+  let snapT = 0; if (B) try { snapT = fs.statSync(SNAP).mtimeMs; } catch { /* none */ }
+  const key = `${st.size}:${st.mtime}:${timeline.state.version}:${snapT}:${exportFrom ?? ''}`;
+  if (videoPlanMemo.key === key) return videoPlanMemo.sig;
+  let sig = null;
+  if (B) { const snap = readJson(SNAP, null); if (snap?.video && snap.video.size === st.size) sig = PLANS.save(snap); }   // (an episode: revue/timeline.json, exported with its video by finish-render.sh)
+  if (!sig) sig = PLANS.videoPlan(st);
+  if (!sig && !CODE) sig = codePlan();   // (a project's montage plan describes its video)
+  if (!sig && XP && exportFrom) { let x = null; try { x = exportState(P); } catch { /* */ } if (x?.state === 'done' && x.file && path.resolve(x.file).toLowerCase() === path.resolve(video).toLowerCase()) sig = exportFrom; }
+  if (!sig && CODE) { const cp = codePlan(); if (cp && codeChangedAt() < Date.parse(st.mtime)) sig = cp; }   // (made after the last change of the code: the code's plan)
+  if (sig) PLANS.setVideoPlan(st, sig);
+  videoPlanMemo = { key, sig };
+  return sig;
+}
+const plansNow = () => ({ code: CODE ? codePlan() : null, video: videoPlan() });
 // size and frame rate of a project's video (a Short is 1080×1920), measured once per file — by ffprobe in the background
 // (code review, 08/10/2026: never a synchronous ffprobe inside a request: it froze every request until it answered).
 // The first one is measured before the server listens; a new export is measured on the next request, the previous size
@@ -174,7 +212,7 @@ function meta() {
     episode: ep, title: B ? folder.replace(/^E\d+ - /, '') : P.title, folder, fps: B ? snapshot?.fps ?? 30 : pr.fps ?? timeline.state.data?.fps ?? 30, render, snapshot,
     snapshotMatches: !!(snapshot?.video && render && snapshot.video.size === render.size),
     proxy: proxyState === 'ready' && !proxyFresh(P) ? 'stale' : proxyState,
-    notesFile: NOTES, maxEdits: MAX_EDITS,
+    notesFile: NOTES, maxEdits: MAX_EDITS, plans: plansNow(),
     code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt },
     agent: agentState(), connectLine: connectLine(P),
     hub: args.includes('--hub') ? args[args.indexOf('--hub') + 1] : null, held,
@@ -244,7 +282,7 @@ function status() {   // what changes often: polled by the page every 3 s with t
   refreshProxy();
   return { code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt }, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
     render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P),
-    history: HISTORY ? { version: histVer } : null, hfCheck: HFP ? hfCheckLite(P) : null, hfSegments: HFP ? hfSegments(P) : null };
+    plans: plansNow(), history: HISTORY ? { version: histVer } : null, hfCheck: HFP ? hfCheckLite(P) : null, hfSegments: HFP ? hfSegments(P) : null };
 }
 // The user's notes (revue/notes.json), the page's file. Code review 18/10/2026: an unreadable notes.json (cut short by
 // another tool, a BOM, an edit by hand) was read as « no notes », the page showed 0, its next save wrote that over the
@@ -542,6 +580,18 @@ const server = http.createServer(async (req, res) => {
       log(t('srv.imgAdded', { name }));
       return json(res, { file: `images/${name}` });
     }
+    // where the notes' moments are in a plan (the version shown): each note from the plan it was placed on (lib/plans.mjs)
+    if (pn === '/api/remap' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}'), to = PLANS.load(b.to);
+      if (!to) return json(res, { ok: false, why: 'plan' });
+      const out = [], unknown = [];
+      for (const n of Array.isArray(b.notes) ? b.notes : []) {
+        const from = n.plan === b.to ? to : PLANS.load(n.plan);
+        if (!from || !Number.isFinite(+n.frame)) { unknown.push(n.id); continue; }
+        out.push({ id: n.id, ...mapFrames(from, to, +n.frame, n.end === null || n.end === undefined ? null : +n.end) });
+      }
+      return json(res, { ok: true, to: b.to, notes: out, unknown });
+    }
     // the dictation: the recording of the page (webm), its words (lib/dictate.mjs); /warm: the engine ready while one speaks
     if (pn === '/api/dictate/warm' && req.method === 'POST') return json(res, { ok: await DICT.warm().catch(() => false) });
     if (pn === '/api/dictate' && req.method === 'POST') {
@@ -698,6 +748,7 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/api/export' && req.method === 'POST') {
       if (!XP) return json(res, { ok: false, why: t('srv.exportOnly') });
       const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      exportFrom = codePlan();   // (the plan of the video this export makes: the code's now)
       try { return json(res, { ok: true, ...startExport(P, { qualite: b.qualite ?? null, vitesse: b.vitesse ?? 1, log }) }); } catch (e) { return json(res, { ok: false, why: e.message }); }
     }
     // « Encoder avec le GPU » (lib/gpu.mjs, user request 14/10/2026: the GPU by default): settings.json exportGpu

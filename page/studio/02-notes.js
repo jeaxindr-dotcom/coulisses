@@ -41,13 +41,13 @@
       'st.notes.lotAll': 'Toutes les notes ({n})', 'st.notes.lotOne': 'Lot {lot} · {n} note{n||s}', 'st.notes.lotNone': 'Hors lot · {n} note{n||s}', 'st.notes.lotTitle': 'Toutes les notes, ou celles d’un seul lot : dans cette liste, sur la timeline et sur l’image',
       'st.notes.okAll': 'Tout valider ({n})', 'st.notes.okAllTitle': 'Les notes corrigées de ce lot passent au vert (Ctrl+Z pour revenir)', 'st.notes.okAllDone': '{n} note{n||s} validée{n||s} · Ctrl+Z pour revenir', 'st.insp.stVerified': 'validée',
       'st.sound.btn': "Rétablir le son (s'il a disparu après un ralentissement du PC)", 'st.sound.lost': "Le son de l'aperçu s'est coupé (PC ralenti) : remise en route…", 'st.sound.back': "Son de l'aperçu rétabli", 'st.sound.restored': "Son remis en route",
-      'st.rail.mic': "Dicter une note ({key} maintenu, ou un clic)", 'st.dic.listen': "Je t’écoute…", 'st.dic.wait': "Micro…", 'st.dic.work': "Transcription…", 'st.dic.at': "note à {t}", 'st.dic.into': "dans le champ", 'st.dic.keyHeld': "relâche {key} pour finir · Échap : annuler", 'st.dic.keyTap': "{key} pour finir · Échap : annuler", 'st.dic.click': "clique le micro pour finir · Échap : annuler", 'st.dic.denied': "Micro refusé : autorise-le pour Coulisses (l’icône du site, en haut de la fenêtre), puis réessaie", 'st.dic.noMic': "Aucun micro trouvé", 'st.dic.cancelled': "Dictée annulée", 'st.dic.nothing': "Dictée : rien entendu", 'st.dic.failed': "Dictée : {why}", 'st.dic.lost': "Le champ a disparu : le texte dicté est copié (Ctrl+V)", 'st.dic.done': "Dictée : {n} mot{n||s}" },
+      'st.rail.mic': "Dicter une note ({key} maintenu, ou un clic)", 'st.dic.listen': "Je t’écoute…", 'st.dic.wait': "Micro…", 'st.dic.work': "Transcription…", 'st.dic.at': "note à {t}", 'st.dic.into': "dans le champ", 'st.dic.keyHeld': "relâche {key} pour finir · Échap : annuler", 'st.dic.keyTap': "{key} pour finir · Échap : annuler", 'st.dic.click': "clique le micro pour finir · Échap : annuler", 'st.dic.denied': "Micro refusé : autorise-le pour Coulisses (l’icône du site, en haut de la fenêtre), puis réessaie", 'st.dic.noMic': "Aucun micro trouvé", 'st.dic.cancelled': "Dictée annulée", 'st.dic.nothing': "Dictée : rien entendu", 'st.dic.failed': "Dictée : {why}", 'st.dic.lost': "Le champ a disparu : le texte dicté est copié (Ctrl+V)", 'st.dic.done': "Dictée : {n} mot{n||s}", 'st.follow.moved': "{n} note{n||s} suivent la vidéo modifiée : recalée{n||s} sur le même moment, pas la même image" },
     en: { 'st.card.verify': 'Validate', 'st.card.verifiedBtn': 'Validated', 'st.card.verified': 'validated', 'st.card.verifyTitle': 'You checked the fix: the note turns green. Click again to go back to "fixed".',
       'st.list.verified': ' · {n} validated', 'st.list.allHidden': 'Nothing to show: the notes here are all validated (untick "hide the validated ones").', 'st.notes.hideOk': 'hide the validated ones',
       'st.notes.lotAll': 'All notes ({n})', 'st.notes.lotOne': 'Batch {lot} · {n} note{n||s}', 'st.notes.lotNone': 'No batch · {n} note{n||s}', 'st.notes.lotTitle': 'All the notes, or one batch’s only: in this list, on the timeline and on the picture',
       'st.notes.okAll': 'Validate all ({n})', 'st.notes.okAllTitle': 'The fixed notes of this batch turn green (Ctrl+Z to undo)', 'st.notes.okAllDone': '{n} note{n||s} validated · Ctrl+Z to undo', 'st.insp.stVerified': 'validated',
       'st.sound.btn': "Restore the sound (if it went after the PC slowed down)", 'st.sound.lost': "The preview’s sound cut out (the PC slowed down): starting it again…", 'st.sound.back': "The preview’s sound is back", 'st.sound.restored': "Sound restarted",
-      'st.rail.mic': "Dictate a note ({key} held, or a click)", 'st.dic.listen': "Listening…", 'st.dic.wait': "Microphone…", 'st.dic.work': "Transcribing…", 'st.dic.at': "note at {t}", 'st.dic.into': "into the field", 'st.dic.keyHeld': "release {key} to finish · Esc: cancel", 'st.dic.keyTap': "{key} to finish · Esc: cancel", 'st.dic.click': "click the microphone to finish · Esc: cancel", 'st.dic.denied': "Microphone refused: allow it for Coulisses (the site icon at the top of the window), then try again", 'st.dic.noMic': "No microphone found", 'st.dic.cancelled': "Dictation cancelled", 'st.dic.nothing': "Dictation: nothing heard", 'st.dic.failed': "Dictation: {why}", 'st.dic.lost': "The field went away: the dictated text is copied (Ctrl+V)", 'st.dic.done': "Dictation: {n} word{n||s}" },
+      'st.rail.mic': "Dictate a note ({key} held, or a click)", 'st.dic.listen': "Listening…", 'st.dic.wait': "Microphone…", 'st.dic.work': "Transcribing…", 'st.dic.at': "note at {t}", 'st.dic.into': "into the field", 'st.dic.keyHeld': "release {key} to finish · Esc: cancel", 'st.dic.keyTap': "{key} to finish · Esc: cancel", 'st.dic.click': "click the microphone to finish · Esc: cancel", 'st.dic.denied': "Microphone refused: allow it for Coulisses (the site icon at the top of the window), then try again", 'st.dic.noMic': "No microphone found", 'st.dic.cancelled': "Dictation cancelled", 'st.dic.nothing': "Dictation: nothing heard", 'st.dic.failed': "Dictation: {why}", 'st.dic.lost': "The field went away: the dictated text is copied (Ctrl+V)", 'st.dic.done': "Dictation: {n} word{n||s}", 'st.follow.moved': "{n} note{n||s} followed the changed video: on the same moment, not the same frame" },
   };
   const TN = (k, v) => {
     const s = T(k, v); if (s !== k) return s;
@@ -75,7 +75,7 @@
     if (end !== null && end < frame) [frame, end] = [end, frame];
     if (end !== null && end === frame) end = null;
     const n = { id: uid(), frame, end, text: '', images: [], thread: [], status: 'open', created: now(), render: META.render, draft: true, source: mode, ...extra };
-    stamp(n); notes.push(n); sel = n.id; save(); setTab('queue'); renderAll();
+    stamp(n); anchorNote(n); notes.push(n); sel = n.id; save(); setTab('queue'); renderAll();
     if (focus) requestAnimationFrame(() => { const ta = document.querySelector(`.card[data-id="${n.id}"] textarea.main`); if (ta) { ta.focus(); ta.scrollIntoView({ block: 'nearest' }); } });
     return n;
   }
@@ -83,7 +83,7 @@
   function setFrames(n, frame, end) {
     frame = Math.max(0, Math.min(FRAMES - 1, Math.round(frame)));
     if (end !== null && end !== undefined) { end = Math.max(0, Math.min(FRAMES - 1, Math.round(end))); if (end < frame) [frame, end] = [end, frame]; if (end === frame) end = null; }
-    n.frame = frame; n.end = end ?? null; stamp(n);
+    n.frame = frame; n.end = end ?? null; stamp(n); anchorNote(n);   // (moved by the user: where it is now is where it belongs)
   }
   function showCard(id) {
     const n = byId(id); if (!n) return;
@@ -382,6 +382,7 @@
     let changed = false;
     for (const n of notes) {
       const m = REPLIES.notes?.[n.id]?.remap;
+      if (n.at?.plan) continue;   // (it follows its moment by itself: followPlans)
       if (!m || !m.render || m.render.size !== META.render.size || (n.render && n.render.size === META.render.size)) continue;
       (n.before ??= []).push({ frame: n.frame, end: n.end, render: n.render });
       n.frame = m.frame; n.end = m.end ?? null; n.render = META.render; stamp(n); changed = true;
@@ -389,6 +390,7 @@
     if (changed) { persist(); HIST.last = JSON.stringify(notes); setSave(T('st.save.remapped'), 'ok'); }   // (not a step of the user's undo: Ctrl+Z would put the notes back on the old frames)
   }
   function onStatus() {
+    followPlans();   // (a new version of the code or of the video: the notes on their moments)
     const a = STATUS.agent ?? {}, b = $('#agent');
     b.classList.toggle('on', !!a.watching);
     b.querySelector('.t').textContent = a.watching ? T('st.agent.on', { name: a.agent?.name ? ' · ' + a.agent.name : '' }) : T('st.agent.connect');
@@ -401,6 +403,55 @@
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
     showCodeStatus();
     renderPill(); onHeld(); markGo();
+  }
+  // ---------- notes that follow the video (lib/plans.mjs; user request, 19/10/2026: « quand l'agent rallonge la vidéo, la
+  // note doit rester collée à la même partie de la vidéo, pas à la même frame ») ----------
+  // A note keeps where the user put it — n.at: its frames and the plan of the version shown then — and n.plan, the plan its
+  // frames are on now. When the version shown changes (the agent changed the code: a new plan; a new video; « Code actuel »
+  // ↔ « MP4 rendu » when the code changed since the video), its notes are placed on it from where the user put them
+  // (never from a place already moved: nothing drifts), by the moments both versions share (POST /api/remap): the same
+  // spoken line, the same shot, the same second of a source. Not a step of Ctrl+Z. A version whose plan is not known (a
+  // video made outside Coulisses, without a plan): its notes stay on their frames, as before.
+  const viewPlan = () => (mode === 'code' ? STATUS.plans?.code : STATUS.plans?.video) ?? null;
+  function anchorNote(n) {
+    const p = viewPlan();
+    if (p) { n.plan = p; n.at = { frame: n.frame, end: n.end ?? null, plan: p }; } else { delete n.at; delete n.plan; }
+  }
+  let following = false;
+  const followTried = new Set();   // (a note whose plan the studio does not know: not asked again)
+  async function followPlans() {
+    const to = viewPlan();
+    if (!to || !NOTES_OK || following) return;
+    const todo = notes.filter((n) => n.at?.plan && n.plan !== to && !followTried.has(`${n.id}>${n.at.plan}>${to}`));
+    if (!todo.length) return;
+    following = true;
+    try {
+      const r = await postJson('/api/remap', { to, notes: todo.map((n) => ({ id: n.id, frame: n.at.frame, end: n.at.end ?? null, plan: n.at.plan })) });
+      if (!r?.ok || viewPlan() !== to) return;
+      // (the version it was placed on not known here any more: it does not follow — the recalage of before, after a render,
+      // remap-notes.mjs, takes it again)
+      for (const id of r.unknown ?? []) { const n = byId(id); if (n?.at) { followTried.add(`${id}>${n.at.plan}>${to}`); delete n.at; delete n.plan; } }
+      if (r.unknown?.length) applyRemaps();
+      let moved = 0;
+      for (const m of r.notes ?? []) {
+        const n = byId(m.id); if (!n || n.plan === to || !n.at) continue;
+        if (n.frame !== m.frame || (n.end ?? null) !== (m.end ?? null)) {
+          // (where it was on the version of before, shown on its card: « avant : image … »; the last move only)
+          n.before = [...(n.before ?? []).filter((b) => !b.plan), { frame: n.frame, end: n.end ?? null, render: n.render ?? null, plan: n.plan ?? null }];
+          n.frame = m.frame; n.end = m.end ?? null; n.context = contextAt(n.frame, n.end ?? n.frame); moved++;
+        }
+        n.plan = to; n.source = mode; if (META.render) n.render = META.render;   // (its image, for the agent, taken from the version shown)
+      }
+      persist(); HIST.last = JSON.stringify(notes); renderAll();
+      if (moved) setTimeout(() => setSave(TN('st.follow.moved', { n: moved }), 'ok'), 900);   // (once saved: « Enregistré » would cover it)
+    } catch { /* again at the next status */ } finally { following = false; }
+    if (viewPlan() !== to) followPlans();   // (the version changed again meanwhile)
+  }
+  // a frame of one version on another one (the playhead, « Code actuel » ↔ « MP4 rendu »: the same moment)
+  async function frameOn(f, from, to) {
+    if (!from || !to || from === to) return f;
+    const r = await postJson('/api/remap', { to, notes: [{ id: '@', frame: f, end: null, plan: from }] });
+    return r?.ok && r.notes?.[0] ? r.notes[0].frame : f;
   }
   let liveVer = -1;
   async function loadLive() {
