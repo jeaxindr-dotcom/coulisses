@@ -36,8 +36,15 @@
       notes = (data.notes || []).map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
       HIST.last = JSON.stringify(notes); notesLoaded(data);
       LOTF = store.get(lotfKey(), 'all');   // the batch shown last time for this video (02-notes.js)
+      // the notes of before the notes followed the video (02-notes.js followPlans): the version they were placed on, when
+      // it can be told — the video they were placed on is the one here, or the code as it is
+      STATUS.plans = META.plans ?? {};
+      { let n0 = 0; for (const n of notes) if (!n.at && n.kind !== 'prompt') {
+        const p = n.source === 'code' ? META.plans?.code : (META.render && n.render?.size === META.render.size ? META.plans?.video : null);
+        if (p) { n.at = { frame: n.frame, end: n.end ?? null, plan: p }; n.plan = p; n0++; }
+      } if (n0) { HIST.last = JSON.stringify(notes); persist(); } }
       if (SNAP) { DUR = SNAP.frames / FPS; FRAMES = SNAP.frames; view = { a: 0, b: DUR }; }
-      STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {} }; onStatus();
+      STATUS = { lots: [], agent: META.agent, code: META.code, timeline: {}, plans: META.plans ?? {} }; onStatus();
       restoreDrafts();   // (what was being typed before a reload of this tab)
       buildLanes(); setTab(tabR); setTab(tabL); fitMedia(); resize(); renderAll(); updateHud();
       loadLive();

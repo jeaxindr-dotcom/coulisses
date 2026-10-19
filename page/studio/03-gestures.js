@@ -143,7 +143,7 @@
   $('#pickBtn').onclick = () => promptAtPick();
   window.__studio = { state: () => ({ staging, stage: stSel?.id ?? null, tool, mode, tab, tabL, tabR, vzoom, vz: { ...VZ }, drawing, popFor: popFor && { frame: popFor.frame, kind: popFor.mark.kind }, stroke: stroke?.length ?? null, drafts: drafts().length, frame: curFrame(), lanes: lanes.map((l) => l.name), view: { ...view }, vscroll,
     video: META?.render?.size ?? null, held: wasHeld, proj: PROJ, size: [CW, CH], cmp: cmpOpen() ? { i: cmpI, n: CMP.length, x: cmpX } : null, renderView: STATUS.lots ? renderView().st : null,
-    lotf: LOTF, tl: shapes.map((s) => s.id), tlX: Object.fromEntries(shapes.map((s) => [s.id, s.kind === 'point' ? s.x : (s.x0 + s.x1) / 2])) }) };   // for tests (the batch shown, the notes on the timeline)
+    plans: { ...(STATUS.plans ?? {}) }, lotf: LOTF, tl: shapes.map((s) => s.id), tlX: Object.fromEntries(shapes.map((s) => [s.id, s.kind === 'point' ? s.x : (s.x0 + s.x1) / 2])) }) };   // for tests (the batch shown, the notes on the timeline)
   function promptAtPick() { if (!pickPt) return; $('#pickBtn').style.display = 'none'; openPop({ kind: 'pin', points: [pickPt.pt] }, pickPt.frame); }
 
   // ---------- the « what should change here? » box ----------

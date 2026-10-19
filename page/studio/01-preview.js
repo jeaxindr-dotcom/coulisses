@@ -233,7 +233,7 @@
   async function setMode(m) {
     if (m === mode && modeWant === null) return;
     modeWant = m;
-    const f = curFrame(), was = !M.paused; M.pause();
+    let f = curFrame(); const was = !M.paused, planFrom = viewPlan(); M.pause();
     if (m === 'code' && !(await loadCode())) { if (modeWant === m) modeWant = null; return; }
     if (modeWant !== m) return;   // (another choice came while the code loaded: that one)
     modeWant = null;
@@ -245,7 +245,9 @@
     SP?.sleep?.(m !== 'code');   // drawn only while it is on screen (Remotion's 3D canvas draws at every frame, even paused)
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');
+    f = await frameOn(f, planFrom, viewPlan());   // (the code changed since the video: the same moment, not the same frame)
     seekFrame(f); if (was) M.play();
+    followPlans();   // (the notes on this version's frames)
   }
   // a 3D shot of the theatre shown here as a video (a Short's chibi shot): « Ouvrir la scène 3D » opens it in its own
   // studio (the home screen starts it), where the staging is the Theatre's 3D one; the agent then renders it again into
