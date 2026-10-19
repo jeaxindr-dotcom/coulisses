@@ -380,10 +380,13 @@
     let changed = false;
     for (const n of notes) {
       const m = REPLIES.notes?.[n.id]?.remap;
-      if (n.at?.plan) continue;   // (it follows its moment by itself: followPlans)
+      // (the agent's recalage after a full render — remap-notes.mjs, from the plans of both renders — comes first, as
+      // before; the note then belongs there: its new place, on the plan of this video)
       if (!m || !m.render || m.render.size !== META.render.size || (n.render && n.render.size === META.render.size)) continue;
       (n.before ??= []).push({ frame: n.frame, end: n.end, render: n.render });
       n.frame = m.frame; n.end = m.end ?? null; n.render = META.render; stamp(n); changed = true;
+      const vp = STATUS.plans?.video ?? META.plans?.video ?? null;
+      if (vp) { n.plan = vp; n.at = { frame: n.frame, end: n.end, plan: vp }; } else { delete n.at; delete n.plan; }
     }
     if (changed) { persist(); HIST.last = JSON.stringify(notes); setSave(T('st.save.remapped'), 'ok'); }   // (not a step of the user's undo: Ctrl+Z would put the notes back on the old frames)
   }
@@ -419,8 +422,13 @@
   const followTried = new Set();   // (a note whose plan the studio does not know: not asked again)
   async function followPlans() {
     const to = viewPlan();
-    if (!to || !NOTES_OK || following) return;
-    const todo = notes.filter((n) => n.at?.plan && n.plan !== to && !followTried.has(`${n.id}>${n.at.plan}>${to}`));
+    if (!to || !NOTES_OK || following || !repliesTxt) return;   // (the agent's answers read first: its recalage comes first)
+    // a new video there and this page about to load it (06-render.js onHeld), or the video being replaced: not now — the
+    // page of the new video does it, with that video
+    const vid = STATUS.video ?? null;
+    if (STATUS.held || (vid && META.render && (vid.size !== META.render.size || vid.mtime !== META.render.mtime))) return;
+    const remapped = (n) => { const m = REPLIES.notes?.[n.id]?.remap; return !!(m?.render && META.render && m.render.size === META.render.size && n.render?.size !== META.render.size); };
+    const todo = notes.filter((n) => n.at?.plan && n.plan !== to && !remapped(n) && !followTried.has(`${n.id}>${n.at.plan}>${to}`));
     if (!todo.length) return;
     following = true;
     try {

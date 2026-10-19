@@ -27,10 +27,13 @@ const post = async (u, b = {}) => (await fetch(U + u, { method: 'POST', headers:
 const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f) && !/remplace/.test(f)) : []);
 const frames = (f) => +execFileSync('ffprobe', ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim().replace(/,$/, '');
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-let studio = null;
+let studio = null, studioOut = '';   // (its output: shown when the test fails, the studio may have said why)
 async function startStudio(revue) {
   studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let out = ''; studio.stdout.on('data', (d) => { out += d; }); studio.stderr.on('data', (d) => { out += d; });
+  let out = ''; studio.stdout.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); }); studio.stderr.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); });
+  studio.on('exit', (c) => { studioOut += `
+(le studio s'est arrêté : code ${c})
+`; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
   if (!/Ouvre : http/.test(out)) throw new Error('le studio ne démarre pas : ' + out.split('\n').slice(-3).join(' '));
 }
@@ -147,7 +150,7 @@ try {
   await startStudio(imp.revue);
   const x3 = (await get('/api/status')).export;
   check(x3.state === 'done' && x3.pid === s3.pid, 'reopened, the studio shows it done');
-} catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
+} catch (e) { ko++; console.log('  ✗ ERREUR', e.stack, e.cause ?? ''); console.log('  --- les dernières lignes du studio ---' + String.fromCharCode(10) + studioOut.split(String.fromCharCode(10)).slice(-15).join(String.fromCharCode(10))); } finally {
   stopStudio();
   console.log(`\n${ok} ok, ${ko} échec(s)`);
   process.exit(ko ? 1 : 0);
