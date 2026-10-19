@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch, requireFrench } from './cdp.mjs';
+import { launch, requireFrench, requireSandbox } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
 import { removeTestNotes, closeTestLots, E2E_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 
@@ -24,7 +24,7 @@ const check = (cond, what) => { if (cond) { ok++; console.log(`  ✓ ${what}`); 
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
 const TEST_TEXTS = E2E_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
-await requireFrench(URL);
+await requireFrench(URL); await requireSandbox(URL, SANDBOX);   // (never a real episode's studio)
 closeTestLots(REVUE, cli, SANDBOX_TEXTS); await removeTestNotes(PORT, SANDBOX_TEXTS);   // (what every suite of the sandbox left: each starts clean)
 const p = await launch();
 try {

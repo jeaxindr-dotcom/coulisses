@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch, requireFrench } from './cdp.mjs';
+import { launch, requireFrench, requireSandbox } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
 import { removeTestNotes, closeTestLots, AGENT_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 
@@ -22,7 +22,7 @@ const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} $
 
 // what earlier runs of the sandbox tests left behind (their own notes and open batches only: tests/sandbox-clean.mjs)
 const TEST_TEXTS = AGENT_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
-await requireFrench(`http://localhost:${PORT}/`);
+await requireFrench(`http://localhost:${PORT}/`); await requireSandbox(`http://localhost:${PORT}/`, SANDBOX);   // (never a real episode's studio)
 closeTestLots(REVUE, cli, SANDBOX_TEXTS);   // (the batches the other suites of the sandbox left open too: `wait` would take the first one) await removeTestNotes(PORT, SANDBOX_TEXTS);
 
 // 1) the session starts watching

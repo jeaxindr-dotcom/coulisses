@@ -18,7 +18,7 @@
       if (META.newProject && !(data0Notes ?? 0)) tabL = 'agent';
       if (!META.features?.code) document.body.classList.add('nocode');
       if (!META.render) document.body.classList.add('novideo');
-      markTools();
+      markTools(); $('#bSound').title = TN('st.sound.btn');   // (« Rétablir le son », 01-preview.js)
       document.title = PROJ ? `Coulisses — ${META.title}` : `Coulisses · ${META.episode} — ${META.title}`;
       if (META.hub) { const l = $('#logo'); l.href = META.hub; l.title = T('st.start.home'); l.style.cursor = 'pointer'; $('#crumb').href = META.hub; $('#crumb').title = T('st.start.home'); }
       else { document.body.classList.add('nohub'); $('#bHome').classList.add('off'); $('#bHome').querySelector('.why').textContent = T('menu.why.noHub'); }

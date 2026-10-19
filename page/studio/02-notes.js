@@ -39,11 +39,13 @@
     fr: { 'st.card.verify': 'Valider', 'st.card.verifiedBtn': 'Validée', 'st.card.verified': 'validée', 'st.card.verifyTitle': 'Tu as vérifié la correction : la note passe au vert. Clique encore pour revenir à « corrigée ».',
       'st.list.verified': ' · {n} validée{n||s}', 'st.list.allHidden': 'Rien à afficher : les notes d’ici sont toutes validées (décoche « masquer les validées »).', 'st.notes.hideOk': 'masquer les validées',
       'st.notes.lotAll': 'Toutes les notes ({n})', 'st.notes.lotOne': 'Lot {lot} · {n} note{n||s}', 'st.notes.lotNone': 'Hors lot · {n} note{n||s}', 'st.notes.lotTitle': 'Toutes les notes, ou celles d’un seul lot : dans cette liste, sur la timeline et sur l’image',
-      'st.notes.okAll': 'Tout valider ({n})', 'st.notes.okAllTitle': 'Les notes corrigées de ce lot passent au vert (Ctrl+Z pour revenir)', 'st.notes.okAllDone': '{n} note{n||s} validée{n||s} · Ctrl+Z pour revenir', 'st.insp.stVerified': 'validée' },
+      'st.notes.okAll': 'Tout valider ({n})', 'st.notes.okAllTitle': 'Les notes corrigées de ce lot passent au vert (Ctrl+Z pour revenir)', 'st.notes.okAllDone': '{n} note{n||s} validée{n||s} · Ctrl+Z pour revenir', 'st.insp.stVerified': 'validée',
+      'st.sound.btn': "Rétablir le son (s'il a disparu après un ralentissement du PC)", 'st.sound.lost': "Le son de l'aperçu s'est coupé (PC ralenti) : remise en route…", 'st.sound.back': "Son de l'aperçu rétabli", 'st.sound.restored': "Son remis en route" },
     en: { 'st.card.verify': 'Validate', 'st.card.verifiedBtn': 'Validated', 'st.card.verified': 'validated', 'st.card.verifyTitle': 'You checked the fix: the note turns green. Click again to go back to "fixed".',
       'st.list.verified': ' · {n} validated', 'st.list.allHidden': 'Nothing to show: the notes here are all validated (untick "hide the validated ones").', 'st.notes.hideOk': 'hide the validated ones',
       'st.notes.lotAll': 'All notes ({n})', 'st.notes.lotOne': 'Batch {lot} · {n} note{n||s}', 'st.notes.lotNone': 'No batch · {n} note{n||s}', 'st.notes.lotTitle': 'All the notes, or one batch’s only: in this list, on the timeline and on the picture',
-      'st.notes.okAll': 'Validate all ({n})', 'st.notes.okAllTitle': 'The fixed notes of this batch turn green (Ctrl+Z to undo)', 'st.notes.okAllDone': '{n} note{n||s} validated · Ctrl+Z to undo', 'st.insp.stVerified': 'validated' },
+      'st.notes.okAll': 'Validate all ({n})', 'st.notes.okAllTitle': 'The fixed notes of this batch turn green (Ctrl+Z to undo)', 'st.notes.okAllDone': '{n} note{n||s} validated · Ctrl+Z to undo', 'st.insp.stVerified': 'validated',
+      'st.sound.btn': "Restore the sound (if it went after the PC slowed down)", 'st.sound.lost': "The preview’s sound cut out (the PC slowed down): starting it again…", 'st.sound.back': "The preview’s sound is back", 'st.sound.restored': "Sound restarted" },
   };
   const TN = (k, v) => {
     const s = T(k, v); if (s !== k) return s;

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { launch, requireFrench } from './cdp.mjs';
+import { launch, requireFrench, requireSandbox } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
 import { removeTestNotes, closeTestLots, GRADE_TEXTS, SANDBOX_TEXTS } from './sandbox-clean.mjs';
 process.env.COULISSES_LANG = 'fr';
@@ -18,7 +18,7 @@ const REVUE = path.join(SANDBOX, 'E03 - The Secret Garden', 'revue');
 const shots = path.join(CACHE, 'shots'); fs.mkdirSync(shots, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));
 let ok = 0, ko = 0; const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
-await requireFrench(`http://localhost:${PORT}/`);
+await requireFrench(`http://localhost:${PORT}/`); await requireSandbox(`http://localhost:${PORT}/`, SANDBOX);   // (never a real episode's studio)
 const cli = (...a) => execFileSync('node', [path.join(STUDIO, 'studio-cli.mjs'), ...a.slice(0, 1), 'E03', ...a.slice(1), '--episodes', SANDBOX], { encoding: 'utf8' }).trim();
 const TEST_TEXTS = GRADE_TEXTS;   // (tests/sandbox-clean.mjs: the texts of every suite of the sandbox)
 closeTestLots(REVUE, cli, SANDBOX_TEXTS); await removeTestNotes(PORT, SANDBOX_TEXTS);   // (what every suite of the sandbox left: each starts clean)
