@@ -121,6 +121,13 @@
   .seg button { height: 30px; border: 0; background: transparent; color: var(--s11); }
   .seg button:hover { background: var(--glass-3); color: var(--s12); }
   .seg button.on { background: #f4f5fa; color: #11131c; }
+  /* « Rendu »: the quality, the same in every project (page/studio/06-render.js) */
+  .rc .qline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 2px; }
+  .rc .qline .seg { flex-wrap: wrap; border-radius: 16px; max-width: 100%; }   /* (a project's own variants: to the next line) */
+  .rc .qline .seg button { height: 28px; padding: 0 14px; font: 600 12.5px var(--font-d); border-radius: 999px; }
+  .rc .qline .seg button:disabled { opacity: .38; cursor: default; background: transparent; color: var(--s11); }
+  .rc .qline .seg button.on:disabled { opacity: .7; background: #f4f5fa; color: #11131c; }
+  .rc #rcStep { margin-top: 2px; }
   #codeStatus, #proxy { font-size: 12px; color: var(--s9); }
   #stagewrap { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 12px 18px 8px; }
   /* under the image: its tools (left), the transport (middle), the speed and the sound (right) */

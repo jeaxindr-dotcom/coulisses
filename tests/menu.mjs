@@ -123,7 +123,7 @@ try {
   const ex = await ev(`const r = document.querySelector('.mb-item[data-id=export]').getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]`);
   await p.mouse('mouseMoved', ex[0], ex[1]); await sleep(250);
   const variants = (await rows(1))?.map((r) => r.label);
-  check(variants?.join(' | ') === 'Exporter la vidéo | Rendu test (30 images) | Remplacer (même nom)', `Outils › Exporter ▸ lists the export script's variants (${variants?.join(', ')})`);
+  check(variants?.join(' | ') === 'Lancer le rendu en 1080p | Lancer le rendu en 4K | Rendu test (30 images) | Remplacer (même nom)', `Outils › Rendu ▸: 1080p, 4K (the same in every project), then the script's own variants (${variants?.join(', ')})`);
   await p.shot(path.join(shots, 'menu-2-export.png'));
   await escape(3);
   await run('help', 'shortcuts');

@@ -27,10 +27,13 @@ const post = async (u, b = {}) => (await fetch(U + u, { method: 'POST', headers:
 const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f) && !/remplace/.test(f)) : []);
 const frames = (f) => +execFileSync('ffprobe', ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim().replace(/,$/, '');
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-let studio = null;
+let studio = null, studioOut = '';   // (its output: shown when the test fails, the studio may have said why)
 async function startStudio(revue) {
   studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let out = ''; studio.stdout.on('data', (d) => { out += d; }); studio.stderr.on('data', (d) => { out += d; });
+  let out = ''; studio.stdout.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); }); studio.stderr.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); });
+  studio.on('exit', (c) => { studioOut += `
+(le studio s'est arrêté : code ${c})
+`; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
   if (!/Ouvre : http/.test(out)) throw new Error('le studio ne démarre pas : ' + out.split('\n').slice(-3).join(' '));
 }
@@ -55,8 +58,10 @@ try {
     await p.goto(U + '/');
     await sleep(1500); await p.eval(`document.querySelector('[data-tab="lots"]').click(); return 1`).catch(() => {});
     const t0 = Date.now(); let html = '';
-    while (Date.now() - t0 < 30000 && !/exGo/.test(html)) { await sleep(400); html = (await p.eval(`return document.querySelector('#renderCard')?.innerHTML ?? ''`).catch(() => '')) ?? ''; }
-    check(/Exporter la vidéo/.test(html) && /Rendu test \(30 images\)/.test(html), 'the page shows one button per variant in the send card');
+    while (Date.now() - t0 < 30000 && !/rcGo/.test(html)) { await sleep(400); html = (await p.eval(`return document.querySelector('#renderCard')?.innerHTML ?? ''`).catch(() => '')) ?? ''; }
+    // the card of every project (user request 19/10/2026): « 1080p | 4K » then the script's own variants, « Lancer le rendu »
+    const q = await p.eval(`return [...document.querySelectorAll('#rcQ button')].map((b) => b.textContent + (b.disabled ? ' (grisé)' : ''))`);
+    check(q.join(' | ') === '1080p | 4K (grisé) | Rendu test (30 images) | Remplacer (même nom)' && /Lancer le rendu/.test(html), `the card: the same quality choice as every project, a script without 4K greyed (${q.join(', ')})`);
   } finally { await p.close(); }
 
   // 2) a whole export
@@ -66,7 +71,9 @@ try {
   const twice = await post('/api/export');
   check(!twice.ok && /tourne déjà/.test(twice.why), 'a second export is refused while one runs');
   let seen = 0;
-  const done = await until(async () => { const x = (await get('/api/status')).export; if (x?.pct > seen) seen = x.pct; return x && x.state !== 'running' ? x : null; }, 240000, 'export');
+  let seenFrames = null;   // (« image N / 300 »: the script says its frames, COULISSES IMAGES)
+  const done = await until(async () => { const x = (await get('/api/status')).export; if (x?.pct > seen) seen = x.pct; if (x?.state === 'running' && x.frames?.done > 0) seenFrames = x.frames; return x && x.state !== 'running' ? x : null; }, 240000, 'export');
+  check(seenFrames?.total === 300 && seenFrames.done > 0 && seenFrames.done <= 300 && done.frames?.done === 300, `the frames done out of all, read from the script (${seenFrames ? `${seenFrames.done} / ${seenFrames.total}` : 'none'}, then ${done.frames?.done} / ${done.frames?.total})`);
   check(done.state === 'done' && done.pct === 100 && seen > 0 && fs.existsSync(done.file ?? ''), `export done (${path.basename(done.file ?? '')}, progress seen up to ${seen} %)`);
   check(finals().length === before + 1 && !fs.readdirSync(OUT).some((f) => /\.tmp\./.test(f)) && frames(done.file) === 300, 'one new final file, no .tmp left, every frame (300)');
   await sleep(21000);   // a file younger than 20 s is never reviewed (an export being written)
@@ -143,7 +150,7 @@ try {
   await startStudio(imp.revue);
   const x3 = (await get('/api/status')).export;
   check(x3.state === 'done' && x3.pid === s3.pid, 'reopened, the studio shows it done');
-} catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
+} catch (e) { ko++; console.log('  ✗ ERREUR', e.stack, e.cause ?? ''); console.log('  --- les dernières lignes du studio ---' + String.fromCharCode(10) + studioOut.split(String.fromCharCode(10)).slice(-15).join(String.fromCharCode(10))); } finally {
   stopStudio();
   console.log(`\n${ok} ok, ${ko} échec(s)`);
   process.exit(ko ? 1 : 0);

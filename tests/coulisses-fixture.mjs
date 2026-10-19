@@ -115,7 +115,7 @@ export const Root: React.FC = () => (
     "const tmp = fin.replace(/\\.mp4$/, '.tmp.mp4');",
     "fs.mkdirSync(dossier, { recursive: true });",
     "await renderMedia({ serveUrl, composition, codec: 'h264', outputLocation: tmp, inputProps: props, browserExecutable: CHROME, chromiumOptions: { gl: 'angle' }, ...(GPU ? { hardwareAcceleration: 'required', videoBitrate: '8M' } : {}),",
-    "  frameRange: images ? [0, Math.min(composition.durationInFrames, +images) - 1] : undefined, onProgress: ({ progress }) => say(5 + progress * 94, 'rendu') });",
+    "  frameRange: images ? [0, Math.min(composition.durationInFrames, +images) - 1] : undefined, onProgress: ({ progress, renderedFrames }) => { say(5 + progress * 94, 'rendu'); console.log('COULISSES IMAGES ' + renderedFrames + ' ' + (images ? Math.min(composition.durationInFrames, +images) : composition.durationInFrames)); } });",
     "if (fs.existsSync(fin)) { console.log('COULISSES REMPLACE \"' + fin + '\"'); await new Promise((r) => setTimeout(r, 2500)); }",
     "for (let i = 0; ; i++) { try { fs.renameSync(tmp, fin); break; } catch (e) { if (i >= 60) throw e; await new Promise((r) => setTimeout(r, 1000)); } }",
     "say(100, 'fini');",

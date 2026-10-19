@@ -137,6 +137,7 @@ The script:
 - **writes first to a `….tmp.mp4` file**, then renames it at the end: Coulisses never loads a file being written;
 - **if it replaces a file that already exists** (the same name as the last export, which Coulisses may be showing): it first prints `COULISSES REMPLACE "<path>"`, then retries the rename for at least 60 s. Coulisses then lets go of the video (Windows refuses to replace an open file), and takes it back at the end of the export;
 - **prints its progress** on the standard output, one line per step or per percent: `COULISSES PROGRES <0-100> <step>` (e.g. `COULISSES PROGRES 42 rendu`), and ends with **`COULISSES FIN "<path of the final file>"`**. These three markers are the same in every language;
+- **tells its frames**, when it knows them: `COULISSES IMAGES <done> <total>` (e.g. `COULISSES IMAGES 12345 34019`), at most once a second while rendering. Coulisses shows them as "frame 12,345 / 34,019" and the time left; without it, the percentage;
 - **exits with code 0** if it succeeded, otherwise with another code and the error on the standard error;
 - **can be stopped at any time**: Coulisses then ends the process and its children. Only a `….tmp.mp4` is left, never a false final file.
 
@@ -148,7 +149,7 @@ The `.coulisses` must have an `export` folder, otherwise Coulisses does not offe
 [{ "id": "test", "label": "Test render (1080p)" }, { "id": "final", "label": "Export in 4K" }]
 ```
 
-Coulisses then runs the script again with `--qualite <id>` for the chosen variant. The first element is the main button. The labels are shown as they are: write them in the user's language. Without `--options` (the script does not know it, or returns anything other than an array), Coulisses shows a single button, "Export the video" ("Exporter la vidéo" in French), without `--qualite`.
+Coulisses then runs the script again with `--qualite <id>` for the chosen variant. Every project shows the same choice, **1080p | 4K**, and the same "Start the render" button: the ids `1080p` and `4k` are that choice (a quality the script does not have is greyed, with the reason; without `1080p`, "1080p" runs the first element); any other id (a variant of the project's own, `test`…) is added to the choice with its label. The labels are shown as they are: write them in the user's language. Without `--options` (the script does not know it, or returns anything other than an array), Coulisses shows a single button, "Export the video" ("Exporter la vidéo" in French), without `--qualite`.
 
 **The GPU, by default.** Coulisses tells the script which encoder to use, through the environment variable **`COULISSES_GPU`**: `nvenc` (Windows, Linux: an NVIDIA card whose encoder really works, checked by a test encode), `videotoolbox` (macOS), or `cpu` (no GPU encoder, or the user unticked "Encode with the GPU"). A script that does not know it ignores it and works as before. When it is not `cpu`, the script should:
 

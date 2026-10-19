@@ -99,12 +99,23 @@ try {
   const dl = await p.eval(`const r = document.querySelector('#exSpeed').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
   for (let i = 0; i < 5; i++) { await p.wheel(dl[0], dl[1], -120); await sleep(80); }
   check((await ev(`return document.querySelector('#exSpeedVal').textContent`)) === '×1,5' && /prochain rendu en fera aussi une copie ×1,5/.test(await card()), 'the dial of « Envois » on a Theatre episode: ×1,5, the next render makes its copy too');
+  // the quality (user request 19/10/2026: « option 1080p, option 4K », the same card as every project): 4K
+  const qs = await ev(`return [...document.querySelectorAll('#rcQ button')].map((b) => b.textContent + (b.classList.contains('on') ? '*' : ''))`);
+  check(qs.join(' | ') === '1080p* | 4K', `the card: « 1080p | 4K », 1080p by default (${qs.join(', ')})`);
+  await p.eval(`document.querySelector('#rcQ button[data-q="4k"]').click(); return 1`); await sleep(300);
+  check(await ev(`return document.querySelector('#rcQ button[data-q="4k"]').classList.contains('on')`), '4K chosen');
   await p.eval(`document.querySelector('#rcGo').click(); return 1`);
   await until(`document.querySelector('#modal').style.display === 'flex'`, 10000);
   const line = await ev(`return document.querySelector('#mLine').textContent`);
   check(/Coulisses · E03 · rendu \(lot 2\)/.test(line), `the line to paste (${line?.slice(0, 60)}…)`);
   const md = fs.readFileSync(path.join(REVUE, 'lots', '002.md'), 'utf8');
   check(/demande de RENDU/.test(md) && /Lot 1 \(1 modif\) : corrigé/.test(md) && /render E03 --episodes .* 2` \*\*en tâche de fond/.test(md), 'the request tells Claude what it carries and the exact command');
+  check(/Qualité demandée : \*\*4K\*\*/.test(md) && /--scale=2/.test(md) && JSON.parse(fs.readFileSync(path.join(REVUE, 'lots', '002.json'), 'utf8')).qualite === '4k', 'the request carries the quality (4K: `render` renders at scale 2)');
+  {
+    const { recipe } = await import('../lib/render.mjs'), { episode, optionsFrom } = await import('../lib/episode.mjs');
+    const EPP = episode('E03', optionsFrom(['--episodes', SANDBOX])), r4 = recipe(EPP, { qualite: '4k' }).render.run[0], r1 = recipe(EPP).render.run[0];
+    check(r4.includes('--scale=2') && !r1.includes('--scale=2'), 'the render command: --scale=2 in 4K only');
+  }
   check(/Vitesse demandée : ×1,5/.test(md) && JSON.parse(fs.readFileSync(path.join(REVUE, 'lots', '002.json'), 'utf8')).vitesse === 1.5, 'the request carries the speed (×1,5: the copy is made by `render` itself)');
   await p.eval(`document.querySelector('#exSpeed').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1`);   // back to ×1 for what follows
   await p.eval(`document.querySelector('#mClose').click(); return 1`);
@@ -119,6 +130,8 @@ try {
   await until(`/image \\d+ \\/ 160/.test(document.querySelector('#renderCard').innerText)`, 30000);
   const mid = await ev(`return { card: document.querySelector('#renderCard').innerText, pill: document.querySelector('#renderPill').textContent, bar: parseFloat(document.querySelector('#rcBar').style.width), chips: document.querySelectorAll('#renderCard .chip.ok').length }`);
   check(mid.chips === 5, `the five checks passed (${mid.chips} ✓)`);
+  const on4k = await ev(`return document.querySelector('#rcQ button[data-q="4k"]')?.classList.contains('on') && document.querySelector('#rcQ button[data-q="4k"]').disabled`);
+  check(on4k && /Contrôles automatiques/.test(mid.card) && /Rendu de la vidéo/.test(mid.card) && /Finition/.test(mid.card) && /Vérification par l'agent/.test(mid.card), 'the card while it renders: its four steps, 4K lit (locked) in the quality');
   check(/Rendu \d+ %/.test(mid.pill) && mid.bar > 0, `progress: « ${mid.pill} », bar ${mid.bar} %, « ${/image [^\n]+/.exec(mid.card)?.[0]} »`);
   await p.shot(path.join(shots, 'render-1-progress.png'));
   let sawHeld = false;

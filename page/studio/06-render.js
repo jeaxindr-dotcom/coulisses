@@ -23,7 +23,13 @@
     return { st, R, req, cur, since };
   }
   function renderPill() {
-    const { st, R } = renderView(), p = $('#renderPill'), pct = R?.render?.pct ?? 0;
+    const p = $('#renderPill');
+    if (PROJ) {   // a project: its export, as « Rendu 36 % »
+      const X = STATUS.export, run = X?.state === 'running', pc = X?.frames?.total ? (X.frames.done / X.frames.total) * 100 : X?.pct ?? 0;
+      p.className = run ? 'show' : ''; p.querySelector('.t').textContent = run ? T('st.pill.pct', { pct: Math.floor(pc) }) : ''; p.querySelector('.mini i').style.width = `${run ? pc : 0}%`;
+      return;
+    }
+    const { st, R } = renderView(), pct = R?.render?.pct ?? 0;
     let t = '', cls = '';
     if (st === 'running') t = R.phase === 'checks' ? T('st.pill.checks') : R.phase === 'finish' ? T('st.pill.finish') : R.render?.stage === 'frames' ? T('st.pill.pct', { pct: Math.floor(pct) }) : R.render?.stage === 'encode' ? T('st.pill.encode') : T('st.pill.preparing');
     else if (st === 'requested' || st === 'preparing') t = T('st.pill.requested');
@@ -35,28 +41,234 @@
   }
   $('#renderPill').onclick = () => setTab('lots');
   let rcKey = '';
+  // ---------- « Rendu »: one card in every project (user request, 19/10/2026: « je voulais exactement la même interface pour
+  // tous les projets : option 1080p, option 4K et un compteur de combien d'images sur combien sont déjà rendues ») ----------
+  // An episode of the Theatre: the render asked here, run by the agent (studio-cli.mjs render: STATUS.render); a project:
+  // its export script, run by the studio (lib/export.mjs: STATUS.export). The same card for both, in this order: what it
+  // is, the quality (1080p | 4K, then a project's own variants), « Lancer le rendu », then « image 12 345 / 34 019 », the
+  // time left and the step; the video made, its folder, the comparison. What does not apply is greyed, with the reason.
+  const QKEY = () => `coulisses.quality.${META?.coulisses ?? META?.root ?? META?.episode ?? ''}`;
+  function qualities() {
+    if (!PROJ) return [{ id: '1080p', label: '1080p', send: '1080p' }, { id: '4k', label: '4K', send: '4k' }];
+    const why = META.features?.export ? null : T('st.ex.unavailable', { why: META.exportWhy ?? T('st.ex.unavailableWhy') });
+    const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
+    const o1 = opts.find((o) => o.id === '1080p') ?? opts[0], o4 = opts.find((o) => o.id === '4k');
+    return [{ id: '1080p', label: '1080p', send: o1?.id ?? null, why },
+      { id: '4k', label: '4K', send: o4?.id ?? null, why: why ?? (o4 ? null : TN('st.q.no4k')) },
+      ...opts.filter((o) => o !== o1 && o !== o4).map((o) => ({ id: `x:${o.id}`, label: o.label, send: o.id, why }))];
+  }
+  function quality() {
+    const qs = qualities(); let want = null; try { want = localStorage.getItem(QKEY()); } catch { /* private window */ }
+    return qs.find((x) => x.id === want && !x.why) ?? qs.find((x) => !x.why) ?? qs[0];
+  }
+  function setQuality(id) { try { localStorage.setItem(QKEY(), id); } catch { /* private window */ } rcKey = ''; renderRender(); markGo(); }
+  // « Lancer le rendu » in the quality chosen: an episode's render (asked to the agent), a project's export
+  const goRender = () => { const x = quality(); if (PROJ) startExportUI(x.send, x.label); else launchRender(); };
+  const qLabel = (send) => (send === '4k' ? '4K' : send === '1080p' ? '1080p' : (qualities().find((x) => x.send === send)?.label ?? '1080p'));
+  function qualityHtml(locked, running = null) {   // (running: the quality sent of the render going on — the one lit)
+    const cur = running ? (qualities().find((x) => x.send === running) ?? quality()) : quality(), px = (id) => (id === '4k' ? (CH > CW ? '2160×3840' : '3840×2160') : id === '1080p' ? (CH > CW ? '1080×1920' : '1920×1080') : '');
+    return `<div class="qline"><span class="sub2">${TN('st.q.title')}</span><span class="seg" id="rcQ">${qualities().map((x) => `<button data-q="${esc(x.id)}" class="${x.id === cur.id ? 'on' : ''}" ${locked || x.why ? 'disabled' : ''} title="${esc(x.why ?? px(x.id))}">${esc(x.label)}</button>`).join('')}</span></div>`;
+  }
+  // the four numbered steps of a render, the same in every project (user request, 19/10/2026, the Theatre's card in a
+  // screenshot: « je veux que ce soit comme ça pour tous les projets »): its number, ✓ once done, a spinner while it runs,
+  // ✗ when it failed; the second one with its bar, « image 12 345 / 34 019 » and the time left
+  function renderSteps(rows) {
+    const ix = (st, n) => (st === 'ok' ? ic('check') : st === 'fail' ? ic('x') : st === 'run' ? '<span class="spin"></span>' : n);
+    return `<div class="steps">${rows.map((r) => `<div class="stp ${r.s}"><span class="ix">${ix(r.s, r.n)}</span><div><div class="t">${r.t}</div>${r.body}</div></div>`).join('')}</div>`;
+  }
+  const barBody = () => `<div class="rbar"><i id="rcBar"></i></div><div class="num2"><span id="rcNum">${T('st.steps.waiting')}</span><span class="muted" id="rcEta"></span></div>`;
+  // the moving parts (every status, without drawing the card again): the bar, « image … / … », the time left
+  const nf = (x) => (+x || 0).toLocaleString(FR ? 'fr-FR' : 'en-US');
+  function setProgress({ done = null, total = null, pct = null, eta = '', num = null }) {
+    const bar = $('#rcBar'); if (!bar) return;
+    const p = total ? Math.min(100, (done / total) * 100) : pct;
+    bar.style.width = `${Math.max(0, Math.min(100, p ?? 0))}%`;
+    $('#rcNum').textContent = num ?? (total ? T('st.num.frames', { f: nf(done), total: nf(total), pct: dec((Math.floor((p ?? 0) * 10) / 10).toFixed(1)) }) : p != null ? T('st.ex.pct', { pct: Math.round(p) }) : T('st.steps.waiting'));
+    $('#rcEta').textContent = eta;
+  }
+  // an export's time left, from its own pace (the last minute and a half of its frames)
+  let paceOf = null;
+  function exportEta(X) {
+    const f = X.frames; if (!f?.total || f.done >= f.total) return '';
+    if (paceOf?.started !== X.started) paceOf = { started: X.started, pts: [] };
+    const now = Date.now(), pts = paceOf.pts;
+    if (!pts.length || pts.at(-1)[1] !== f.done) pts.push([now, f.done]);
+    while (pts.length > 2 && now - pts[0][0] > 90000) pts.shift();
+    if (pts.length < 2) return '';
+    const [t0, d0] = pts[0], [t1, d1] = pts.at(-1), rate = (d1 - d0) / ((t1 - t0) / 1000);
+    if (!(rate > 0)) return '';
+    const s = (f.total - f.done) / rate;
+    return T('st.num.left', { t: s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.round((s % 3600) / 60)).padStart(2, '0')}` : s >= 60 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s` });
+  }
+  // an export's step, in words (the script says its own: paquet, 3D-4K, rendu…)
+  const STEPS = { paquet: ['préparation', 'preparing'], '3D-4K': ['scènes 3D en 4K', '3D scenes in 4K'], rendu: ['rendu des images', 'rendering the frames'], assemblage: ['assemblage des morceaux', 'joining the parts'],
+    son: ['mixage du son', 'mixing the sound'], volume: ['volume', 'loudness'], '1080p': ['1080p tirée de la 4K', '1080p from the 4K'], HyperFrames: ['rendu HyperFrames', 'HyperFrames render'], fin: ['fin', 'end'], fini: ['fin', 'end'] };
+  const stepWords = (s) => { if (!s) return ''; const w = STEPS[s] ?? (/^vitesse/.test(s) ? [`copie à la vitesse (${s.replace(/^vitesse\s*/, '')})`, `copy at speed (${s.replace(/^vitesse\s*/, '')})`] : [s, s]); return w[FR ? 0 : 1]; };
+  // an export's four steps (its script's steps: paquet, 3D-4K → the preparation; rendu → the frames; the rest → the finish)
+  const phaseOf = (e) => (!e || /^(paquet|3D-4K)$/.test(e) ? 0 : /^(rendu|HyperFrames)$/.test(e) ? 1 : /^(fin|fini)$/.test(e) ? 3 : 2);
+  function exportSteps(X) {
+    const cur = X.state === 'done' ? 4 : phaseOf(X.etape), bad = X.state === 'failed' || X.state === 'stopped';
+    const st = (i) => (i < cur ? 'ok' : i > cur ? 'wait' : bad ? 'fail' : X.state === 'running' ? 'run' : 'ok');
+    return renderSteps([
+      { n: 1, t: TN('st.steps.prep'), body: `<div class="d">${cur === 0 && X.etape && X.etape !== 'paquet' ? esc(stepWords(X.etape)) : TN('st.steps.prepWhat')}</div>`, s: st(0) },
+      { n: 2, t: T('st.steps.render'), body: barBody(), s: st(1) },
+      { n: 3, t: T('st.steps.finish'), body: `<div class="d">${cur === 2 ? esc(stepWords(X.etape)) : TN('st.steps.finishX')}</div>`, s: st(2) },
+      { n: 4, t: TN('st.steps.reviewX'), body: `<div class="d">${TN('st.steps.reviewXWhat')}</div>`, s: st(3) },
+    ]);
+  }
+  // an episode's four steps (the agent's: lib/render.mjs), as they were
+  function episodeSteps(R) {
+    const order = ['checks', 'render', 'finish', 'review'], only = R?.only ?? ['checks', 'render', 'finish'];
+    const cur = R ? order.indexOf(R.phase === 'done' ? 'review' : R.phase) : -1;
+    const stOf = (k) => {
+      if (k !== 'review' && R && !only.includes(k)) return 'skip';
+      if (!R) return 'wait';
+      const i = order.indexOf(k);
+      if (i < cur) return 'ok';
+      if (i > cur) return 'wait';
+      if (R.state === 'running') return 'run';
+      if (BAD.includes(R.state)) return 'fail';
+      if (k === 'review') return R.state === 'reviewed' ? 'ok' : 'run';
+      return 'ok';
+    };
+    const chk = R?.checks ?? [], judge = chk.find((c) => c.toJudge)?.toJudge;
+    const chip = (c) => `<span class="chip ${c.status === 'wait' ? '' : c.status}" title="${esc(c.detail)}">${c.status === 'ok' ? ic('check') : c.status === 'fail' ? ic('x') : c.status === 'run' ? '<span class="spin"></span>' : ''}${esc(c.label)}</span>`;
+    const checksBody = chk.length ? `<div class="chips">${chk.map(chip).join('')}</div>${judge ? `<div class="d">${T('st.steps.judge', { n: judge })}</div>` : ''}` : `<div class="d">${T('st.steps.checksList')}</div>`;
+    const fin = R?.finish?.steps ?? [];
+    return renderSteps([
+      { n: 1, k: 'checks', t: T('st.steps.checks'), body: checksBody },
+      { n: 2, k: 'render', t: T('st.steps.render'), body: barBody() },
+      { n: 3, k: 'finish', t: T('st.steps.finish'), body: `<div class="d" id="rcFin">${fin.length && stOf('finish') === 'run' ? esc(finLabel(fin.at(-1).label)) : T('st.steps.finishList')}</div>` },
+      { n: 4, k: 'review', t: T('st.steps.review'), body: `<div class="d">${T('st.steps.reviewWhat')}</div>` },
+    ].map((r) => ({ ...r, s: stOf(r.k) })).filter((r) => r.s !== 'skip'));
+  }
+  function renderRender() {
+    const box = $('#renderCard'); if (!box || !META) return;
+    queueMicrotask(speedJob);   // the copy at another speed: its own part of the card, updated in place
+    return PROJ ? exportCard(box) : episodeCard(box);
+  }
+  function wireCard() {
+    for (const b of document.querySelectorAll('#rcQ button')) b.addEventListener('click', () => setQuality(b.dataset.q));
+    $('#rcLog')?.addEventListener('click', PROJ ? showExportLog : showRenderLog);
+    $('#rcCmp')?.addEventListener('click', () => openCompare());
+    $('#exGpu')?.addEventListener('change', async (e) => {
+      const r = await postJson('/api/gpu', { on: e.target.checked });
+      if (r?.ok) { META.gpu = r.gpu; rcKey = null; renderRender(); setSave(r.gpu.off ? T('st.ex.gpuNowOff') : T('st.ex.gpuNowOn'), 'ok'); } else setSave(T('st.noAnswer'), 'err');
+    });
+    wireSpeed();
+  }
+  // ---- an episode of the Theatre: the render, asked here and run by the agent ----
+  function episodeCard(box) {
+    const { st, R, req, cur, since } = renderView(), q = quality();
+    const key = JSON.stringify([st, R?.phase, R?.state, R?.startedAt, R?.checks?.map((c) => c.status), R?.finish?.steps?.length, req?.lot, req?.claude?.status,
+      STATUS.compare?.length, since.map((L) => [L.lot, L.claude?.status]), R?.message, STATUS.agent?.watching, cur?.size, q.id]);
+    if (key === rcKey) { episodeNums(R); return; }
+    rcKey = key;
+    const done = since.filter((L) => L.claude?.status === 'done').length, open = since.filter((L) => !L.claude || L.claude.status === 'taken').length;
+    const right = st === 'idle' || st === 'requested' ? (cur ? T('st.rc.videoOf', { date: dayTime(cur.mtime) }) : T('st.ex.noVideo')) : st === 'preparing' ? T('st.rc.lot', { lot: req?.lot ?? '' }) : R?.startedAt ? T('st.rc.started', { date: dayTime(R.startedAt) }) : '';
+    let h = `<div class="rh">${ic('film')}<b>${T('st.rc.render')}</b><span class="muted">${esc(right)}</span></div>
+      <div class="sub2">${since.length ? T('st.rc.since', { n: done, open: open ? T('st.rc.sinceOpen', { k: open }) : '' }) : T('st.rc.sinceNone')}</div>`;
+    const busy = st !== 'idle' && !['failed', 'interrupted', 'cancelled', 'rendered'].includes(st);
+    h += qualityHtml(busy, busy ? (R?.qualite ?? req?.qualite ?? '1080p') : null);
+    const B = {
+      go: `<button class="primary" id="rcGo">${ic('play')}${T(['failed', 'interrupted', 'cancelled'].includes(st) ? 'st.rc.again' : 'st.rc.go')}</button>`,
+      cmp: STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : '',
+      reveal: cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : '',
+      log: R ? `<button class="soft" id="rcLog">${T('st.rc.log')}</button>` : '',
+      copy: req ? `<button class="soft" id="rcCopy">${ic('copy')}${T('st.lot.copy')}</button>` : '',
+      stop: R?.state === 'running' && R.phase !== 'finish' ? `<button class="soft danger" id="rcStop">${ic('x')}${T('st.rc.stop')}</button>` : '',
+    };
+    if (st === 'idle') {
+      if (R?.state === 'reviewed' && R.video?.size === cur?.size) h += `<div class="ok2">${T('st.rc.lastChecked', { msg: R.message ? T('st.rc.lastMsg', { msg: esc(R.message) }) : '' })}</div>`;
+      else if (R && BAD.includes(R.state)) h += `<div class="sub2 muted">${T('st.rc.lastTry', { state: T(R.state === 'cancelled' ? 'st.rc.stoppedWord' : 'st.rc.interruptedWord'), date: dayTime(R.endedAt ?? R.updatedAt) })}</div>`;
+      h += `<div class="acts">${B.go}${B.cmp}${B.reveal}${B.log}</div>`;
+    } else if (st === 'requested') {
+      h += `<div class="sub2"><b>${T('st.rc.render')} ${esc(qLabel(req?.qualite ?? '1080p'))}</b> · ${esc(T('st.rc.requested', { date: dayTime(req.sentAt) }))}</div>
+        <div class="sub2">${STATUS.agent?.watching ? T('st.rc.watching', { name: agentName() }) : T('st.rc.paste', { name: agentName() })}</div>`
+        + `<div class="acts">${B.copy.replace('soft', 'primary')}<button class="soft danger" id="rcWithdraw">${T('st.rc.withdraw')}</button></div>`;
+    } else {
+      h += episodeSteps(st === 'preparing' ? null : R);
+      if (st === 'preparing') h += `<div class="sub2">${T('st.rc.preparing')}</div>`;
+      if (st === 'blocked') h += `<div class="err">${esc(R.error ?? T('st.rc.checkFailed'))}${T('st.rc.agentFixes')}</div>`;
+      if (st === 'failed') h += `<div class="err">${esc(R.error ?? T('st.rc.failed'))}</div>`;
+      if (st === 'interrupted') h += `<div class="err">${T('st.rc.interrupted')}</div>`;
+      if (st === 'cancelled') h += `<div class="sub2">${T('st.rc.cancelled', { date: dayTime(R.endedAt) })}</div>`;
+      if (st === 'rendered') {
+        const F = R.finish ?? {}, dur = F.duration ? mmss(F.duration).replace(/ 0?(\d+) s$/, ' $1 s') : '';
+        h += `<div class="ok2">${T('st.rc.ready', { dur: dur ? ` · ${dur}` : '', lufs: F.loudness?.I != null ? ` · ${dB(F.loudness.I)} LUFS` : '', peak: F.loudness?.peak != null ? T('st.rc.peak', { v: dB(F.loudness.peak) }) : '', remapped: F.remapped != null ? T('st.rc.remapped', { n: F.remapped }) : '' })}</div>`;
+      }
+      const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.go : '';
+      h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp + B.reveal : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
+    }
+    box.innerHTML = `<div class="rc">${h}${gpuLine()}${speedBlock()}</div>`;
+    wireCard();
+    $('#rcGo')?.addEventListener('click', launchRender);
+    $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
+    $('#rcCopy')?.addEventListener('click', () => copy(req.line));
+    $('#rcStop')?.addEventListener('click', stopRender);
+    $('#rcWithdraw')?.addEventListener('click', async () => {
+      const r = await postJson('/api/render/withdraw', { lot: req.lot });
+      setSave(r?.ok ? T('st.rc.withdrawn') : T('st.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err'); statusTxt = '';
+    });
+    episodeNums(R);
+  }
+  function episodeNums(R) {   // the parts of an episode's render that move every few seconds, as before
+    const r = R?.render; if (!$('#rcBar') || !r) return;
+    if (r.stage === 'frames') setProgress({ done: r.frame, total: r.total, eta: r.remaining ? T('st.num.left', { t: frDur(r.remaining) }) : '' });
+    else if (r.stage === 'bundle') setProgress({ pct: 0, num: T('st.num.bundle', { pct: r.pct }) });
+    else if (r.stage === 'copy') setProgress({ pct: 0, num: T('st.num.copy', { size: r.copied ?? '' }) });
+    else if (r.stage === 'compose') setProgress({ pct: 0, num: T('st.num.compose') });
+    else if (r.stage === 'encode') setProgress({ pct: 100, num: T('st.num.encode', { pct: r.total ? Math.round((r.encoded / r.total) * 100) : 0 }) });
+    else if (r.stage === 'done') setProgress({ pct: 100, num: T('st.num.done', { n: nf(r.total) }), eta: r.startedAt && r.endedAt ? T('st.num.in', { t: mmss((Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000) }) : '' });
+    const fEl = $('#rcFin'), fs2 = R.finish?.steps ?? []; if (fEl && fs2.length && R.phase === 'finish' && R.state === 'running') fEl.textContent = finLabel(fs2.at(-1).label);
+  }
+  // ---- a project: its export script, run by the studio ----
   function exportCard(box) {
-    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, HC = STATUS.hfCheck, key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.pct == null ? null : Math.round(X.pct), X?.etape, META.gpu?.mode, META.gpu?.off,
+    const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, HC = STATUS.hfCheck, run = X?.state === 'running', q = quality();
+    const key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.started, X?.etape, META.gpu?.mode, META.gpu?.off, q.id,
       HC?.state, HC?.at, hfcFresh(HC), HFC?.at, STATUS.hfSegments?.done,
       S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
-    if (key === rcKey) return; rcKey = key;
-    if (LIVEP() && !cur) {
-      box.innerHTML = `<div class="rc"><div class="rh">${ic('code')}<b>${T('st.ex.noExport')}</b><span class="muted">${esc(kindLabel())}</span></div>
-        <div class="sub2">${T('st.ex.liveCode', { comp: esc(META.composition ?? ''), w: CW, h: CH, fps: dec(FPS) })}</div>
-        <div class="sub2 muted">${META.exportDir ? T('st.ex.willLoad', { dir: esc(META.exportDir) }) : T('st.ex.noDir')}</div>${shotBlock()}${exportBlock()}${speedBlock()}</div>`;
-      wireExport(); wireShot(); wireSpeed();
-      return;
+    if (key === rcKey) { exportNums(X); return; }
+    rcKey = key;
+    // (what it is, and where the video comes from: the title's tip)
+    const where = LIVEP() ? (META.exportDir ? T('st.ex.willLoad', { dir: META.exportDir }) : T('st.ex.noDir'))
+      : META.kind === 'run' ? T('st.ex.whereRun', { dir: META.exportDir ? T('st.ex.inDir', { dir: META.exportDir }) : '' }) : META.kind === 'aitelier' ? T('st.ex.whereAit') : META.kind === 'video' ? T('st.ex.whereVideo') : T('st.ex.whereFolder');
+    const right = run ? T('st.rc.started', { date: dayTime(X.started) }) : cur ? T('st.rc.videoOf', { date: dayTime(cur.mtime) }) : kindLabel();
+    let h = `<div class="rh" title="${esc(where.replace(/<[^>]+>/g, ''))}">${ic('film')}<b>${T('st.rc.render')}</b><span class="muted">${esc(right)}</span></div>
+      <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : LIVEP() ? TN('st.rc.liveCode', { comp: esc(META.composition ?? ''), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>`;
+    h += shotBlock() + hfCheckBlock() + qualityHtml(run, run ? (X.qualite ?? qualities()[0].send) : null);   // (a HyperFrames project: « Vérifier la composition » first)
+    const can = !qualities().every((x) => x.why), why = qualities()[0].why;
+    const reveal = X?.state === 'done' && X.file ? `<button class="soft" id="rcReveal" title="${esc(X.file)}">${ic('folder')}${T('st.rc.reveal')}</button>`
+      : cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : '';
+    const cmp = STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : '';
+    const log = X ? `<button class="soft" id="rcLog">${T('st.rc.log')}</button>` : '';
+    if (run) {
+      h += exportSteps(X) + `<div class="sub2 muted">${TN('st.steps.goesOn')}</div>`;
+      h += `<div class="acts"><button class="soft danger" id="rcStop">${ic('x')}${T('st.rc.stop')}</button>${log}</div>`;
+    } else {
+      if (X?.state === 'done') h += `<div class="ok2">${T('st.ex.done', { date: dayTime(X.ended), file: esc(X.file ?? '') })}</div>`;
+      else if (X?.state === 'failed') h += `<div class="err">${T('st.ex.failed', { err: X.error ? T('st.ex.failedWhy', { why: esc(X.error) }) : '' })}</div>`;
+      else if (X?.state === 'stopped') h += `<div class="sub2 muted">${T('st.ex.stopped', { date: dayTime(X.ended) })}</div>`;
+      if (!can) h += `<div class="sub2 muted">${esc(why ?? '')}</div>`;
+      // (a HyperFrames export stopped or failed: its segments kept, the next one goes on from them)
+      if (META.kind === 'hyperframes' && X && ['stopped', 'failed'].includes(X.state) && STATUS.hfSegments?.done) h += `<div class="sub2">${T('st.hfc.resume', { done: STATUS.hfSegments.done, all: STATUS.hfSegments.all })}</div>`;
+      h += `<div class="acts"><button class="primary" id="rcGo" ${can ? '' : `disabled title="${esc(why ?? '')}"`}>${ic('play')}${T(X && X.state !== 'done' ? 'st.rc.again' : 'st.rc.go')}</button>${cmp}${reveal}${log}</div>`;
     }
-    const where = META.kind === 'run' ? T('st.ex.whereRun', { dir: META.exportDir ? T('st.ex.inDir', { dir: esc(META.exportDir) }) : '' })
-      : META.kind === 'aitelier' ? T('st.ex.whereAit')
-      : META.kind === 'video' ? T('st.ex.whereVideo') : T('st.ex.whereFolder');
-    box.innerHTML = `<div class="rc"><div class="rh">${ic('film')}<b>${T('st.ex.reviewed')}</b><span class="muted">${esc(kindLabel())}</span></div>
-      <div class="sub2">${cur ? T('st.ex.file', { name: esc(cur.name), date: dayTime(cur.mtime), w: CW, h: CH, fps: dec(FPS) }) : T('st.ex.noVideo')}</div>
-      <div class="sub2 muted">${where} ${META.kind === 'run' ? T('st.ex.fixRun') : T('st.ex.fixYou')}</div>
-      ${shotBlock()}${cur || STATUS.compare?.length ? `<div class="acts">${STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : ''}${cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : ''}</div>` : ''}${exportBlock()}${speedBlock()}</div>`;
-    $('#rcCmp')?.addEventListener('click', () => openCompare());
-    $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
-    wireExport(); wireShot(); wireSpeed();
+    if (META.features?.export) h += gpuLine();
+    box.innerHTML = `<div class="rc">${h}${speedBlock()}</div>`;
+    wireCard(); wireShot();
+    $('#rcGo')?.addEventListener('click', () => { const x = quality(); startExportUI(x.send, x.label); });
+    $('#rcStop')?.addEventListener('click', stopExportUI);
+    $('#hfcGo')?.addEventListener('click', () => hfcStart());
+    $('#hfcNotes')?.addEventListener('click', () => hfcToNotes());
+    for (const b of document.querySelectorAll('#renderCard .hff')) b.addEventListener('click', () => { const f = HFC.findings[+b.dataset.i]; if (f?.time !== null && f?.time !== undefined) { M.pause(); seekFrame(Math.round(f.time * FPS)); } });
+    $('#rcReveal')?.addEventListener('click', () => revealMenu(X?.state === 'done' && X.file ? 'export' : 'video'));
+    exportNums(X);
+  }
+  function exportNums(X) {
+    if (X?.state !== 'running') return;
+    const f = X.frames;
+    setProgress({ done: f?.total ? f.done : 0, total: f?.total ?? null, pct: f?.total ? null : phaseOf(X.etape) > 1 ? 100 : 0, eta: phaseOf(X.etape) === 1 ? exportEta(X) : '' });
   }
   // « Rendre ce plan » (user request, 09/10/2026): a 3D shot shown in a Short as a clip (its .coulisses « utilise »): its
   // video made again from the current code and put back in the Short, without the agent (lib/shot-render.mjs). The old
@@ -103,26 +315,6 @@
       let t = ''; try { t = await (await fetch('/api/shot/log', { cache: 'no-store' })).text(); } catch { /* */ }
       showModal(T('st.shot.logTitle'), T('st.shot.logWhat'), t || T('st.empty'), T('st.shot.logFile'));
     });
-  }
-  // « Exporter » a run of a Remotion pipeline (lib/export.mjs): the project's own export script, on the user's order only
-  const isDefaultExport = (l) => !l || l === T('common.exportVideo') || l === 'Exporter la vidéo' || l === 'Export the video';
-  function exportBlock() {
-    if (!LIVEP()) return '';
-    const X = STATUS.export;
-    if (!META.features?.export) return `<div class="sub2 muted">${T('st.ex.unavailable', { why: esc(META.exportWhy ?? T('st.ex.unavailableWhy')) })}</div>`;
-    if (X?.state === 'running') {
-      return `<div class="sub2">${T('st.ex.running', { label: esc(!isDefaultExport(X.label) ? X.label : T('st.ex.export')), date: dayTime(X.started) })}${X.vitesse && X.vitesse !== 1 ? ` · ${speedLabel(X.vitesse)}` : ''}</div>
-        <div class="rbar"><i style="width:${Math.round(X.pct ?? 0)}%"></i></div>
-        <div class="num2"><span id="exNum">${X.pct != null ? T('st.ex.pct', { pct: Math.round(X.pct) }) : T('st.ex.preparing')}</span><span class="muted">${esc(X.etape ?? '')}</span></div>
-        <div class="acts"><button class="soft danger" id="exStop">${ic('x')}${T('st.ex.stop')}</button><button class="soft" id="exLog">${T('st.rc.log')}</button></div>`;
-    }
-    const last = !X ? '' : X.state === 'done' ? `<div class="ok2">${T('st.ex.done', { date: dayTime(X.ended), file: esc(X.file ?? '') })}</div>`
-      : X.state === 'failed' ? `<div class="err">${T('st.ex.failed', { err: X.error ? T('st.ex.failedWhy', { why: esc(X.error) }) : '' })}</div>` : X.state === 'stopped' ? `<div class="sub2 muted">${T('st.ex.stopped', { date: dayTime(X.ended) })}</div>` : '';
-    const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
-    const btns = opts.map((o, i) => `<button class="${i ? 'soft' : 'primary'} exGo" data-q="${esc(o.id ?? '')}" data-label="${esc(o.label)}">${i ? '' : ic('film')}${esc(o.label)}</button>`).join('');
-    const shown = X?.state === 'done' && X.file ? `<button class="soft" id="exReveal" title="${esc(X.file)}">${ic('folder')}${T('st.ex.reveal')}</button>` : '';
-    const segs = META.kind === 'hyperframes' && X && ['stopped', 'failed'].includes(X.state) && STATUS.hfSegments?.done ? `<div class="sub2">${T('st.hfc.resume', { done: STATUS.hfSegments.done, all: STATUS.hfSegments.all })}</div>` : '';
-    return `${hfCheckBlock()}${last}${segs}<div class="acts">${btns}${shown}${X ? `<button class="soft" id="exLog">${T('st.rc.log')}</button>` : ''}</div>${gpuLine()}`;
   }
   // « Vérifier la composition » (a HyperFrames project, lib/hf-check.mjs): « hyperframes check » before the export — what it
   // finds, each at its moment of the video (a click goes there), into the queue as notes for the agent in one click
@@ -249,19 +441,6 @@
     if (!g.off && g.mode === 'cpu') return `<div class="sub2 muted gpuLine">${T('st.ex.gpuNone')}</div>`;
     return `<label class="sub2 gpuLine" title="${esc(T('st.ex.gpuTitle'))}"><input type="checkbox" id="exGpu" ${g.off ? '' : 'checked'}> ${g.off ? T('st.ex.gpuAsk') : T('st.ex.gpu', { name: esc(g.name ?? 'GPU') })}</label>`;
   }
-  function wireExport() {
-    $('#hfcGo')?.addEventListener('click', () => hfcStart());
-    $('#hfcNotes')?.addEventListener('click', () => hfcToNotes());
-    for (const b of document.querySelectorAll('#renderCard .hff')) b.addEventListener('click', () => { const f = HFC.findings[+b.dataset.i]; if (f?.time !== null && f?.time !== undefined) { M.pause(); seekFrame(Math.round(f.time * FPS)); } });
-    for (const b of document.querySelectorAll('#renderCard .exGo')) b.addEventListener('click', () => startExportUI(b.dataset.q || null, b.dataset.label));
-    $('#exStop')?.addEventListener('click', stopExportUI);
-    $('#exLog')?.addEventListener('click', showExportLog);
-    $('#exReveal')?.addEventListener('click', () => revealMenu('export'));
-    $('#exGpu')?.addEventListener('change', async (e) => {
-      const r = await postJson('/api/gpu', { on: e.target.checked });
-      if (r?.ok) { META.gpu = r.gpu; rcKey = null; renderRender(); setSave(r.gpu.off ? T('st.ex.gpuNowOff') : T('st.ex.gpuNowOn'), 'ok'); } else setSave(T('st.noAnswer'), 'err');
-    });
-  }
   async function startExportUI(qualite, label) {
     const vitesse = exportSpeed();
     // a HyperFrames project: its composition checked first (once per version of the code); errors: asked before exporting
@@ -270,7 +449,7 @@
       if (!hfcFresh(C)) { setSave(T('st.hfc.before'), ''); C = await hfcStart(); }
       if (C?.state === 'done' && C.errors && !confirm(T('st.hfc.confirm', { n: C.errors }))) return;
     }
-    if (!confirm(T('st.ex.confirm', { label: label || T('common.exportVideo'), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
+    if (!confirm(T('st.ex.confirm', { label: TN('st.rc.goQ', { q: label || '1080p' }), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
     const r = await postJson('/api/export', { qualite, vitesse });
     setSave(r?.ok ? T('st.ex.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }
@@ -284,104 +463,6 @@
     showModal(T('st.ex.logTitle'), T('st.ex.logWhat'), t || T('st.empty'), T('st.ex.logFile'));
   }
   const kindLabel = () => (META.kind === 'run' ? T('st.kind.run', { c: META.channel || 'Run' }) : META.kind === 'remotion' ? `${META.channel || T('st.kind.remotion')}${META.features?.video ? '' : T('st.kind.liveCode')}` : META.kind === 'hyperframes' ? `${META.channel ? META.channel + ' · ' : ''}HyperFrames${META.features?.video ? '' : T('st.kind.liveCode')}` : META.kind === 'aitelier' ? `L'AItelier${META.format ? ' · ' + (META.format === 'short' ? 'Short' : T('st.kind.long')) : ''}` : META.kind === 'video' ? T('st.kind.video') : T('st.kind.folder'));
-  function renderRender() {
-    const box = $('#renderCard'); if (!box || !META) return;
-    queueMicrotask(speedJob);   // the copy at another speed: its own part of the card, updated in place
-    if (PROJ) return exportCard(box);
-    const { st, R, req, cur, since } = renderView();
-    const key = JSON.stringify([st, R?.phase, R?.state, R?.startedAt, R?.checks?.map((c) => c.status), R?.render?.stage === 'wait', R?.finish?.steps?.length, req?.lot, req?.claude?.status,
-      STATUS.compare?.length, since.map((L) => [L.lot, L.claude?.status]), R?.message, STATUS.agent?.watching, cur?.size]);
-    if (key === rcKey) { renderNums(R); return; }
-    rcKey = key;
-    const head = (right) => `<div class="rh">${ic('film')}<b>${T('st.rc.render')}</b><span class="muted">${esc(right)}</span></div>`;
-    const done = since.filter((L) => L.claude?.status === 'done').length, open = since.filter((L) => !L.claude || L.claude.status === 'taken').length;
-    const sinceTxt = since.length ? T('st.rc.since', { n: done, open: open ? T('st.rc.sinceOpen', { k: open }) : '' }) : T('st.rc.sinceNone');
-    const B = {
-      go: `<button class="primary" id="rcGo">${ic('play')}${T('st.rc.go')}</button>`,
-      again: `<button class="primary" id="rcGo">${ic('play')}${T('st.rc.again')}</button>`,
-      cmp: STATUS.compare?.length ? `<button class="soft" id="rcCmp">${ic('image')}${T('st.rc.compare', { n: STATUS.compare.length })}</button>` : '',
-      log: R ? `<button class="soft" id="rcLog">${T('st.rc.log')}</button>` : '',
-      reveal: cur ? `<button class="soft" id="rcReveal" title="${esc(T('st.rc.revealTitle', { name: cur.name }))}">${ic('folder')}${T('st.rc.reveal')}</button>` : '',
-      copy: req ? `<button class="soft" id="rcCopy">${ic('copy')}${T('st.lot.copy')}</button>` : '',
-      stop: R?.state === 'running' && R.phase !== 'finish' ? `<button class="soft danger" id="rcStop">${ic('x')}${T('st.rc.stop')}</button>` : '',
-    };
-    let h = '';
-    if (st === 'idle') {
-      h = head(cur ? T('st.rc.videoOf', { date: dayTime(cur.mtime) }) : T('st.ex.noVideo')) + `<div class="sub2">${sinceTxt}</div>`;
-      if (R?.state === 'reviewed' && R.video?.size === cur?.size) h += `<div class="ok2">${T('st.rc.lastChecked', { msg: R.message ? T('st.rc.lastMsg', { msg: esc(R.message) }) : '' })}</div>`;
-      else if (R && BAD.includes(R.state)) h += `<div class="sub2 muted">${T('st.rc.lastTry', { state: T(R.state === 'cancelled' ? 'st.rc.stoppedWord' : 'st.rc.interruptedWord'), date: dayTime(R.endedAt ?? R.updatedAt) })}</div>`;
-      h += `<div class="acts">${B.go}${B.cmp}${B.reveal}${B.log}</div>`;
-    } else if (st === 'requested') {
-      h = head(T('st.rc.requested', { date: dayTime(req.sentAt) })) + `<div class="sub2">${STATUS.agent?.watching ? T('st.rc.watching', { name: agentName() }) : T('st.rc.paste', { name: agentName() })}</div>`
-        + `<div class="acts">${B.copy.replace('soft', 'primary')}<button class="soft danger" id="rcWithdraw">${T('st.rc.withdraw')}</button></div>`;
-    } else {
-      const right = st === 'preparing' ? T('st.rc.lot', { lot: req?.lot ?? '' }) : R?.startedAt ? T('st.rc.started', { date: dayTime(R.startedAt) }) : '';
-      h = head(right) + steps(st === 'preparing' ? null : R);
-      if (st === 'preparing') h += `<div class="sub2">${T('st.rc.preparing')}</div>`;
-      if (st === 'blocked') h += `<div class="err">${esc(R.error ?? T('st.rc.checkFailed'))}${T('st.rc.agentFixes')}</div>`;
-      if (st === 'failed') h += `<div class="err">${esc(R.error ?? T('st.rc.failed'))}</div>`;
-      if (st === 'interrupted') h += `<div class="err">${T('st.rc.interrupted')}</div>`;
-      if (st === 'cancelled') h += `<div class="sub2">${T('st.rc.cancelled', { date: dayTime(R.endedAt) })}</div>`;
-      if (st === 'rendered') {
-        const F = R.finish ?? {}, dur = F.duration ? mmss(F.duration).replace(/ 0?(\d+) s$/, ' $1 s') : '';
-        h += `<div class="ok2">${T('st.rc.ready', { dur: dur ? ` · ${dur}` : '', lufs: F.loudness?.I != null ? ` · ${dB(F.loudness.I)} LUFS` : '', peak: F.loudness?.peak != null ? T('st.rc.peak', { v: dB(F.loudness.peak) }) : '', remapped: F.remapped != null ? T('st.rc.remapped', { n: F.remapped }) : '' })}</div>`;
-      }
-      const again = ['failed', 'interrupted', 'cancelled'].includes(st) ? B.again : '';
-      h += `<div class="acts">${again}${B.stop}${st === 'rendered' ? B.cmp + B.reveal : ''}${st === 'preparing' ? B.copy : ''}${B.log}</div>`;
-    }
-    box.innerHTML = `<div class="rc">${h}${speedBlock()}</div>`;
-    wireSpeed();
-    $('#rcGo')?.addEventListener('click', launchRender);
-    $('#rcCmp')?.addEventListener('click', () => openCompare());
-    $('#rcLog')?.addEventListener('click', showRenderLog);
-    $('#rcReveal')?.addEventListener('click', () => revealMenu('video'));
-    $('#rcCopy')?.addEventListener('click', () => copy(req.line));
-    $('#rcStop')?.addEventListener('click', stopRender);
-    $('#rcWithdraw')?.addEventListener('click', async () => {
-      const r = await postJson('/api/render/withdraw', { lot: req.lot });
-      setSave(r?.ok ? T('st.rc.withdrawn') : T('st.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err'); statusTxt = '';
-    });
-    renderNums(R);
-  }
-  function steps(R) {
-    const order = ['checks', 'render', 'finish', 'review'], only = R?.only ?? ['checks', 'render', 'finish'];
-    const cur = R ? order.indexOf(R.phase === 'done' ? 'review' : R.phase) : -1;
-    const stOf = (k) => {
-      if (k !== 'review' && R && !only.includes(k)) return 'skip';
-      if (!R) return 'wait';
-      const i = order.indexOf(k);
-      if (i < cur) return 'ok';
-      if (i > cur) return 'wait';
-      if (R.state === 'running') return 'run';
-      if (BAD.includes(R.state)) return 'fail';
-      if (k === 'review') return R.state === 'reviewed' ? 'ok' : 'run';
-      return 'ok';
-    };
-    const ix = (s, n) => (s === 'ok' ? ic('check') : s === 'fail' ? ic('x') : s === 'run' ? '<span class="spin"></span>' : n);
-    const row = (k, n, title, body) => { const s = stOf(k); return s === 'skip' ? '' : `<div class="stp ${s}"><span class="ix">${ix(s, n)}</span><div><div class="t">${title}</div>${body}</div></div>`; };
-    const chk = R?.checks ?? [], judge = chk.find((c) => c.toJudge)?.toJudge;
-    const chip = (c) => `<span class="chip ${c.status === 'wait' ? '' : c.status}" title="${esc(c.detail)}">${c.status === 'ok' ? ic('check') : c.status === 'fail' ? ic('x') : c.status === 'run' ? '<span class="spin"></span>' : ''}${esc(c.label)}</span>`;
-    const checksBody = chk.length ? `<div class="chips">${chk.map(chip).join('')}</div>${judge ? `<div class="d">${T('st.steps.judge', { n: judge })}</div>` : ''}`
-      : `<div class="d">${T('st.steps.checksList')}</div>`;
-    const fin = R?.finish?.steps ?? [];
-    return `<div class="steps">${row('checks', 1, T('st.steps.checks'), checksBody)}`
-      + row('render', 2, T('st.steps.render'), `<div class="rbar"><i id="rcBar"></i></div><div class="num2"><span id="rcNum">${T('st.steps.waiting')}</span><span class="muted" id="rcEta"></span></div>`)
-      + row('finish', 3, T('st.steps.finish'), `<div class="d" id="rcFin">${fin.length && stOf('finish') === 'run' ? esc(finLabel(fin.at(-1).label)) : T('st.steps.finishList')}</div>`)
-      + row('review', 4, T('st.steps.review'), `<div class="d">${T('st.steps.reviewWhat')}</div>`) + '</div>';
-  }
-  function renderNums(R) {   // the parts that move every few seconds, without rebuilding the card
-    const bar = $('#rcBar'), r = R?.render; if (!bar || !r) return;
-    let num = T('st.steps.waiting'), eta = '', w = 0;
-    const n = (x) => (+x || 0).toLocaleString(FR ? 'fr-FR' : 'en-US');
-    if (r.stage === 'bundle') num = T('st.num.bundle', { pct: r.pct });
-    else if (r.stage === 'copy') num = T('st.num.copy', { size: r.copied ?? '' });
-    else if (r.stage === 'compose') num = T('st.num.compose');
-    else if (r.stage === 'frames') { num = T('st.num.frames', { f: n(r.frame), total: n(r.total), pct: dec(r.pct) }); eta = r.remaining ? T('st.num.left', { t: frDur(r.remaining) }) : ''; w = r.pct; }
-    else if (r.stage === 'encode') { num = T('st.num.encode', { pct: r.total ? Math.round((r.encoded / r.total) * 100) : 0 }); w = 100; }
-    else if (r.stage === 'done') { num = T('st.num.done', { n: n(r.total) }); eta = r.startedAt && r.endedAt ? T('st.num.in', { t: mmss((Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000) }) : ''; w = 100; }
-    bar.style.width = `${w}%`; $('#rcNum').textContent = num; $('#rcEta').textContent = eta;
-    const f = $('#rcFin'), fs2 = R.finish?.steps ?? []; if (f && fs2.length && R.phase === 'finish' && R.state === 'running') f.textContent = finLabel(fs2.at(-1).label);
-  }
   const postJson = (url, data) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data ?? {}) }).then((r) => r.json()).catch(() => null);
   async function launchRender() {
     const d = drafts().length;
@@ -389,10 +470,11 @@
     const msg = [T('st.launch.ask', { ep: META.episode }), '', T('st.launch.what')];
     if (d) msg.push('', T('st.launch.drafts', { n: d }));
     if (open.length) msg.push('', T('st.launch.open', { n: open.length, list: open.join(', ') }));
-    const vitesse = exportSpeed();
+    const vitesse = exportSpeed(), q = quality();
+    msg.push('', TN('st.launch.q', { q: q.label }));
     if (vitesse !== 1) msg.push('', T('st.launch.speed', { s: speedLabel(vitesse) }));
     if (!confirm(msg.join('\n'))) return;
-    const r = await postJson('/api/render', { agent: AGENT_PICK, vitesse });
+    const r = await postJson('/api/render', { agent: AGENT_PICK, vitesse, qualite: q.send });
     if (!r?.ok) { setSave(T('st.launch.failed', { why: r?.why ?? T('st.launch.noStudio') }), 'err'); return; }
     statusTxt = ''; rcKey = '';
     showModal(T('st.launch.title', { lot: r.lot }),

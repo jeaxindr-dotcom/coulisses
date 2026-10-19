@@ -258,7 +258,7 @@ try {
       fs.writeFileSync(IDX, fs.readFileSync(IDX, 'utf8').replace('Un texte qui déborde du cadre', 'Un texte qui déborde encore'));
       await h.until(`/Le code a changé depuis/.test(document.querySelector('#renderCard').innerText)`, 30000).catch(() => {});
       await h.eval(`window.__asked = []; window.confirm = (m) => { window.__asked.push(m); return false; }; document.querySelector('#ltabs button[data-tab=lots]').click(); return 1`); await sleep(300);
-      await h.eval(`document.querySelector('#renderCard .exGo').click(); return 1`);
+      await h.eval(`document.querySelector('#renderCard #rcGo').click(); return 1`);
       await h.until(`window.__asked.length >= 1`, 120000).catch(() => {}); await sleep(600);
       const asked = await he(`return window.__asked`), st = await (await fetch('http://127.0.0.1:4192/api/status')).json();
       check(asked?.length === 1 && /La vérification trouve \d+ erreur\(s\)/.test(asked[0]) && !st.export, `Exporter: checked first, its errors asked about (« ${(asked?.[0] ?? '').slice(0, 70)}… »), « non »: nothing exported`);
