@@ -55,8 +55,10 @@ try {
     await p.goto(U + '/');
     await sleep(1500); await p.eval(`document.querySelector('[data-tab="lots"]').click(); return 1`).catch(() => {});
     const t0 = Date.now(); let html = '';
-    while (Date.now() - t0 < 30000 && !/exGo/.test(html)) { await sleep(400); html = (await p.eval(`return document.querySelector('#renderCard')?.innerHTML ?? ''`).catch(() => '')) ?? ''; }
-    check(/Exporter la vidéo/.test(html) && /Rendu test \(30 images\)/.test(html), 'the page shows one button per variant in the send card');
+    while (Date.now() - t0 < 30000 && !/rcGo/.test(html)) { await sleep(400); html = (await p.eval(`return document.querySelector('#renderCard')?.innerHTML ?? ''`).catch(() => '')) ?? ''; }
+    // the card of every project (user request 19/10/2026): « 1080p | 4K » then the script's own variants, « Lancer le rendu »
+    const q = await p.eval(`return [...document.querySelectorAll('#rcQ button')].map((b) => b.textContent + (b.disabled ? ' (grisé)' : ''))`);
+    check(q.join(' | ') === '1080p | 4K (grisé) | Rendu test (30 images) | Remplacer (même nom)' && /Lancer le rendu/.test(html), `the card: the same quality choice as every project, a script without 4K greyed (${q.join(', ')})`);
   } finally { await p.close(); }
 
   // 2) a whole export
@@ -66,7 +68,9 @@ try {
   const twice = await post('/api/export');
   check(!twice.ok && /tourne déjà/.test(twice.why), 'a second export is refused while one runs');
   let seen = 0;
-  const done = await until(async () => { const x = (await get('/api/status')).export; if (x?.pct > seen) seen = x.pct; return x && x.state !== 'running' ? x : null; }, 240000, 'export');
+  let seenFrames = null;   // (« image N / 300 »: the script says its frames, COULISSES IMAGES)
+  const done = await until(async () => { const x = (await get('/api/status')).export; if (x?.pct > seen) seen = x.pct; if (x?.state === 'running' && x.frames?.done > 0) seenFrames = x.frames; return x && x.state !== 'running' ? x : null; }, 240000, 'export');
+  check(seenFrames?.total === 300 && seenFrames.done > 0 && seenFrames.done <= 300 && done.frames?.done === 300, `the frames done out of all, read from the script (${seenFrames ? `${seenFrames.done} / ${seenFrames.total}` : 'none'}, then ${done.frames?.done} / ${done.frames?.total})`);
   check(done.state === 'done' && done.pct === 100 && seen > 0 && fs.existsSync(done.file ?? ''), `export done (${path.basename(done.file ?? '')}, progress seen up to ${seen} %)`);
   check(finals().length === before + 1 && !fs.readdirSync(OUT).some((f) => /\.tmp\./.test(f)) && frames(done.file) === 300, 'one new final file, no .tmp left, every frame (300)');
   await sleep(21000);   // a file younger than 20 s is never reviewed (an export being written)

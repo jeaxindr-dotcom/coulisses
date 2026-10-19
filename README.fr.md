@@ -108,7 +108,7 @@ Les bords entre les panneaux se tirent à la souris, et les tailles sont mémori
 
 | Zone | Contenu |
 |---|---|
-| **En haut** | « Projets / nom du projet » (retour à l'accueil), l'état (notes enregistrées, rendu en cours), l'aide, « Connecter à l'agent » et le bouton blanc de l'action principale : **Lancer le rendu** pour un épisode, **Exporter** pour un projet Remotion qui a son script d'export. |
+| **En haut** | « Projets / nom du projet » (retour à l'accueil), l'état (notes enregistrées, rendu en cours), l'aide, « Connecter à l'agent » et le bouton blanc de l'action principale : **Lancer le rendu**, le même dans tous les projets (un épisode le demande à l'agent, un projet Remotion le fait faire à son script d'export). |
 | **Rail, tout à gauche** | Accueil, Note (N), Plage (R), Mise en scène (M), MP4 ⇄ code (P), et en bas les Préférences. |
 | **Colonne de gauche** | Les onglets de l'agent. **Agent** : ce que tu écris à l'agent et ses réponses. **Modifs** : les notes en attente d'envoi, puis « Envoyer à l'agent ». **Envois** : les lots, leur état, « Annuler cette correction », le rendu et l'export. |
 | **Au centre** | L'image, ajustée à la place disponible : le MP4 rendu ou l'aperçu vivant du code. Dessous : les outils sur l'image (Sélection V, Dessin D, Commentaire C), la lecture (image précédente, lecture, image suivante, temps, numéro d'image), la vitesse et le volume. |
@@ -219,6 +219,7 @@ Coulisses relit aussi les projets **HyperFrames** (une vidéo = une composition 
 
 ## Rendu depuis le studio
 
+- **La même carte « Rendu » dans tous les projets** (épisode du Théâtre, film Remotion, projet HyperFrames, vidéo importée), dans l'onglet **Envois** : ce qu'est la vidéo, le choix **1080p | 4K**, **Lancer le rendu**, puis pendant le rendu **« image 12 345 / 34 019 »**, le temps restant et l'étape en cours. La 4K est la 4K seule (YouTube fait lui-même les qualités en dessous). Un choix que le projet n'a pas est grisé, avec la raison ; les variantes propres à un projet (un rendu test…) s'ajoutent au choix. La qualité choisie est gardée pour chaque projet ; le bouton blanc d'en haut et Outils › Rendu la prennent aussi.
 - **Lancer le rendu** : le bouton blanc en haut à droite, ou en haut de l'onglet **Envois**. La carte « Rendu » dit ce que le rendu emportera (les lots corrigés depuis la vidéo actuelle). Le clic envoie une demande à ton agent : une ligne à coller, ou rien à coller s'il surveille l'outil. C'est toujours lui qui rend, comme tu l'avais choisi (« rendu sur ton ordre »).
 - **Avancement**, dans la carte et dans une pastille en haut de l'écran, visible depuis tous les onglets :
   1. les cinq contrôles automatiques, un par un ;

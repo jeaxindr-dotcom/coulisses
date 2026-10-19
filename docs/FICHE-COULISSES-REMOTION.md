@@ -134,18 +134,19 @@ Le script :
 - **écrit d'abord dans un fichier `….tmp.mp4`**, puis le renomme à la fin : Coulisses ne charge jamais un fichier en cours d'écriture ;
 - **s'il remplace un fichier qui existe déjà** (même nom que le dernier export, que Coulisses est peut-être en train de montrer) : il affiche d'abord `COULISSES REMPLACE "<chemin>"`, puis réessaie le renommage pendant au moins 60 s. Coulisses lâche alors la vidéo (Windows refuse de remplacer un fichier ouvert), et la reprend à la fin de l'export ;
 - **affiche son avancement** sur la sortie standard, une ligne par étape ou par pour cent : `COULISSES PROGRES <0-100> <étape>` (ex. `COULISSES PROGRES 42 rendu`), et finit par **`COULISSES FIN "<chemin du fichier final>"`** ;
+- **dit ses images**, s'il les connaît : `COULISSES IMAGES <faites> <total>` (ex. `COULISSES IMAGES 12345 34019`), au plus une fois par seconde pendant le rendu. Coulisses en tire le compteur « image 12 345 / 34 019 » et le temps restant ; sans elle, il montre le pourcentage ;
 - **sort avec le code 0** s'il a réussi, sinon avec un autre code et l'erreur sur la sortie d'erreur ;
 - **peut être arrêté à tout moment** : Coulisses arrête alors le processus et ses enfants. Il ne reste qu'un `….tmp.mp4`, jamais un faux fichier final.
 
 Le `.coulisses` doit avoir un dossier `export`, sinon Coulisses ne propose pas l'export.
 
-**Les variantes d'export** (un bouton chacune dans Coulisses) : `node scripts/coulisses-rendu.mjs --options` affiche sur la sortie standard un tableau JSON, puis sort aussitôt, sans rien rendre :
+**Les qualités** : Coulisses montre dans tous les projets le même choix, **1080p | 4K**, et le même bouton « Lancer le rendu ». `node scripts/coulisses-rendu.mjs --options` affiche sur la sortie standard un tableau JSON, puis sort aussitôt, sans rien rendre :
 
 ```json
-[{ "id": "test", "label": "Rendu test (1080p)" }, { "id": "final", "label": "Exporter en 4K" }]
+[{ "id": "1080p", "label": "1080p" }, { "id": "4k", "label": "4K" }]
 ```
 
-Coulisses relance alors le script avec `--qualite <id>` pour la variante choisie. Le premier élément est le bouton principal. Sans `--options` (le script ne le connaît pas, ou renvoie autre chose qu'un tableau), Coulisses montre un seul bouton, « Exporter la vidéo », sans `--qualite`.
+Coulisses relance alors le script avec `--qualite <id>` pour la qualité choisie. Les ids `1080p` et `4k` sont ceux du choix 1080p | 4K (une qualité que le script n'a pas est grisée, avec la raison) ; sans `1080p`, « 1080p » lance le premier élément. Un autre id (une variante propre au projet : `test`…) s'ajoute au choix, avec son libellé. Sans `--options` (le script ne le connaît pas, ou renvoie autre chose qu'un tableau), Coulisses montre un seul bouton, « Exporter la vidéo », sans `--qualite`.
 
 **Le GPU, par défaut.** Coulisses dit au script quel encodeur utiliser, par la variable d'environnement **`COULISSES_GPU`** : `nvenc` (Windows, Linux : une carte NVIDIA dont l'encodeur marche vraiment, vérifié par un encodage d'essai), `videotoolbox` (macOS), ou `cpu` (pas d'encodeur GPU, ou l'utilisateur a décoché « Encoder avec le GPU »). Un script qui ne la connaît pas l'ignore et fait comme avant. Quand elle n'est pas `cpu`, le script devrait :
 

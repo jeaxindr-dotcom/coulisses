@@ -128,12 +128,12 @@ try {
   check(/Le titre a changé/.test(await p.frameEval('player.html', `return document.body?.innerText ?? ''`) ?? ''), 'a change of index.html: the preview shows it by itself');
   await p.shot(path.join(SCR, 'hf-studio.png'));
 
-  // ---------- 4. « Exporter » (a quick draft) ----------
+  // ---------- 4. « Lancer le rendu » in 1080p (the same two qualities as every project: 1080p, 4K) ----------
   console.log("l'export");
-  const ex = await post('/api/export', { qualite: 'draft' }, U);
+  const ex = await post('/api/export', { qualite: '1080p' }, U);
   let X = null; for (let i = 0; i < 240; i++) { await sleep(1000); X = (await get('/api/status', U)).export; if (X && X.state !== 'running') break; }
   const fin = X?.file && fs.existsSync(X.file) ? X.file : null, pv = fin ? probe(fin) : null;
-  check(ex.ok && X?.state === 'done' && fin && path.dirname(fin) === path.join(DIR, 'renders') && pv?.w === 1920 && Math.abs(pv.d - 4) < 0.3, `hyperframes render (draft): ${fin ? path.basename(fin) : X?.state} · ${pv?.w}×${pv?.h} · ${pv?.d?.toFixed(2)} s`);
+  check(ex.ok && X?.state === 'done' && fin && path.dirname(fin) === path.join(DIR, 'renders') && pv?.w === 1920 && Math.abs(pv.d - 4) < 0.3, `hyperframes render (1080p): ${fin ? path.basename(fin) : X?.state} · ${pv?.w}×${pv?.h} · ${pv?.d?.toFixed(2)} s`);
   check(fs.readdirSync(path.join(DIR, 'renders')).every((f) => !/\.tmp\./.test(f)), 'no .tmp file left');
 
   // ---------- 5. « Mises à jour » ----------

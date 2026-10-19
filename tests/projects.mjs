@@ -118,7 +118,7 @@ try {
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);
   await p.eval(`document.querySelector('button[data-tab=lots]').click(); return 1`);
   await until(`document.querySelector('#rcCmp')`, 15000);
-  check(/master-test-run-v2\.mp4/.test(await ev(`return document.querySelector('#renderCard').innerText`)), '« Envois »: the reviewed export, no « Lancer le rendu »');
+  check(/master-test-run-v2\.mp4/.test(await ev(`return document.querySelector('#renderCard').innerText`)) && await ev(`return document.querySelector('#rcGo')?.disabled === true`), '« Envois »: the reviewed export; « Lancer le rendu » there but greyed (the pipeline exports it), as in every project');
   await p.eval(`document.querySelector('#rcCmp').click(); return 1`);
   await until(`__studio.state().cmp && document.querySelector('#cmpA').naturalWidth > 0 && document.querySelector('#cmpB').naturalWidth > 0`, 30000);
   check(/Avant · export du/.test(await ev(`return document.querySelector('#cmpLA').textContent`)) && /nouvel export/.test(await ev(`return document.querySelector('#cmpLB').textContent`)), 'Comparer avant / après: the old export against the new one');
