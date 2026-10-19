@@ -23,7 +23,7 @@ const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.j
 const SUITES = [
   ['typecheck', 'self'], ['guard', 'self'], ['temp-sweep', 'self'], ['file-release', 'self'], ['export-speed', 'self'], ['speed-envois', 'self'], ['send-lots', 'self'], ['notes-safety', 'self'], ['note-states', 'self'], ['browser-access', 'self'], ['preview-memory', 'self'], ['preview-speed', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
-  ['hyperframes', 'self'], ['ipad-layout', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['grade', 'sandbox'], ['e2e-agent', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
+  ['hyperframes', 'self'], ['ipad-layout', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['grade', 'sandbox'], ['e2e-agent', 'sandbox'], ['sound-recovery', 'sandbox'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
 ].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run'].includes(n))));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
@@ -34,6 +34,8 @@ async function studioOn(episodes, port, log) {
   for (let i = 0; i < 240 && !/Ouvre : http/.test(out); i++) await sleep(250);
   fs.writeFileSync(path.join(SCR, log), out);
   if (!/Ouvre : http/.test(out)) { kill(c); throw new Error(`le studio du bac à sable ne démarre pas (${path.join(SCR, log)})`); }
+  // (the port it took: the next one free when the one asked is busy — 19/10/2026, the user's E12 was on 4174)
+  c.port = +(/Ouvre : http:\/\/127\.0\.0\.1:(\d+)/.exec(out)?.[1] ?? port);
   return c;
 }
 function run(name, env) {
@@ -62,12 +64,12 @@ try {
     if (need === 'sandbox') {
       if (!fs.existsSync(path.join(SANDBOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }
       box ??= await studioOn(SANDBOX, BOX_PORT, 'sandbox-server.log');
-      env = { STUDIO_PORT: String(BOX_PORT) };
+      env = { STUDIO_PORT: String(box.port) };
     }
     if (need === 'render') {
       if (!fs.existsSync(path.join(RENDER_BOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }
       rbox = await studioOn(RENDER_BOX, 4180, 'render-server.log');
-      env = { STUDIO_PORT: '4180', STUDIO_SANDBOX: RENDER_BOX };
+      env = { STUDIO_PORT: String(rbox.port), STUDIO_SANDBOX: RENDER_BOX };
     }
     process.stdout.write(`${name.padEnd(16)} `);
     const r = await run(name, env);

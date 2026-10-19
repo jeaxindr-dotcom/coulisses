@@ -11,6 +11,15 @@ export async function requireFrench(base) {
   if (m?.lang && m.lang !== 'fr') { console.error(`Le studio ${base} parle « ${m.lang} » : le relancer avec COULISSES_LANG=fr (les tests vérifient les textes français).`); process.exit(2); }
 }
 
+// A suite of the sandbox writes notes and sends batches: the studio it talks to must be the sandbox's, never a real
+// episode's (19/10/2026: the user's E12 was open on 4174, the sandbox's studio had moved to 4175, and a suite was sent to
+// 4174). The studio's notes file must be inside `sandbox`; otherwise the suite stops at once, nothing touched.
+export async function requireSandbox(base, sandbox) {
+  let j = null; try { j = await (await fetch(new URL('api/ping', base), { signal: AbortSignal.timeout(4000) })).json(); } catch { return; }   // (not started: the test says so)
+  const inside = (f) => path.resolve(String(f ?? '')).toLowerCase().startsWith(path.resolve(sandbox).toLowerCase() + path.sep);
+  if (!inside(j?.notesFile)) { console.error(`ARRÊT : le studio ${base} n'est pas celui du bac à sable (${j?.notesFile ?? '?'}) — rien n'a été touché. Le lancer sur ${sandbox}, ou choisir son port (COULISSES_TEST_SANDBOX_PORT).`); process.exit(2); }
+}
+
 // the profiles of earlier runs that were stopped by force (a suite killed at its time limit: close() never ran) — only
 // ours (studio-cdp-), untouched for 2 hours, and not held by a Chrome still running (it cannot be renamed then)
 // (18/10/2026: 35 of them, 2.3 GB in %TEMP%)
@@ -33,6 +42,9 @@ export async function launch({ port = 9333, headless = true } = {}) {
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
     `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...(headless ? ['--headless=new'] : []),
     '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required',
+    // silent: a suite plays the episodes, never on the user's speakers (user request 19/10/2026: « coupe le son, j'arrive
+    // pas à écouter mes autres projets »); the sound still runs inside (decoded, its AudioContext's clock), only not heard
+    '--mute-audio',
     '--window-size=1600,1000', '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: 'ignore' });
   let ver;
   for (let i = 0; i < 50 && !ver; i++) { try { ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); } catch { await new Promise((r) => setTimeout(r, 200)); } }

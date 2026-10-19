@@ -24,7 +24,8 @@
     pause() { if (mode === 'code' && SP) { SP.pause(); v.currentTime = (SP.frame() + 0.5) / FPS; } v.pause(); },
     get playbackRate() { return rate; },
     set playbackRate(r) { rate = r; v.playbackRate = r; SP?.setRate(r); },
-    set volume(x) { vol = x; v.volume = x; SP?.setVolume(x); },
+    // (the volume moved: the sound is wanted — a mute of the preview's own, after a lag, taken back too: player/sound.ts)
+    set volume(x) { vol = x; v.volume = x; v.muted = false; SP?.setVolume(x); SP?.restoreSound?.(); },
     get seeking() { return mode === 'code' ? false : v.seeking; },
     on(t, f) { bus.addEventListener(t, f); },
   };
@@ -117,6 +118,8 @@
       if (ev.type === 'error') { codeCrashed(plain(ev)); return; }
       if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
       if (mode !== 'code') return;
+      // the sound of the preview cut by its Player after a lag of the PC, and given back by the preview (player/sound.ts)
+      if (ev.type === 'sound') { setSave(TN(ev.state === 'lost' ? 'st.sound.lost' : 'st.sound.back'), ev.state === 'lost' ? 'err' : 'ok'); return; }
       if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
       if (ev.type === 'ended') fire('pause');
     });
@@ -211,6 +214,21 @@
       Promise.resolve(sp.whenFrameReady?.()).then(done, done);
     });
   }
+  // « Rétablir le son » (the speaker under the image; user report 19/10/2026: « quand il y a des lags, le son se désactive,
+  // et impossible à réactiver sans F5 »): every sound path as at the start — nothing muted, the volume of the slider; the
+  // live preview's Player unmuted (its own mute after a failed start of its sound, player/sound.ts); the MP4 loaded again
+  // where it is (a new sound output: the one of before may have died with the sound device), playing if it was
+  async function restoreSound() {
+    v.muted = false; v.volume = vol;
+    if (mode === 'code' && SP) { SP.setVolume(vol); await SP.restoreSound?.(); }
+    else if (v.currentSrc && !wasHeld && v.readyState >= 1) {
+      const t = v.currentTime, playing = !v.paused, src = v.currentSrc;
+      v.addEventListener('loadedmetadata', () => { v.currentTime = t; v.volume = vol; v.muted = false; if (playing) v.play().catch(() => {}); }, { once: true });
+      v.src = src;
+    }
+    setSave(TN('st.sound.restored'), 'ok');
+  }
+  $('#bSound').onclick = () => restoreSound();
   let modeWant = null;
   async function setMode(m) {
     if (m === mode && modeWant === null) return;

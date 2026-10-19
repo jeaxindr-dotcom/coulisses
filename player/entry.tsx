@@ -11,6 +11,7 @@ import * as R3F from './r3f';
 import { createStage } from './stage';
 import { createReady } from './ready';
 import { createCrash } from './crash';
+import { createSound } from './sound';
 // @ts-ignore resolved through esbuild's alias "@episode-src" -> 06_Remotion/src
 import { Episode } from '@episode-src/Episode';
 // @ts-ignore
@@ -26,6 +27,8 @@ let ref: PlayerRef | null = null;
 const emit = (type: string, extra: Record<string, unknown> = {}) => { const frame = ref?.getCurrentFrame() ?? 0; for (const l of listeners) l({ type, frame, ...extra }); };
 // the composition failing (player/crash.tsx): its error said, sent to the studio, the Player mounted again on recover()
 const C = createCrash({ emit, redraw: () => draw() });
+// the sound never lost for good: the Player's own mute after a failed start of its AudioContext taken back (player/sound.ts)
+const S = createSound(emit);
 // the frame complete or not (player/ready.ts): « loading » / « loaded » to the studio, which covers an incomplete one
 const R = createReady({ root: () => document.getElementById('stage'), playing: () => !!ref?.isPlaying(), emit });
 
@@ -50,7 +53,7 @@ const stage = createStage({
   frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   crashed: () => C.crashed, recover: (f?: number) => C.recover(f ?? ref?.getCurrentFrame() ?? 0),
   __crash: () => { C.crashNext(); const f = ref?.getCurrentFrame() ?? 0; ref?.seekTo(f + 1); ref?.seekTo(f); },
-  setVolume: (v: number) => ref?.setVolume(v), mute: () => ref?.mute(), unmute: () => ref?.unmute(),
+  setVolume: (v: number) => ref?.setVolume(v), mute: () => S.mute(), unmute: () => S.unmute(), isMuted: () => !!ref?.isMuted(), restoreSound: () => S.restore(), soundLost: () => S.lost(),
   setRate: (r: number) => { rate = r; draw(); },
   on: (fn: any) => { listeners.add(fn); return () => listeners.delete(fn); },
   pick: async (frame: number, x: number, y: number) => {
@@ -88,6 +91,7 @@ const App: React.FC = () => {
     offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
     const onErr = (e: any) => C.onError(e, ref?.getCurrentFrame() ?? 0);
     (ref as any).addEventListener('error', onErr); offs.push(() => (ref as any)?.removeEventListener('error', onErr));
+    offs.push(S.attach(ref));
     const start = C.takeResume() ?? +(new URLSearchParams(location.search).get('f') ?? 0);
     if (start) ref.seekTo(start);
     emit('ready'); R.watch();

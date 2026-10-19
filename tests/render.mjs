@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch, requireFrench } from './cdp.mjs';
+import { launch, requireFrench, requireSandbox } from './cdp.mjs';
 import { CACHE } from '../lib/place.mjs';
 import { realE03 } from './where.mjs';
 
@@ -54,7 +54,7 @@ function render(lot, env = {}) {   // `studio-cli render` as Claude runs it (in 
   return r;
 }
 
-await requireFrench(`http://127.0.0.1:${PORT}/`);
+await requireFrench(`http://127.0.0.1:${PORT}/`); await requireSandbox(`http://127.0.0.1:${PORT}/`, SANDBOX);   // (never a real episode's studio)
 // a fresh sandbox revue; the plan files are kept aside (the fake finish writes a new one)
 for (const d of ['lots', 'runs']) fs.rmSync(path.join(REVUE, d), { recursive: true, force: true });
 for (const f of ['render.json', 'render.log', 'render-stop', 'studio-agent.json']) fs.rmSync(path.join(REVUE, f), { force: true });

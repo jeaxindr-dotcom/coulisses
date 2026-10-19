@@ -146,7 +146,8 @@
       </div>
       <div class="side r">
         <span class="spds"><button class="spd" data-s="0.25">¼</button><button class="spd" data-s="0.5">½</button><button class="spd on" data-s="1">1×</button><button class="spd" data-s="2">2×</button></span>
-        <span class="muted volic"><i data-ic="volume"></i></span><input id="vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
+        <!-- « Rétablir le son » (page/studio/01-preview.js restoreSound): the sound gone after a lag of the PC, back without F5 -->
+        <button id="bSound" class="icon volic"><i data-ic="volume"></i></button><input id="vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume">
       </div>
     </div>
   </section>

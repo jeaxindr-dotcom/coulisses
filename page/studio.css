@@ -163,6 +163,8 @@
   #stage.staging.freecam #camHint { display: block; animation: hintfade .8s ease 6s forwards; }
   @keyframes hintfade { to { opacity: .4; } }
   #ctlbar .volic { display: inline-flex; margin-left: 4px; }
+  #bSound { width: 28px; height: 28px; background: transparent; border-color: transparent; color: var(--s11); }   /* « Rétablir le son » */
+  #bSound:hover { background: var(--glass-3); color: var(--s12); }
   #stage { position: relative; background: #000; border-radius: 0; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 90px rgba(140, 110, 255, 0.10); }
   #media { position: relative; display: block; line-height: 0; }
   #media video { display: block; width: 640px; height: 360px; background: #000; }

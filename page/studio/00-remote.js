@@ -119,6 +119,7 @@
       seek: (f) => { M.frame = Math.max(0, Math.min((M.hello?.durationInFrames ?? 1) - 1, Math.round(f))); send('seek', f); },
       play: () => { M.playing = true; send('play'); }, pause: () => { M.playing = false; send('pause'); },
       setRate: (r) => send('setRate', r), setVolume: (v) => send('setVolume', v), mute: () => send('mute'), unmute: () => send('unmute'),
+      restoreSound: () => call('restoreSound').catch(() => null),   // (« Rétablir le son », player/sound.ts; true: unmuted)
       sleep: (on) => send('sleep', on), recover: (f) => { M.crashed = false; send('recover', f); }, __crash: () => send('__crash'),
       whenReady: () => call('whenReady'), whenFrameReady: () => call('whenFrameReady'),
       pick: (f, x, y) => call('pick', f, x, y), hover: (f, x, y) => call('hover', f, x, y), pickMany: (f, pts) => call('pickMany', f, pts),
