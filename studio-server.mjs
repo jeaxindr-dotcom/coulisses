@@ -49,6 +49,7 @@ import { publicUrl, viaTailnet } from './lib/remote.mjs';
 import { getShortcuts, setShortcuts } from './lib/shortcuts.mjs';
 import { library, librarySummary, listMedias, findMedia, peekMedia, mediaFile, miniature, importBytes, updateMedia, removeMedia, recordUse, slug } from './lib/medias.mjs';
 import { stageShot, b64url } from './lib/stage-shot.mjs';
+import { dictation } from './lib/dictate.mjs';
 import { chatAvailable, imageModel, readChat, sendChat, stopJob, sortInbox, autoSort, jobOf, busy, newChat } from './lib/image-chat.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -70,6 +71,8 @@ const MIME = { ...Object.fromEntries(Object.entries(IMG_TYPES).map(([m, e]) => [
 const time = () => new Date().toLocaleTimeString();
 const ring = logRing();   // Tools › Log in the menu bar
 const log = (m) => { ring.push(`${time()}  ${m}`); console.log(`  ${time()}  ${m}`); };
+// the dictation (F2 or the microphone of the rail: page/studio/17-dictate.js): Whisper on this PC, OpenWhispr's (lib/dictate.mjs)
+const DICT = dictation({ log });
 
 // ---- review copy of the video (unchanged from the review tool: a keyframe every 6 images, smooth stepping back) ----
 let proxyState = 'missing', proxyFailed = null, proxyChild = null;
@@ -511,6 +514,19 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(path.join(IMAGES, name), buf);
       log(t('srv.imgAdded', { name }));
       return json(res, { file: `images/${name}` });
+    }
+    // the dictation: the recording of the page (webm), its words (lib/dictate.mjs); /warm: the engine ready while one speaks
+    if (pn === '/api/dictate/warm' && req.method === 'POST') return json(res, { ok: await DICT.warm().catch(() => false) });
+    if (pn === '/api/dictate' && req.method === 'POST') {
+      let buf; try { buf = await body(req, 30e6); } catch { return json(res, { ok: false, why: t('srv.dictBig') }); }
+      if (buf.length < 600) return json(res, { ok: true, text: '' });
+      let prompt = ''; try { prompt = decodeURIComponent(String(req.headers['x-prompt'] ?? '')).slice(0, 400); } catch { /* none */ }
+      try {
+        const r = await DICT.transcribe(buf, { language: lang(), prompt });
+        if (!r.ok) return json(res, { ok: false, why: r.why === 'engine' ? t('srv.dictNoEngine') : t('srv.dictFailed', { detail: r.detail ?? '' }) });
+        log(t('srv.dictDone', { n: r.text.length, ms: r.ms, by: r.engine }));
+        return json(res, r);
+      } catch (e) { return json(res, { ok: false, why: t('srv.dictFailed', { detail: e.message }) }); }
     }
     if (pn.startsWith('/images/')) return sendFile(req, res, path.join(IMAGES, path.basename(pn.slice(8))));
     if (pn.startsWith('/lots/')) return sendFile(req, res, inside(P.LOTS, pn.slice(6)));   // captures of a sent batch

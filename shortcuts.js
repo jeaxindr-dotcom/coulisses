@@ -39,6 +39,8 @@
     { g: 'image', id: 'viewReset', keys: ['Shift+Z'] },
     { g: 'notes', id: 'note', keys: ['N'] },
     { g: 'notes', id: 'range', keys: ['R'] },
+    // the dictation (page/studio/17-dictate.js): held = while held, tapped = until the next one; works in a text field too
+    { g: 'notes', id: 'dictate', keys: ['F2'], fr: 'Dicter une note (maintenir et parler ; un appui : jusqu’au suivant)', en: 'Dictate a note (hold and speak; a tap: until the next one)' },
     { g: 'notes', id: 'setIn', keys: ['I'] },
     { g: 'notes', id: 'setOut', keys: ['O'] },
     { g: 'notes', id: 'loop', keys: ['L'] },
@@ -109,7 +111,8 @@
   }
   // who else has this key, in the same layer (staging or not)
   const clash = (id, c) => ACTIONS.find((a) => a.id !== id && !!a.stage === !!BY.get(id).stage && keys(a.id).includes(c));
-  const label = (id) => T('menu.sc.a.' + id);
+  // (an action added after this window's texts were read — a studio started before it: its own words)
+  const label = (id) => { const k = 'menu.sc.a.' + id, s = T(k); if (s !== k) return s; const a = BY.get(id); return (window.__I18N?.lang === 'en' ? a?.en : a?.fr) ?? s; };
 
   // ---- the window: Aide › Raccourcis clavier (F1) ----
   const css = `
