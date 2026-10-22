@@ -3,7 +3,8 @@
 //   1. « Code actuel » playing, the sound device refusing to start for a few seconds (AudioContext.resume() rejected, as
 //      Chrome does when the device fails while the PC lags): Remotion's Player mutes itself — and the sound comes back by
 //      itself once the device answers again (player/sound.ts), said on the page; pause / play keep it;
-//   2. « Rétablir le son » (the speaker under the image): the preview unmuted whatever happened; the MP4 unmuted, at the
+//   2. « Rétablir le son » (the speaker under the image): the preview made again (a new frame, a new sound: what F5
+//      did — user report 22/10/2026), unmuted and playing with its sound whatever happened; the MP4 unmuted, at the
 //      volume of the slider, loaded again where it was and playing if it was; the volume slider moved unmutes too.
 // usage: start `node studio-server.mjs E03 --no-open --episodes <sandbox>\07_Episodes --port 4174`, then
 //        node tests/sound-recovery.mjs   (or tests/run-all.mjs, which starts it)
@@ -20,17 +21,22 @@ let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 await requireFrench(URL); await requireSandbox(URL, SANDBOX);   // (never a real episode's studio: 19/10/2026, E12 was on 4174)
 const p = await launch();
-// the preview's sound now: its Player muted or not, its AudioContexts' states, its sound tags playing (in 1 s)
+// the preview on screen: its frame told by its own address (« Rétablir le son » makes it again: same version, a new « r »)
+const shownFrame = () => p.eval(`const f = document.querySelector('#code'); return f && f.src && !document.querySelector('iframe.code-next') ? new URL(f.src).search : 'player.html'`).catch(() => 'player.html');
+// the preview's sound now: its Player muted or not, its AudioContexts' states, its sound tags playing (an <audio> played
+// through Web Audio says its time by steps of about 1.3 s: watched until its next one, 2.5 s at most)
 const codeSound = async () => {
-  const proto = await p.frameSend('player.html', 'Runtime.evaluate', { expression: 'AudioContext.prototype' });
+  const m = await shownFrame();
+  const proto = await p.frameSend(m, 'Runtime.evaluate', { expression: 'AudioContext.prototype' });
   let ctx = [];
   if (proto?.result?.objectId) {
-    const q = await p.frameSend('player.html', 'Runtime.queryObjects', { prototypeObjectId: proto.result.objectId });
-    ctx = (await p.frameSend('player.html', 'Runtime.callFunctionOn', { objectId: q.objects.objectId, functionDeclaration: 'function () { return this.map((c) => c.state); }', returnByValue: true }))?.result?.value ?? [];
+    const q = await p.frameSend(m, 'Runtime.queryObjects', { prototypeObjectId: proto.result.objectId });
+    ctx = (await p.frameSend(m, 'Runtime.callFunctionOn', { objectId: q.objects.objectId, functionDeclaration: 'function () { return this.map((c) => c.state); }', returnByValue: true }))?.result?.value ?? [];
   }
-  const f = await p.frameEval('player.html', `const P = window.StudioPlayer, au = [...document.querySelectorAll('audio')], t0 = au.map((a) => a.currentTime);
-    await new Promise((r) => setTimeout(r, 1000));
-    return { muted: P.isMuted(), playing: P.isPlaying(), sounding: au.filter((a, i) => !a.paused && !a.muted && a.currentTime > t0[i] + 0.2).length }`);
+  const f = await p.frameEval(m, `const P = window.StudioPlayer, au = [...document.querySelectorAll('audio')], t0 = au.map((a) => a.currentTime), w0 = performance.now();
+    const sounding = () => au.filter((a, i) => a.src && !a.paused && !a.muted && a.volume > 0 && Math.abs(a.currentTime - t0[i]) > 0.05).length;
+    while (performance.now() - w0 < 2500 && (performance.now() - w0 < 1000 || !sounding())) await new Promise((r) => setTimeout(r, 100));
+    return { muted: P.isMuted(), playing: P.isPlaying(), sounding: sounding() }`);
   return { ...f, ctx };
 };
 const saveText = () => p.eval(`return document.querySelector('#save').textContent`);
@@ -68,14 +74,19 @@ try {
 
   // ---------- 2. « Rétablir le son » ----------
   console.log('« Rétablir le son »');
-  await p.frameEval('player.html', `window.StudioPlayer.mute(); return 1`); await sleep(2500);   // (a mute asked: left as it is…)
-  const kept = await p.frameEval('player.html', 'return window.StudioPlayer.isMuted()');
-  await p.eval(`document.querySelector('#bSound').click(); return 1`); await sleep(1500);
+  await p.frameEval(await shownFrame(), `window.StudioPlayer.mute(); return 1`); await sleep(2500);   // (a mute asked: left as it is…)
+  const kept = await p.frameEval(await shownFrame(), 'return window.StudioPlayer.isMuted()');
+  // (in the code, the speaker makes the preview again — a new frame, a new sound: what F5 did; user report 22/10/2026)
+  const before = await shownFrame();
+  await p.eval(`document.querySelector('#bSound').click(); return 1`);
+  let now = before;
+  for (let i = 0; i < 240 && (now === before || now === 'player.html'); i++) { await sleep(500); now = await shownFrame(); }
+  await sleep(2000);
   const s2 = await codeSound();
-  check(kept && !s2.muted && s2.sounding > 0, `the preview muted (kept ${kept}): the speaker gives its sound back (${JSON.stringify(s2)})`);
-  await p.frameEval('player.html', `window.StudioPlayer.mute(); return 1`); await sleep(500);
+  check(kept && now !== before && !s2.muted && s2.playing && s2.sounding > 0, `the preview muted (kept ${kept}): the speaker makes it again, playing with its sound (${JSON.stringify(s2)}, « ${await saveText()} »)`);
+  await p.frameEval(await shownFrame(), `window.StudioPlayer.mute(); return 1`); await sleep(500);
   await p.eval(`const r = document.querySelector('#vol'); r.value = '0.6'; r.dispatchEvent(new Event('input')); return 1`); await sleep(800);
-  check(!(await p.frameEval('player.html', 'return window.StudioPlayer.isMuted()')), 'the volume slider moved: unmuted too');
+  check(!(await p.frameEval(await shownFrame(), 'return window.StudioPlayer.isMuted()')), 'the volume slider moved: unmuted too');
   await play(); await sleep(300);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(1500);
   await play(); await sleep(1500);

@@ -214,7 +214,8 @@
   #mShowLine { display: none; background: none; border: 0; padding: 0; margin: 2px 0 8px; color: var(--s11); text-decoration: underline; cursor: pointer; font: inherit; font-size: calc(12.5px * var(--iz, 1)); }
   #modal.received #mShowLine { display: inline-block; }
   #modal.received #mLine { display: none; }
-  .gpuLine { display: flex; align-items: center; gap: 7px; margin-top: 10px; cursor: pointer; }
+  .gpuLine { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; cursor: pointer; font-size: 12.5px; color: var(--s11); line-height: 1.5; }
+  div.gpuLine { display: flex; cursor: default; }   /* (no GPU: a line of words, nothing to click) */
   .gpuLine input { accent-color: var(--lime); margin: 0; }
   #codeWait b { font: 600 calc(15px * var(--iz, 1)) var(--font-d); }
   #codeWait .s { font-size: calc(12.5px * var(--iz, 1)); color: var(--s11); max-width: 80%; }

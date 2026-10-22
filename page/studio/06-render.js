@@ -52,8 +52,14 @@
     if (!PROJ) return [{ id: '1080p', label: '1080p', send: '1080p' }, { id: '4k', label: '4K', send: '4k' }];
     const why = META.features?.export ? null : T('st.ex.unavailable', { why: META.exportWhy ?? T('st.ex.unavailableWhy') });
     const opts = META.exportOptions?.length ? META.exportOptions : [{ id: null, label: T('common.exportVideo') }];
-    const o1 = opts.find((o) => o.id === '1080p') ?? opts[0], o4 = opts.find((o) => o.id === '4k');
-    return [{ id: '1080p', label: '1080p', send: o1?.id ?? null, why },
+    // a script's variants: « 1080p » / « 4k » by their id, else by their words (宇宙ちゃん: « final » = « Exporter (4K final) »,
+    // « test » = « Rendu test (1080p) », a whole video in 1080p); a test or a replacement only when nothing else is that size
+    const words = (o) => `${o.id ?? ''} ${o.label ?? ''}`, side = (o) => /\b(test|essai|remplac\w*|replace)\b/i.test(words(o));
+    const is4k = (o) => /\b(4k|2160p?|uhd)\b/i.test(words(o)), is1080 = (o) => /\b1080p?\b/i.test(words(o));
+    const o4 = opts.find((o) => o.id === '4k') ?? opts.find((o) => is4k(o) && !side(o)) ?? null;
+    const o1 = opts.find((o) => o.id === '1080p') ?? opts.find((o) => o !== o4 && is1080(o) && !side(o))
+      ?? (o4 ? null : opts.find((o) => !side(o) && !is4k(o))) ?? opts.find((o) => o !== o4 && is1080(o)) ?? (o4 ? null : opts[0]);
+    return [{ id: '1080p', label: '1080p', send: o1?.id ?? null, why: why ?? (o1 ? null : TN('st.q.no1080')) },
       { id: '4k', label: '4K', send: o4?.id ?? null, why: why ?? (o4 ? null : TN('st.q.no4k')) },
       ...opts.filter((o) => o !== o1 && o !== o4).map((o) => ({ id: `x:${o.id}`, label: o.label, send: o.id, why }))];
   }
@@ -105,7 +111,7 @@
     son: ['mixage du son', 'mixing the sound'], volume: ['volume', 'loudness'], '1080p': ['1080p tirée de la 4K', '1080p from the 4K'], HyperFrames: ['rendu HyperFrames', 'HyperFrames render'], fin: ['fin', 'end'], fini: ['fin', 'end'] };
   const stepWords = (s) => { if (!s) return ''; const w = STEPS[s] ?? (/^vitesse/.test(s) ? [`copie à la vitesse (${s.replace(/^vitesse\s*/, '')})`, `copy at speed (${s.replace(/^vitesse\s*/, '')})`] : [s, s]); return w[FR ? 0 : 1]; };
   // an export's four steps (its script's steps: paquet, 3D-4K → the preparation; rendu → the frames; the rest → the finish)
-  const phaseOf = (e) => (!e || /^(paquet|3D-4K)$/.test(e) ? 0 : /^(rendu|HyperFrames)$/.test(e) ? 1 : /^(fin|fini)$/.test(e) ? 3 : 2);
+  const phaseOf = (e) => (!e || /^(paquet|3D-4K|synchro|prépar|bundle)/i.test(e) ? 0 : /^(rendu|hyperframes|render)/i.test(e) ? 1 : /^(fin|fini|done)$/i.test(e) ? 3 : 2);
   function exportSteps(X) {
     const cur = X.state === 'done' ? 4 : phaseOf(X.etape), bad = X.state === 'failed' || X.state === 'stopped';
     const st = (i) => (i < cur ? 'ok' : i > cur ? 'wait' : bad ? 'fail' : X.state === 'running' ? 'run' : 'ok');
@@ -225,7 +231,7 @@
   // ---- a project: its export script, run by the studio ----
   function exportCard(box) {
     const cur = STATUS.video ?? META.render, X = STATUS.export, S2 = STATUS.shot, run = X?.state === 'running', q = quality();
-    const key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.started, X?.etape, META.gpu?.mode, META.gpu?.off, q.id,
+    const key = JSON.stringify(['export', cur?.size, cur?.mtime, STATUS.compare?.length, X?.state, X?.started, X?.etape, META.gpu?.mode, META.gpu?.off, q.id, CW, CH, FPS,
       S2?.state, S2?.pct, S2?.etape, S2?.ended, (STATUS.shotTargets ?? META.shotTargets ?? []).map((u) => [u.exists, u.previous])]);
     if (key === rcKey) { exportNums(X); return; }
     rcKey = key;
@@ -387,11 +393,14 @@
   function gpuLine() {
     const g = META.gpu; if (!g) return '';
     if (!g.off && g.mode === 'cpu') return `<div class="sub2 muted gpuLine">${T('st.ex.gpuNone')}</div>`;
-    return `<label class="sub2 gpuLine" title="${esc(T('st.ex.gpuTitle'))}"><input type="checkbox" id="exGpu" ${g.off ? '' : 'checked'}> ${g.off ? T('st.ex.gpuAsk') : T('st.ex.gpu', { name: esc(g.name ?? 'GPU') })}</label>`;
+    return `<label class="gpuLine" title="${esc(T('st.ex.gpuTitle'))}"><input type="checkbox" id="exGpu" ${g.off ? '' : 'checked'}> ${g.off ? T('st.ex.gpuAsk') : T('st.ex.gpu', { name: esc(g.name ?? 'GPU') })}</label>`;
   }
   async function startExportUI(qualite, label) {
     const vitesse = exportSpeed();
-    if (!confirm(T('st.ex.confirm', { label: TN('st.rc.goQ', { q: label || '1080p' }), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
+    // (the encoder said too: the box is for every project, unticked once it stays so — user report 22/10/2026, an export on
+    // the processor while the card said the GPU: unticked by a click 3 s before)
+    const g = META.gpu, enc = !g ? '' : g.off ? TN('st.ex.confirmCpu') : g.mode !== 'cpu' ? TN('st.ex.confirmGpu', { name: g.name ?? 'GPU' }) : '';
+    if (!confirm(T('st.ex.confirm', { label: TN('st.rc.goQ', { q: label || '1080p' }), title: META.title, dir: META.exportDir ? T('st.ex.confirmDir', { dir: META.exportDir }) : '' }) + enc + (vitesse !== 1 ? T('st.ex.confirmSpeed', { s: speedLabel(vitesse) }) : ''))) return;
     const r = await postJson('/api/export', { qualite, vitesse });
     setSave(r?.ok ? T('st.ex.started') : T('st.ex.cannot', { why: r?.why ?? T('st.noAnswer') }), r?.ok ? 'ok' : 'err');
   }

@@ -36,17 +36,18 @@
   // was, with the staging in progress (the free camera where it was, the object chosen, the offsets not queued yet), and
   // the old one goes (user bug, 08/10/2026: « des fois la vidéo déconnecte » — the preview was reloaded in place, and
   // stayed black that long after every edit of the agent). A newer version while one is prepared: that one is dropped.
-  let codeLoad = null;   // { ver, frame, promise, dropped }
-  function loadCode() {
+  // fresh: the same version again, in a new frame — a new sound for the preview (soundDead below: what F5 did)
+  let codeLoad = null;   // { ver, frame, promise, dropped, fresh }
+  function loadCode({ fresh = false } = {}) {
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
-    if (SP && codeVer === ver) return Promise.resolve(SP);
+    if (SP && codeVer === ver && !fresh) return Promise.resolve(SP);
     if (codeLoad && codeLoad.ver === ver) return codeLoad.promise;
     if (codeLoad) { codeLoad.dropped = true; codeLoad.remote?.api.dispose(); if (codeLoad.frame !== codeEl) codeLoad.frame.remove(); }
     const inPlace = !SP;   // nothing on screen yet (the first time, after the video): loaded in the frame itself
     const el = inPlace ? codeEl : document.createElement('iframe');
     if (!inPlace) { el.className = 'code-next'; el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k)); codeEl.after(el); }
-    const job = { ver, frame: el, dropped: false };
-    if (inPlace) $('#codeStatus').textContent = T('st.code.loading'); else showCodeNote(T('st.code.preparing'));
+    const job = { ver, frame: el, dropped: false, fresh };
+    if (inPlace) $('#codeStatus').textContent = T('st.code.loading'); else showCodeNote(fresh ? TN('st.sound.preparing') : T('st.code.preparing'));
     job.promise = new Promise((resolve) => {
       const f0 = curFrame();
       const finish = async (sp) => {
@@ -70,7 +71,7 @@
         watchPlayer(sp);
         if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
         else showCodeNote('');
-        if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); if (mode === 'code') setSave(T('st.code.updated'), 'ok'); }
+        if (old) { sp.seek(f); if (was && mode === 'code') sp.play(); if (mode === 'code') setSave(job.fresh ? TN('st.sound.reloaded') : T('st.code.updated'), 'ok'); }
         if (old && mode !== 'code') sp.sleep?.(true);   // a new version, ready (whenReady above): asleep behind the MP4; a first load sleeps once ready (preloadCode)
         stageSynced = new Set();
         setTimeout(async () => {
@@ -105,7 +106,7 @@
         }
         finish(sp);
       })();
-      el.src = previewUrl(`f=${f0}&v=${ver}`);
+      el.src = previewUrl(`f=${f0}&v=${ver}${fresh ? `&r=${Date.now()}` : ''}`);
     });
     codeLoad = job; codeLoading = job.promise;
     return job.promise;
@@ -119,6 +120,7 @@
       if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
       if (mode !== 'code') return;
       // the sound of the preview cut by its Player after a lag of the PC, and given back by the preview (player/sound.ts)
+      if (ev.type === 'sound' && ev.state === 'dead') { soundDead(ev.why); return; }
       if (ev.type === 'sound') { setSave(TN(ev.state === 'lost' ? 'st.sound.lost' : 'st.sound.back'), ev.state === 'lost' ? 'err' : 'ok'); return; }
       if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
       if (ev.type === 'ended') fire('pause');
@@ -218,9 +220,22 @@
   // et impossible à réactiver sans F5 »): every sound path as at the start — nothing muted, the volume of the slider; the
   // live preview's Player unmuted (its own mute after a failed start of its sound, player/sound.ts); the MP4 loaded again
   // where it is (a new sound output: the one of before may have died with the sound device), playing if it was
+  // The preview's sound dead (player/sound.ts: its AudioContext refusing for good, suspended, its clock stopped, its
+  // « error »; user report 22/10/2026: « il n'y a plus de son et je suis obligé d'appuyer sur F5 »): the preview made
+  // again — a new frame of the same version at the same image, playing if it was, nothing else touched. Twice in 2 min
+  // at most by itself (a sound device really gone: said, the speaker under the image tries again).
+  let soundTries = [];
+  async function soundDead(why, asked = false) {
+    const t = Date.now(); soundTries = soundTries.filter((x) => t - x < 120000);
+    if (!asked && soundTries.length >= 2) { setSave(TN('st.sound.gone'), 'err'); return null; }
+    soundTries.push(t);
+    if (!asked) setSave(TN('st.sound.reload'), 'err');
+    window.__soundDead = (window.__soundDead ?? 0) + 1;   // (the tests: tests/sound-watch.mjs)
+    return loadCode({ fresh: true });
+  }
   async function restoreSound() {
     v.muted = false; v.volume = vol;
-    if (mode === 'code' && SP) { SP.setVolume(vol); await SP.restoreSound?.(); }
+    if (mode === 'code' && SP) { SP.setVolume(vol); await SP.restoreSound?.(); setSave(TN('st.sound.reloading'), ''); await soundDead('asked', true); return; }
     else if (v.currentSrc && !wasHeld && v.readyState >= 1) {
       const t = v.currentTime, playing = !v.paused, src = v.currentSrc;
       v.addEventListener('loadedmetadata', () => { v.currentTime = t; v.volume = vol; v.muted = false; if (playing) v.play().catch(() => {}); }, { once: true });
