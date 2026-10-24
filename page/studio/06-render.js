@@ -95,7 +95,9 @@
   // an export's time left, from its own pace (the last minute and a half of its frames)
   let paceOf = null;
   function exportEta(X) {
-    const f = X.frames; if (!f?.total || f.done >= f.total) return '';
+    // (its frames, or without them its percentage: the pace of either)
+    const f = X.frames?.total ? X.frames : Number.isFinite(X.pct) ? { done: X.pct, total: 100 } : null;
+    if (!f?.total || f.done >= f.total) return '';
     if (paceOf?.started !== X.started) paceOf = { started: X.started, pts: [] };
     const now = Date.now(), pts = paceOf.pts;
     if (!pts.length || pts.at(-1)[1] !== f.done) pts.push([now, f.done]);
@@ -268,7 +270,9 @@
   function exportNums(X) {
     if (X?.state !== 'running') return;
     const f = X.frames;
-    setProgress({ done: f?.total ? f.done : 0, total: f?.total ?? null, pct: f?.total ? null : phaseOf(X.etape) > 1 ? 100 : 0, eta: phaseOf(X.etape) === 1 ? exportEta(X) : '' });
+    // (a script that says no frames — only « COULISSES PROGRES <pct> »: its own percentage, never a 0 % that does not move;
+    // user report 25/10/2026: « j'ai plus de pourcentage qui monte quand j'exporte »)
+    setProgress({ done: f?.total ? f.done : 0, total: f?.total ?? null, pct: f?.total ? null : phaseOf(X.etape) > 1 ? 100 : Math.max(0, Math.min(100, X.pct ?? 0)), eta: phaseOf(X.etape) === 1 ? exportEta(X) : '' });
   }
   // « Rendre ce plan » (user request, 09/10/2026): a 3D shot shown in a Short as a clip (its .coulisses « utilise »): its
   // video made again from the current code and put back in the Short, without the agent (lib/shot-render.mjs). The old
