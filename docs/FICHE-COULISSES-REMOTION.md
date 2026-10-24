@@ -64,9 +64,11 @@ export function timeline(compositionId: string, props: unknown) {
   - `label` lisible ;
   - `fichier` : **le fichier à corriger** pour ce morceau (composant, média) ;
   - `ref` : l'id du segment ou de la scène ;
-  - `son` : le chemin dans `public/`, pour la forme d'onde ;
+  - `son` : le chemin dans `public/`, pour la forme d'onde **et le son de relecture** (voir plus bas) ;
   - `debut` : le décalage en images dans le média source ;
+  - `volume` (facultatif, linéaire, 1 par défaut) : le niveau auquel la composition joue ce clip son, s'il n'est pas 1 ;
   - `off: true` pour un clip désactivé.
+- **Le son de relecture** : pendant la relecture du code en direct, Coulisses ne laisse plus l'aperçu jouer le son. Il mixe lui-même, avec ffmpeg, les clips des pistes `audio` (`son`, `de`/`a`, `debut`, `volume`) en une seule piste, que la page joue comme horloge ; l'aperçu, muet, la suit (le son ne se coupe plus quand l'image rame). Les pistes `audio` doivent donc dire **tout** le son du film, à ses niveaux : des stems pré-mixés (voix, musique, bruitages) suffisent. Un niveau qui varie dans le temps (ducking, fondus) doit être dans le fichier lui-même. Sans piste `audio`, l'aperçu garde son propre son. Désactivable : `"reviewSound": false` dans `%LOCALAPPDATA%Coulissessettings.json`.
 - **Deux clips simultanés sur la même piste** : faire deux pistes.
 - **Tout ce qui est visible à l'écran doit apparaître dans la timeline**, là où il est visible.
 - **La timeline se calcule à partir des mêmes données que la composition**, jamais à la main : elles ne peuvent pas diverger.

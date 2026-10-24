@@ -33,6 +33,7 @@ import { shotTargets, shotState, startShot, stopShot, undoShot, shotLog } from '
 import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
+import { reviewSound } from './lib/review-sound.mjs';
 import { peaksOf } from './lib/peaks.mjs';
 import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
 import { project, tracksOf, shotsUsedIn } from './lib/projects.mjs';
@@ -42,7 +43,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { checkUpdates, updatesLine, updatesOk, updatesMarkdown } from './lib/updates.mjs';
 import { docText, about, reveal, openOnline, logRing, coulissesOf } from './lib/menu.mjs';
 import { agentById, detectAgent } from './lib/agent.mjs';
-import { t, lang, langSource, setLang, LANGS, renderPage, writeSettings } from './lib/i18n.mjs';
+import { t, lang, langSource, setLang, LANGS, renderPage, writeSettings, readSettings } from './lib/i18n.mjs';
 import { gpuEncoder, gpuOff } from './lib/gpu.mjs';
 import { fromApp, refuse } from './lib/guard.mjs';
 import { publicUrl, viaTailnet } from './lib/remote.mjs';
@@ -120,6 +121,11 @@ const planTimeline = () => { const d = tracksOf(P); const v = d ? Date.parse(d.m
 const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, log }) : G ? genericTimelineBuilder(P.remotion, { log })
   : HFP ? hfTimelineBuilder(P, { log, normalize: (raw) => normalizeTimeline(raw, raw.fps) })
   : { get state() { return planTimeline().state; }, build: () => {} };
+// the review sound of a Remotion project (lib/review-sound.mjs): its timeline's audio tracks mixed once — the page's clock
+// (off: settings.json « reviewSound »: false, or COULISSES_REVIEW_SOUND=0 — the tests of the preview's own sound)
+const rsWanted = () => { if (process.env.COULISSES_REVIEW_SOUND === '0') return false; try { return readSettings().reviewSound !== false; } catch { return true; } };
+const RSND = G && P.remotionDir && rsWanted() ? reviewSound({ cacheDir: path.join(CACHE, 'revue-son'), publicDir: path.join(P.remotionDir, 'public'), log }) : null;
+const rsNow = () => { if (!RSND) return null; const s = RSND.update(timeline.state.data, timeline.state.version); return { state: s.state, sig: s.sig, why: s.why, clips: s.clips }; };
 const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
@@ -255,7 +261,7 @@ function status() {   // what changes often: polled by the page every 3 s with t
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   refreshProxy();
   return { code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt }, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
-    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P), plans: plansNow() };
+    render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P), plans: plansNow(), reviewSound: rsNow() };
 }
 // The user's notes (revue/notes.json), the page's file. Code review 18/10/2026: an unreadable notes.json (cut short by
 // another tool, a BOM, an edit by hand) was read as « no notes », the page showed 0, its next save wrote that over the
@@ -615,6 +621,8 @@ const server = http.createServer(async (req, res) => {
     if (pn === '/player.js') return sendFile(req, res, player.state.file, 'text/javascript; charset=utf-8');
     // the preview's messages with the page (player/bridge.js): the preview is shown from another site, in its own process
     if (pn === '/player-bridge.js') return sendFile(req, res, path.join(HERE, 'player', 'bridge.js'), 'text/javascript; charset=utf-8');
+    // the review sound (lib/review-sound.mjs): only the current mix, by its signature
+    if (pn.startsWith('/api/review-sound/') && RSND) { const f = RSND.file(pn.slice('/api/review-sound/'.length).replace(/\.m4a$/, '')); return f ? sendFile(req, res, f, 'audio/mp4') : (res.writeHead(404), res.end('not found')); }
     if (pn.startsWith('/public/') && P.remotionDir) return sendFile(req, res, inside(path.join(P.remotionDir, 'public'), pn.slice(8)));
     // ---- multi-track timeline + waveforms ----
     if (pn === '/api/timeline') return json(res, { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error, data: timeline.state.data });

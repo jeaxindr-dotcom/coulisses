@@ -30,6 +30,7 @@ fs.writeFileSync(path.join(SCR, 'settings.json'), JSON.stringify({ lang: 'fr' })
 makeFixture();
 // (its own registry and settings: never the user's)
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json'); process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json'); process.env.COULISSES_LANG = 'fr';
+process.env.COULISSES_REVIEW_SOUND = '0';   // (the preview's OWN sound tested here: the review sound off — tests/review-sound.mjs)
 const { importProject } = await import('../lib/projects.mjs');
 const IMP = importProject(RUN);
 const st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', IMP.revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });

@@ -68,7 +68,9 @@ export function timeline(compositionId: string, props: unknown) {
   - `ref`: the id of the segment or scene;
   - `son`: the path in `public/`, for the waveform;
   - `debut`: the offset in frames in the source media;
+  - `volume` (optional, linear, 1 by default): the level at which the composition plays this audio clip, when it is not 1;
   - `off: true` for a disabled clip.
+- **The review sound**: while the live code is reviewed, Coulisses no longer lets the preview play the sound. It mixes the clips of the `audio` tracks itself with ffmpeg (`son`, `de`/`a`, `debut`, `volume`) into one track that the page plays as the clock; the muted preview follows it (the sound no longer cuts out when the picture lags). So the `audio` tracks must carry **all** of the film's sound at its levels: pre-mixed stems (voice, music, effects) are enough. A level that changes over time (ducking, fades) must be in the file itself. Without an `audio` track, the preview keeps its own sound. It can be turned off: `"reviewSound": false` in `%LOCALAPPDATA%Coulissessettings.json`.
 - **Two clips at the same time on one track**: make two tracks.
 - **Everything visible on screen must appear in the timeline**, where it is visible.
 - **The timeline is computed from the same data as the composition**, never by hand: they cannot diverge.

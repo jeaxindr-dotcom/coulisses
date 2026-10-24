@@ -18,18 +18,51 @@
         else if (f !== (pendF ?? SP.frame())) codeStep(f);
       }
       v.currentTime = t;
+      if (rsOn()) rsAt(t);   // (the review sound there too)
     },
     get paused() { return mode === 'code' && SP ? !SP.isPlaying() : v.paused; },
-    play() { if (mode === 'code' && SP) { v.pause(); cwSeq++; codeWaitEl.classList.remove('pend', 'pend-key', 'on'); SP.play(); } else { const r = v.play(); r?.catch?.(() => {}); } },   // playing: no veil
-    pause() { if (mode === 'code' && SP) { SP.pause(); v.currentTime = (SP.frame() + 0.5) / FPS; } v.pause(); },
+    play() { if (mode === 'code' && SP) { v.pause(); cwSeq++; codeWaitEl.classList.remove('pend', 'pend-key', 'on'); SP.play(); if (rsOn()) { SP.mute?.(); rsAt(M.currentTime); rsPlay(); } } else { const r = v.play(); r?.catch?.(() => {}); } },   // playing: no veil
+    pause() { if (mode === 'code' && SP) { SP.pause(); v.currentTime = (SP.frame() + 0.5) / FPS; } RS.el?.pause(); v.pause(); },
     get playbackRate() { return rate; },
-    set playbackRate(r) { rate = r; v.playbackRate = r; SP?.setRate(r); },
+    set playbackRate(r) { rate = r; v.playbackRate = r; SP?.setRate(r); if (RS.el) RS.el.playbackRate = r; },
     // (the volume moved: the sound is wanted — a mute of the preview's own, after a lag, taken back too: player/sound.ts)
-    set volume(x) { vol = x; v.volume = x; v.muted = false; SP?.setVolume(x); SP?.restoreSound?.(); },
+    // (the review sound playing: the preview stays muted — its sound and this one together would be heard twice)
+    set volume(x) { vol = x; v.volume = x; v.muted = false; if (RS.el) { RS.el.volume = x; RS.el.muted = false; } SP?.setVolume(x); if (!rsOn()) SP?.restoreSound?.(); },
     get seeking() { return mode === 'code' ? false : v.seeking; },
     on(t, f) { bus.addEventListener(t, f); },
   };
   ['play', 'pause', 'seeked'].forEach((t) => v.addEventListener(t, () => { if (mode === 'video' || !SP) fire(t); }));
+  // ---------- the review sound (lib/review-sound.mjs; user reports 24/10/2026: « le son fait que de se couper », « c'est
+  // impossible de review la vidéo ») ----------
+  // In the live code of a Remotion project, the film's sound as the studio mixed it from the timeline's audio tracks,
+  // played by THIS page as a plain <audio>: the clock. The preview is muted and follows it — late (its videos loading, the
+  // PC busy), it is moved to the sound's moment; the sound never waits for the picture. Without it (no audio tracks, being
+  // mixed again after a change of the sound, failed): the preview's own sound, as before.
+  const RS = { el: null, sig: null, fix: 0 };
+  const rsOn = () => mode === 'code' && !!SP && !!RS.el;
+  const rsAt = (t) => { try { RS.el.currentTime = Math.max(0, t); } catch { /* not loaded yet: its play sets it */ } };
+  const rsPlay = () => { RS.el?.play()?.catch?.(() => {}); };
+  window.__rs = () => ({ on: rsOn(), sig: RS.sig, t: RS.el ? +RS.el.currentTime.toFixed(2) : null, paused: RS.el?.paused ?? null, ready: RS.el?.readyState ?? null });   // (the tests: tests/review-sound.mjs)
+  function rsStatus() {
+    const s = STATUS.reviewSound, ok = s?.state === 'ready' && !!s.sig;
+    if (ok && s.sig !== RS.sig) {
+      const el = new Audio(); el.preload = 'auto'; el.src = `/api/review-sound/${s.sig}.m4a`; el.volume = vol; el.playbackRate = rate; el.preservesPitch = true;
+      const first = !RS.el; if (RS.el) { RS.el.pause(); RS.el.removeAttribute('src'); RS.el.load(); }
+      RS.el = el; RS.sig = s.sig;
+      if (mode === 'code' && SP) { SP.mute?.(); rsAt(M.currentTime); if (!M.paused) rsPlay(); }
+      if (first) setSave(TN('st.rs.ready'), 'ok');
+    } else if (!ok && RS.el) {   // its sound changed (mixed again: the preview's own meanwhile), or none any more
+      RS.el.pause(); RS.el.removeAttribute('src'); RS.el.load(); RS.el = null; RS.sig = null;
+      if (SP) { SP.unmute?.(); SP.setVolume(vol); }
+    }
+  }
+  // the preview follows the sound: more than ¼ s apart while playing, moved to it (a little ahead: it is loading)
+  setInterval(() => {
+    if (!rsOn() || M.paused) return;
+    const a = RS.el; if (a.paused && !a.ended) { rsAt(M.currentTime); rsPlay(); return; }
+    const want = a.currentTime * FPS, d = SP.frame() - want, now = performance.now();
+    if (Math.abs(d) > FPS / 4 && now - RS.fix > 800) { RS.fix = now; SP.seek(Math.min(FRAMES - 1, Math.round(want + (d < 0 ? FPS / 10 : 0)))); }
+  }, 200);
   // The live preview: the player of the code, in an iframe. A new version of the code (every edit of the agent rebuilds it)
   // is prepared in a second, hidden frame while the one on screen keeps playing; once its scene is there (an episode of
   // the Theatre loads its textures again: about 20 s), it takes the old one's place, at the same frame, playing if it
@@ -66,7 +99,7 @@
         if (old) { try { old.pause(); } catch { /* gone */ } try { stUnsub?.(); } catch { /* gone */ } stUnsub = null; stSel = plain(stSel); old.dispose?.(); codeEl.remove(); el.className = ''; el.id = 'code'; codeEl = el; }
         SP = sp; codeVer = ver; window.__preview = sp;   // (the tests: the preview as the page sees it)
         if (!META.render && sp.durationInFrames) adoptCode(sp);
-        sp.setVolume(vol); sp.setRate(rate);
+        sp.setVolume(vol); sp.setRate(rate); if (RS.el) sp.mute?.();   // (the review sound plays: lib/review-sound.mjs)
         codeWait(false);
         watchPlayer(sp);
         if (sp.durationInFrames !== FRAMES && FRAMES) showCodeNote(T('st.code.length', { a: sp.durationInFrames, b: FRAMES }));
@@ -124,6 +157,7 @@
       if (ev.type === 'sound') { setSave(TN(ev.state === 'lost' ? 'st.sound.lost' : 'st.sound.back'), ev.state === 'lost' ? 'err' : 'ok'); return; }
       if (ev.type === 'play' || ev.type === 'pause' || ev.type === 'seeked') fire(ev.type);
       if (ev.type === 'ended') fire('pause');
+      if (RS.el && (ev.type === 'pause' || ev.type === 'ended')) RS.el.pause();
     });
   }
   // The live preview loaded in the background as soon as the studio has opened its video (user report, 09/10/2026: « le
@@ -235,6 +269,12 @@
   }
   async function restoreSound() {
     v.muted = false; v.volume = vol;
+    if (mode === 'code' && SP && RS.el) {
+      const src = RS.el.src, t = M.currentTime, playing = !M.paused; RS.el.pause();
+      const el = new Audio(); el.preload = 'auto'; el.src = src; el.volume = vol; el.playbackRate = rate; el.preservesPitch = true;
+      RS.el.removeAttribute('src'); RS.el.load(); RS.el = el; SP.mute?.(); rsAt(t); if (playing) rsPlay();
+      setSave(TN('st.rs.reloaded'), 'ok'); return;
+    }
     if (mode === 'code' && SP) { SP.setVolume(vol); await SP.restoreSound?.(); setSave(TN('st.sound.reloading'), ''); await soundDead('asked', true); return; }
     else if (v.currentSrc && !wasHeld && v.readyState >= 1) {
       const t = v.currentTime, playing = !v.paused, src = v.currentSrc;
