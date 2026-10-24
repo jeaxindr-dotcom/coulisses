@@ -37,12 +37,14 @@ function sweepProfiles() {
 }
 
 // args: more flags for this Chrome (a fake microphone: --use-fake-device-for-media-stream…, tests/dictate.mjs)
-export async function launch({ port = 9333, headless = true, args = [] } = {}) {
+// autoplay: 'free' (the Coulisses window: --autoplay-policy=no-user-gesture-required, app/Launcher.cs) or 'tab' (a studio opened
+// in a tab of a normal Chrome: sound and play only after a click — user report 24/10/2026, tests/sound-tab.mjs)
+export async function launch({ port = 9333, headless = true, args = [], autoplay = 'free' } = {}) {
   sweepProfiles();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-cdp-'));
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
     `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...(headless ? ['--headless=new'] : []),
-    '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required',
+    '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', autoplay === 'tab' ? '--autoplay-policy=document-user-activation-required' : '--autoplay-policy=no-user-gesture-required',
     // silent: a suite plays the episodes, never on the user's speakers (user request 19/10/2026: « coupe le son, j'arrive
     // pas à écouter mes autres projets »); the sound still runs inside (decoded, its AudioContext's clock), only not heard
     '--mute-audio',

@@ -98,7 +98,9 @@
       <div id="stage">
         <div id="media">
           <video id="v" preload="auto" playsinline></video>
-          <iframe id="code" title="{{st.codeFrame}}"></iframe>
+          <!-- allow="autoplay": the preview (another origin, its own process) plays and sounds on the page's click, also in a tab of a
+               normal Chrome (user report 24/10/2026: « la lecture ne se lance pas », « le son ne marche plus »; tests/sound-tab.mjs) -->
+          <iframe id="code" title="{{st.codeFrame}}" allow="autoplay; fullscreen"></iframe>
           <!-- the live preview's frame not complete yet (its videos loading, seeking): covered, and said (player/ready.ts) -->
           <!-- the composition failed in the live preview (player/crash.tsx): what, where, and what to do -->
           <div id="codeCrash"><b id="ceTitle"></b><code id="ceMsg"></code><span class="s" id="ceWhere"></span><span class="s">{{st.code.crashSub}}</span>
