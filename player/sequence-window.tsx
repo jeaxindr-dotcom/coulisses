@@ -21,6 +21,31 @@ const Windowed = forwardRef<any, any>(function WindowedSequence(props, ref) {
   if (f < from - PRE || f >= from + span + POST) return null;
   return <Real {...props} ref={ref} />;
 });
+// A visual sequence (any other layout) premounted 3 s ahead unless the project set its own premount/postmount (user
+// request 25/10/2026: « il y a pas moyen d'avoir une lecture fluide dès le début ? » — a scene that loads its assets when it
+// mounts, a Theatre stage, a bakery saynète of the lessons, was mounted only when the playback reached it: a wait each
+// time, player/assets-wait.tsx). Its children mounted hidden, at the sequence's first frame, from 3 s before: its assets
+// load while the scene before plays. A render never premounts (Remotion: only the Player does); COULISSES_PREMOUNT=0 (the
+// studio's environment, lib/player-build.mjs) turns it off.
+// Told to player/assets-wait.tsx: the sequences premounting now (their absolute start frame) and when a visible one last
+// mounted — a load begun while only premounting is waited for once the playback reaches its sequence.
+declare const __COULISSES_PREMOUNT__: number | undefined;
+const PREMOUNT_S = typeof __COULISSES_PREMOUNT__ === 'number' ? __COULISSES_PREMOUNT__ : 3;
+const PM: Map<object, number> = ((window as any).__coulissesPremounting ??= new Map());
+const Visual = forwardRef<any, any>(function VisualSequence(props, ref) {
+  const { fps } = (R as any).useVideoConfig();
+  const parent: any = React.useContext((R as any).Internals.SequenceContext);
+  const f: number = (R as any).useCurrentFrame();
+  const token = React.useRef<object>({}).current;
+  const own = props.premountFor != null || props.postmountFor != null;
+  const pre = own ? (props.premountFor ?? 0) : Math.round(PREMOUNT_S * fps);
+  const from = Number.isFinite(props.from) ? props.from : 0;
+  const ahead = pre > 0 && f < from && f >= from - pre;
+  if (ahead) PM.set(token, (parent ? parent.cumulatedFrom + parent.relativeFrom : 0) + from); else PM.delete(token);
+  React.useState(() => { if (!ahead) (window as any).__coulissesActiveMountAt = performance.now(); return 0; });   // (mounted visible: a seek, a cut)
+  React.useEffect(() => () => { PM.delete(token); }, []);
+  return <Real {...props} {...(own || pre <= 0 ? {} : { premountFor: pre })} ref={ref} />;
+});
 export const Sequence = forwardRef<any, any>(function Sequence(props, ref) {
-  return props.layout === 'none' ? <Windowed {...props} ref={ref} /> : <Real {...props} ref={ref} />;
+  return props.layout === 'none' ? <Windowed {...props} ref={ref} /> : <Visual {...props} ref={ref} />;
 });

@@ -99,7 +99,18 @@ export function seen(hit: THREE.Intersection): boolean {
   return true;
 }
 // the R3F roots of the page (one per 3D canvas)
-export const roots = () => Array.from(document.querySelectorAll('canvas')).map((c) => (_roots as any).get(c)).filter(Boolean);
+// the canvases of the scene SHOWN: a sequence premounted ahead (player/sequence-window.tsx) is hidden — display: none, or
+// opacity 0 — and its canvases are the next shot's, not the one staged or picked (the 3D staging took them first: its
+// « after » image and its pin went missing); none shown (a fade through black): every one, as before
+const shownCanvas = (el: Element) => {
+  if (!(el as HTMLElement).getClientRects().length) return false;
+  for (let e: Element | null = el, i = 0; e && i < 80; e = e.parentElement, i++) { const st = getComputedStyle(e); if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false; }
+  return true;
+};
+export const roots = () => {
+  const all = Array.from(document.querySelectorAll('canvas')), vis = all.filter(shownCanvas);
+  return (vis.length ? vis : all).map((c) => (_roots as any).get(c)).filter(Boolean);
+};
 export const hasScene = () => roots().some((r: any) => r?.store?.getState?.().scene);
 // what is under (x, y) of the W × H frame (the Player letterboxes the frame inside #stage)
 export function pick(x: number, y: number, W: number, H: number) {
