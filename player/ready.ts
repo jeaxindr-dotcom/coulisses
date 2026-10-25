@@ -27,7 +27,8 @@ export function createReady(opts: { root: () => ParentNode | null; playing: () =
   // watched for a moment even when complete at once: the media of a page that mounts a little later are seen too
   const tick = () => {
     raf = 0;
-    const w = opts.playing() ? null : why(), el = performance.now() - t0;
+    // (playing: only its waits are said — a scene that mounts and loads, player/assets-wait.tsx)
+    const w = opts.playing() ? (buffering ? 'buffering' : null) : why(), el = performance.now() - t0;
     if (w && !loading) { loading = true; opts.emit('loading'); }
     if (!w && loading) { loading = false; opts.emit('loaded'); }
     // (said 10 s at most: a badge in the corner, the picture seen meanwhile — HyperFrames Studio waits 5 to 8 s)

@@ -38,7 +38,7 @@
   // played by THIS page as a plain <audio>: the clock. The preview is muted and follows it — late (its videos loading, the
   // PC busy), it is moved to the sound's moment; the sound never waits for the picture. Without it (no audio tracks, being
   // mixed again after a change of the sound, failed): the preview's own sound, as before.
-  const RS = { el: null, sig: null, fix: 0 };
+  const RS = { el: null, sig: null, fix: 0, wait: false };   // (wait: the preview waits for its assets — the sound with it)
   const rsOn = () => mode === 'code' && !!SP && !!RS.el;
   const rsAt = (t) => { try { RS.el.currentTime = Math.max(0, t); } catch { /* not loaded yet: its play sets it */ } };
   const rsPlay = () => { RS.el?.play()?.catch?.(() => {}); };
@@ -58,7 +58,7 @@
   }
   // the preview follows the sound: more than ¼ s apart while playing, moved to it (a little ahead: it is loading)
   setInterval(() => {
-    if (!rsOn() || M.paused) return;
+    if (!rsOn() || M.paused || RS.wait) return;
     const a = RS.el; if (a.paused && !a.ended) { rsAt(M.currentTime); rsPlay(); return; }
     const want = a.currentTime * FPS, d = SP.frame() - want, now = performance.now();
     if (Math.abs(d) > FPS / 4 && now - RS.fix > 800) { RS.fix = now; SP.seek(Math.min(FRAMES - 1, Math.round(want + (d < 0 ? FPS / 10 : 0)))); }
@@ -156,7 +156,10 @@
       if (SP !== sp) return;
       // (while moving, the preview's « loading » is not shown: the end of the move is watched by codeSettle)
       if (ev.type === 'error') { codeCrashed(plain(ev)); return; }
-      if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !sp.isPlaying() && !shuttle && performance.now() - lastStep > 250); return; }
+      // (playing, the only « loading » is a wait for the scene's assets: player/assets-wait.tsx — said too)
+      if (ev.type === 'loading' || ev.type === 'loaded') { codeWait(ev.type === 'loading' && !shuttle && performance.now() - lastStep > 250); return; }
+      if (ev.type === 'waiting') { RS.wait = true; RS.el?.pause(); return; }
+      if (ev.type === 'resume') { RS.wait = false; if (rsOn() && !M.paused) { rsAt(M.currentTime); rsPlay(); } return; }
       if (mode !== 'code') return;
       // the sound of the preview cut by its Player after a lag of the PC, and given back by the preview (player/sound.ts)
       if (ev.type === 'sound' && ev.state === 'dead') { soundDead(ev.why); return; }

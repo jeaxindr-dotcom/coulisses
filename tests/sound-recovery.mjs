@@ -49,6 +49,8 @@ try {
   console.log('l\'aperçu : la carte son refuse, puis répond');
   await p.eval(`document.querySelector('#srcCode').click(); return 1`);
   await p.until(`__studio.state().mode === 'code'`, 180000); await sleep(3000);
+  // (the episode's assets loaded first: the playback waits for them now — player/assets-wait.tsx)
+  for (let i = 0; i < 240 && (await p.frameEval('player.html', 'return window.remotion_delayRenderHandles?.length ?? 0')); i++) await sleep(250);
   await play(); await sleep(2500);
   const s0 = await codeSound();
   check(!s0.muted && s0.playing && s0.sounding > 0 && s0.ctx.includes('running'), `playing, with its sound (${JSON.stringify(s0)})`);

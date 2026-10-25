@@ -12,6 +12,7 @@ import { createStage } from './stage';
 import { createReady } from './ready';
 import { createCrash } from './crash';
 import { createSound } from './sound';
+import { AssetsWait } from './assets-wait';
 // @ts-ignore resolved through esbuild's alias "@episode-src" -> 06_Remotion/src
 import { Episode } from '@episode-src/Episode';
 // @ts-ignore
@@ -79,14 +80,15 @@ const stage = createStage({
 
 let rate = 1;
 // the episode, a test crash first (player/crash.tsx)
-const Comp: React.FC<any> = (p) => { C.check(); return <Episode {...p} />; };
+// (the playback waits for what the composition waits for: player/assets-wait.tsx — never a black frame played over)
+const Comp: React.FC<any> = (p) => { C.check(); return <><AssetsWait /><Episode {...p} /></>; };
 const App: React.FC = () => {
   const r = useRef<PlayerRef>(null);
   useEffect(() => {
     ref = r.current; if (!ref) return;
     const evs = ['play', 'pause', 'seeked', 'frameupdate', 'ended'] as const;
     const offs = evs.map((e) => { const h = () => { emit(e); if (e !== 'frameupdate' || !ref?.isPlaying()) R.watch(); }; ref!.addEventListener(e as any, h); return () => ref?.removeEventListener(e as any, h); });
-    const onWait = () => R.setBuffering(true), onResume = () => R.setBuffering(false);
+    const onWait = () => { R.setBuffering(true); emit('waiting'); }, onResume = () => { R.setBuffering(false); emit('resume'); };   // (the page: its review sound waits too)
     (ref as any).addEventListener('waiting', onWait); (ref as any).addEventListener('resume', onResume);
     offs.push(() => { (ref as any)?.removeEventListener('waiting', onWait); (ref as any)?.removeEventListener('resume', onResume); });
     const onErr = (e: any) => C.onError(e, ref?.getCurrentFrame() ?? 0);

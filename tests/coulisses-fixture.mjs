@@ -14,7 +14,9 @@ export const PROJET = path.join(FIX, 'remotion-essai'), RUN = path.join(FIX, 'ru
 const MODULES = remotionModules();   // tests/where.mjs: a Remotion project's node_modules on this PC (COULISSES_TEST_REMOTION)
 const w = (rel, txt) => { const f = path.join(PROJET, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, txt); };
 
-export function makeFixture() {
+// slowScene: ms — the scene s02 mounts slowly (delayRender until then, nothing drawn: a Theatre stage loading its
+// textures), for tests/preview-wait.mjs
+export function makeFixture({ slowScene = 0 } = {}) {
   if (!MODULES) throw new Error("pas de projet Remotion avec ses node_modules sur ce PC (COULISSES_TEST_REMOTION=<son dossier>)");
   // never a recursive delete through the junction: remove it first
   const nm = path.join(PROJET, 'node_modules');
@@ -36,11 +38,12 @@ export const RUN = {
     { id: 's03', titre: 'La conclusion', de: 210, a: 300, couleur: '#7c2d12' },
   ],
   voix: 'essai/voix.wav',
-};
+${slowScene ? `  lent: ${slowScene},
+` : ''}};
 export const totalFrames = () => Math.max(...RUN.plans.map((p) => p.a));
 `);
   w('src/Video.tsx', `import React from 'react';
-import { AbsoluteFill, Audio, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { RUN } from './runs/essai';
 
 const Plan: React.FC<{ id: string; titre: string; couleur: string }> = ({ id, titre, couleur }) => {
@@ -54,9 +57,16 @@ const Plan: React.FC<{ id: string; titre: string; couleur: string }> = ({ id, ti
     </AbsoluteFill>
   );
 };
+// a scene slow to mount (RUN.lent ms): its assets loading, nothing drawn until then — as a Theatre stage
+const Lent: React.FC<{ ms: number; children: React.ReactNode }> = ({ ms, children }) => {
+  const [h] = React.useState(() => delayRender('scène lente'));
+  const [ok, setOk] = React.useState(false);
+  React.useEffect(() => { const t = setTimeout(() => { setOk(true); continueRender(h); }, ms); return () => clearTimeout(t); }, []);
+  return ok ? <>{children}</> : null;
+};
 export const Video: React.FC<{ run: string }> = () => (
   <AbsoluteFill style={{ background: '#000' }}>
-    {RUN.plans.map((p) => <Sequence key={p.id} from={p.de} durationInFrames={p.a - p.de}><Plan id={p.id} titre={p.titre} couleur={p.couleur} /></Sequence>)}
+    {RUN.plans.map((p) => <Sequence key={p.id} from={p.de} durationInFrames={p.a - p.de}>{p.id === 's02' && (RUN as any).lent ? <Lent ms={(RUN as any).lent}><Plan id={p.id} titre={p.titre} couleur={p.couleur} /></Lent> : <Plan id={p.id} titre={p.titre} couleur={p.couleur} />}</Sequence>)}
     <Audio src={staticFile(RUN.voix)} />
   </AbsoluteFill>
 );

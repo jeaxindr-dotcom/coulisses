@@ -61,7 +61,7 @@ try {
   // ---------- 1. the same tools everywhere ----------
   console.log('les mêmes outils partout');
   const rail = await p.eval(`return [...document.querySelectorAll('#rail button, #ctlbar button[data-tool]')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
-  check(rail.map((b) => b.id).join() === 'bHome,bNote,bRange,bStage,bSrc,bPrefs,select,draw,comment' && rail.every((b) => b.shown), `the rail and the tools under the image: ${rail.map((b) => b.id).join(' · ')}, all shown`);
+  check(rail.map((b) => b.id).join() === 'bHome,bNote,bRange,bMic,bStage,bSrc,bPrefs,select,draw,comment' && rail.every((b) => b.shown), `the rail and the tools under the image: ${rail.map((b) => b.id).join(' · ')}, all shown`);
   const src = rail.find((b) => b.id === 'bSrc'), stg = rail.find((b) => b.id === 'bStage');
   check(src.off && /Pas encore de vidéo/.test(src.why) && !stg.off, `« MP4 ⇄ code » greyed here (« ${src.why} »), « Mise en scène » ready`);
   // the two tab bars (user request, 09/10/2026): the agent's column on the left, the media and notes on the right
