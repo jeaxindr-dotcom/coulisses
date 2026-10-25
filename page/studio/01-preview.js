@@ -80,10 +80,16 @@
     const el = inPlace ? codeEl : document.createElement('iframe');
     if (!inPlace) { el.className = 'code-next'; el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k)); codeEl.after(el); }
     const job = { ver, frame: el, dropped: false, fresh };
-    if (inPlace) $('#codeStatus').textContent = T('st.code.loading'); else showCodeNote(fresh ? TN('st.sound.preparing') : T('st.code.preparing'));
+    if (inPlace) $('#codeStatus').textContent = T('st.code.loading');
+    else {   // (prepared behind the version on screen: said, with its time — a Theatre episode builds all its cardboard again)
+      const base = fresh ? TN('st.sound.preparing') : TN('st.code.preparingOld'), t0 = Date.now();
+      showCodeNote(base);
+      job.tick = setInterval(() => { if (codeLoad === job) showCodeNote(`${base} ${Math.round((Date.now() - t0) / 1000)} s`); else clearInterval(job.tick); }, 1000);
+    }
     job.promise = new Promise((resolve) => {
       const f0 = curFrame();
       const finish = async (sp) => {
+        clearInterval(job.tick);
         if (codeLoad === job) { codeLoad = null; codeLoading = null; }
         if (job.dropped) return resolve(SP);
         if (!sp) {

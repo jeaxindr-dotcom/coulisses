@@ -30,7 +30,8 @@ export function createReady(opts: { root: () => ParentNode | null; playing: () =
     const w = opts.playing() ? null : why(), el = performance.now() - t0;
     if (w && !loading) { loading = true; opts.emit('loading'); }
     if (!w && loading) { loading = false; opts.emit('loaded'); }
-    if ((w && el < 30000) || (!w && el < 300)) raf = requestAnimationFrame(tick);
+    // (said 10 s at most: a badge in the corner, the picture seen meanwhile — HyperFrames Studio waits 5 to 8 s)
+    if ((w && el < 10000) || (!w && el < 300)) raf = requestAnimationFrame(tick);
     else if (loading) { loading = false; opts.emit('loaded'); }   // never stuck
   };
   const watch = () => { t0 = performance.now(); if (!raf) raf = requestAnimationFrame(tick); };
