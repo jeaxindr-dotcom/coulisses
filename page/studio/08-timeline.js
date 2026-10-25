@@ -62,7 +62,10 @@
       if (hh > 0.4) g.fillRect(x, mid - hh, 1.2, hh * 2);
     }
   }
-  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, Math.max(0.5, w), h, Math.min(r, w / 2, h / 2)); };
+  // (a block narrower than a pixel — a zoom, the edge of the view — gave a negative radius: Chrome throws on it, the drawing
+  // stopped half way, its clip left on the context — the top of the timeline (ruler, notes) gone until the next resize;
+  // user report 25/10/2026: « le haut de la timeline disparaît parfois »)
+  const rr = (g, x, y, w, h, r) => { const ww = Math.max(0.5, w), hh = Math.max(0.5, h); g.beginPath(); g.roundRect(x, y, ww, hh, Math.max(0, Math.min(r, ww / 2, hh / 2))); };
   function rangeRows(ranges) {
     const rows = []; const out = new Map();
     for (const n of ranges) { let r = rows.findIndex((end) => end < n.frame); if (r < 0) { r = rows.length; rows.push(0); } rows[r] = n.end; out.set(n.id, r); }
@@ -83,7 +86,8 @@
   const FONT = '"Segoe UI Variable Text", "Segoe UI", sans-serif';
   function draw() {
     if (!W || !FRAMES) return;
-    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, cv.clientWidth, H);
+    // (each drawing from a clean context: a drawing that failed half way never leaves its clip or transform to the next)
+    const g = cv.getContext('2d'); g.reset?.(); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, cv.clientWidth, H);
     laneLayout();
     g.textBaseline = 'middle'; g.font = `11px ${FONT}`;
     const span = view.b - view.a, pps = W / span, L = LIVE;
