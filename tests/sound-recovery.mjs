@@ -4,7 +4,7 @@
 //      Chrome does when the device fails while the PC lags): Remotion's Player mutes itself — and the sound comes back by
 //      itself once the device answers again (player/sound.ts), said on the page; pause / play keep it;
 //   2. « Rétablir le son » (the speaker under the image): the preview made again (a new frame, a new sound: what F5
-//      did — user report 22/10/2026), unmuted and playing with its sound whatever happened; the MP4 unmuted, at the
+//      did — user report 22/10/2026), à la même image et à l'arrêt ; Lecture reprend le son. Le MP4 unmuted, at the
 //      volume of the slider, loaded again where it was and playing if it was; the volume slider moved unmutes too.
 // usage: start `node studio-server.mjs E03 --no-open --episodes <sandbox>\07_Episodes --port 4174`, then
 //        node tests/sound-recovery.mjs   (or tests/run-all.mjs, which starts it)
@@ -41,6 +41,10 @@ const codeSound = async () => {
 };
 const saveText = () => p.eval(`return document.querySelector('#save').textContent`);
 const play = () => p.eval(`document.querySelector('#bPlay').click(); return 1`);
+const click = async selector => {
+  const xy = await p.eval(`const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
+  await p.mouse('mouseMoved', ...xy); await p.mouse('mousePressed', ...xy); await p.mouse('mouseReleased', ...xy);
+};
 try {
   await p.goto(`${URL}#f=900`);
   await p.until(`window.__studio && document.querySelector('#v').readyState >= 2`, 120000); await sleep(1000);
@@ -54,19 +58,21 @@ try {
   await play(); await sleep(2500);
   const s0 = await codeSound();
   check(!s0.muted && s0.playing && s0.sounding > 0 && s0.ctx.includes('running'), `playing, with its sound (${JSON.stringify(s0)})`);
-  await p.frameEval('player.html', `window.__res0 = AudioContext.prototype.resume; AudioContext.prototype.resume = function () { return Promise.reject(new DOMException('device', 'InvalidStateError')); }; return 1`);
+  const incidentFrame = await shownFrame();
+  await p.frameEval(incidentFrame, `window.__res0 = AudioContext.prototype.resume; AudioContext.prototype.resume = function () { return Promise.reject(new DOMException('device', 'InvalidStateError')); }; return 1`);
   await play(); await sleep(400); await play();   // (a pause, a play: the Player starts its sound again — refused)
   let lostSeen = false, mutedSeen = false;
   for (let i = 0; i < 12; i++) {   // 6 s of a device that refuses
     await sleep(500);
     if (/coupé/.test(await saveText())) lostSeen = true;
-    if (await p.frameEval('player.html', 'return window.StudioPlayer.isMuted()')) mutedSeen = true;
+    if (await p.frameEval(incidentFrame, 'return window.StudioPlayer.isMuted()')) mutedSeen = true;
   }
   check(mutedSeen && lostSeen, `the device refusing: Remotion mutes its Player (${mutedSeen}), the page says it (${lostSeen})`);
-  await p.frameEval('player.html', `AudioContext.prototype.resume = window.__res0; return 1`);
-  let back = null;
-  for (let i = 0; i < 30 && !back; i++) { await sleep(500); const s = await codeSound(); if (!s.muted && s.ctx.includes('running') && s.sounding > 0) back = { ...s, after: (i + 1) * 0.5 }; }
-  check(!!back && back.after <= 12, `the device answering again: the sound back by itself, without F5 (${back ? `${back.after} s` : 'never'})`);
+  await p.frameEval(incidentFrame, `AudioContext.prototype.resume = window.__res0; return 1`);
+  let back = null; const backAt = Date.now();
+  for (let i = 0; i < 30 && !back; i++) { await sleep(500); const s = await codeSound(); if (!s.muted && s.playing && s.ctx.includes('running') && s.sounding > 0) back = { ...s, after: (Date.now() - backAt) / 1000 }; }
+  check(!!back && back.after <= 12 && (await shownFrame()) === incidentFrame,
+    `le périphérique répond : son revenu seul dans la même iframe, sans F5 (${back ? `${back.after.toFixed(1)} s` : 'jamais'})`);
   let msg = '';   // (said once it holds 3 s: player/sound.ts)
   for (let i = 0; i < 16 && !/rétabli/.test(msg); i++) { await sleep(500); msg = await saveText(); }
   check(/rétabli/.test(msg), `… said once it holds (« ${msg} »)`);
@@ -74,18 +80,37 @@ try {
   const s1 = await codeSound();
   check(!s1.muted && s1.sounding > 0 && s1.ctx.includes('running'), `pause, play: still with its sound (${JSON.stringify(s1)})`);
 
+  // Une suspension simple doit réutiliser le contexte et l'iframe du Player.
+  const suspendedFrame = await shownFrame();
+  await p.frameEval(suspendedFrame, `const contexts = window.__coulissesAudio; window.__suspendedContext = contexts[contexts.length - 1]; await window.__suspendedContext.suspend(); return 1`);
+  let resumed = null; const resumeAt = Date.now();
+  while (!resumed && Date.now() - resumeAt < 12000) {
+    await sleep(500); const state = await codeSound();
+    if (!state.muted && state.playing && state.ctx.includes('running') && state.sounding > 0) resumed = state;
+  }
+  const sameContext = (await shownFrame()) === suspendedFrame && await p.frameEval(suspendedFrame,
+    'return window.__coulissesAudio?.includes(window.__suspendedContext) && window.__suspendedContext.state === "running"');
+  check(!!resumed && sameContext, `suspension temporaire : même contexte et même iframe, son revenu (${JSON.stringify(resumed)})`);
+
   // ---------- 2. « Rétablir le son » ----------
   console.log('« Rétablir le son »');
   await p.frameEval(await shownFrame(), `window.StudioPlayer.mute(); return 1`); await sleep(2500);   // (a mute asked: left as it is…)
   const kept = await p.frameEval(await shownFrame(), 'return window.StudioPlayer.isMuted()');
   // (in the code, the speaker makes the preview again — a new frame, a new sound: what F5 did; user report 22/10/2026)
   const before = await shownFrame();
-  await p.eval(`document.querySelector('#bSound').click(); return 1`);
+  const target = await p.eval('return __studio.state().frame');
+  await click('#bSound');
   let now = before;
   for (let i = 0; i < 240 && (now === before || now === 'player.html'); i++) { await sleep(500); now = await shownFrame(); }
-  await sleep(2000);
+  await sleep(500);
+  const prepared = await p.eval('return {frame: __studio.state().frame, playing: window.__preview.isPlaying()}');
+  const stopped = await codeSound();
+  check(kept && now !== before && now !== 'player.html' && prepared && Math.abs(prepared.frame - target) <= 2 && !prepared.playing && !stopped.playing && stopped.sounding === 0,
+    `le haut-parleur reconstruit à l'image courante et reste à l'arrêt (${JSON.stringify(prepared)}, cible ${target})`);
+  await click('#bPlay'); await sleep(1500);
   const s2 = await codeSound();
-  check(kept && now !== before && !s2.muted && s2.playing && s2.sounding > 0, `the preview muted (kept ${kept}): the speaker makes it again, playing with its sound (${JSON.stringify(s2)}, « ${await saveText()} »)`);
+  check(!s2.muted && s2.playing && s2.sounding > 0 && s2.ctx.includes('running'),
+    `Lecture reprend le son après restauration explicite, sans F5 (${JSON.stringify(s2)}, « ${await saveText()} »)`);
   await p.frameEval(await shownFrame(), `window.StudioPlayer.mute(); return 1`); await sleep(500);
   await p.eval(`const r = document.querySelector('#vol'); r.value = '0.6'; r.dispatchEvent(new Event('input')); return 1`); await sleep(800);
   check(!(await p.frameEval(await shownFrame(), 'return window.StudioPlayer.isMuted()')), 'the volume slider moved: unmuted too');

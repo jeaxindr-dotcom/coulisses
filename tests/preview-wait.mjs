@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
 import { makeFixture, RUN } from './coulisses-fixture.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,7 +25,7 @@ const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} $
 
 fs.rmSync(SCR, { recursive: true, force: true }); fs.mkdirSync(SCR, { recursive: true });
 fs.writeFileSync(path.join(SCR, 'settings.json'), JSON.stringify({ lang: 'fr' }));
-makeFixture({ slowScene: 2000 });
+makeFixture({ slowScene: 2000, master: true });
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json'); process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json'); process.env.COULISSES_LANG = 'fr';
 process.env.COULISSES_PREMOUNT = '0';   // (the wait itself, without premounting: tests/preview-premount.mjs has it)
 const { importProject } = await import('../lib/projects.mjs');
@@ -33,6 +33,7 @@ const IMP = importProject(RUN);
 const st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', IMP.revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
 let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
 for (let i = 0; i < 160 && !/http:\/\/127/.test(out); i++) await sleep(250);
+await requireSandbox(URL, path.join(STUDIO, '.cache'));
 const p = await launch({ port: 9375, autoplay: 'tab' });
 const ev = (e) => p.eval(e).catch(() => null);
 const until = async (expr, ms = 60000) => { const t0 = Date.now(); for (;;) { if (await ev(`return !!(${expr})`)) return true; if (Date.now() - t0 > ms) return false; await sleep(250); } };

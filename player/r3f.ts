@@ -107,6 +107,8 @@ const shownCanvas = (el: Element) => {
   for (let e: Element | null = el, i = 0; e && i < 80; e = e.parentElement, i++) { const st = getComputedStyle(e); if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false; }
   return true;
 };
+// La visibilité ne limite que le pointage : toutes les racines doivent dormir et se réveiller ensemble.
+const allRoots = () => Array.from(document.querySelectorAll('canvas')).map((c) => (_roots as any).get(c)).filter(Boolean);
 export const roots = () => {
   const all = Array.from(document.querySelectorAll('canvas')), vis = all.filter(shownCanvas);
   return (vis.length ? vis : all).map((c) => (_roots as any).get(c)).filter(Boolean);
@@ -124,6 +126,7 @@ export function pick(x: number, y: number, W: number, H: number) {
   const order = [...top, ...all.reverse().filter((c) => !top.includes(c))];
   for (const canvas of order) {
     if (out.length) break;   // (the canvas on top that names something: the ones below it are hidden by it)
+    if (!shownCanvas(canvas)) continue;
     const root: any = (_roots as any).get(canvas);
     const st = root?.store?.getState?.();
     if (!st?.camera || !st?.scene) continue;
@@ -166,8 +169,8 @@ function hold(r: any) {
 }
 export function sleep(on: boolean) {
   sleeping = on; clearInterval(sweep); sweep = 0;
-  if (on) { for (const r of roots()) hold(r); sweep = setInterval(() => { for (const r of roots()) hold(r); }, 500); }
-  else for (const r of roots()) {
+  if (on) { for (const r of allRoots()) hold(r); sweep = setInterval(() => { for (const r of allRoots()) hold(r); }, 500); }
+  else for (const r of allRoots()) {
     const st = r?.store?.getState?.(), was = asleep.get(r);
     held.get(r)?.(); held.delete(r); asleep.delete(r);
     if (was && st?.setFrameloop) st.setFrameloop(was);
@@ -175,8 +178,19 @@ export function sleep(on: boolean) {
   return on;
 }
 export const isAsleep = () => sleeping;
+(window as any).__coulissesSceneReadiness = () => {
+  // Une scène 2D peut avoir un futur canvas prémonté : son premier dessin ne
+  // conditionne pas la disponibilité de l'image courante.
+  const states = Array.from(document.querySelectorAll('canvas')).filter(shownCanvas)
+    .map((canvas) => (_roots as any).get(canvas)?.store?.getState?.()).filter(Boolean);
+  return {
+    pendingDraw: states.filter((s: any) => s.gl && !(s.gl.info?.render?.frame > 0)).length,
+    lost: states.some((s: any) => s.gl?.getContext?.()?.isContextLost?.()),
+  };
+};
 export const settle = async (waitCanvas = true) => {
   for (let i = 0; i < 300 && waitCanvas && !document.querySelector('canvas'); i++) await new Promise((r) => setTimeout(r, 100));
+  if (waitCanvas && !document.querySelector('canvas')) throw new Error('La scène 3D ne s’est pas montée après 30 secondes');
   // every pick (a seek can mount an actor that enters later): ~0.4 s when nothing loads, up to 24 s while it does
   let last = -1, same = 0;
   for (let i = 0; i < 200 && same < 3; i++) { await new Promise((r) => setTimeout(r, 120)); const n = meshCount(); same = n === last ? same + 1 : 0; last = n; }

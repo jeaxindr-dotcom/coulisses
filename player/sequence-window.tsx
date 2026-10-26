@@ -1,51 +1,113 @@
-// The live preview only (lib/player-build.mjs gives this module to every « import … from 'remotion' » of its bundle):
-// every export of Remotion as it is, but a <Sequence layout="none"> far from the frame shown is not mounted at all
-// (user report 18/10/2026, « la lecture remotion sur cet épisode long est lente et laggy »: E11's 1601 sequences — a
-// sound each: every line, every sound effect, every music cue — were all rendered again at every frame, 6 of them
-// playing). Remotion itself shows a sequence's children only inside its range (and its premountFor / postmountFor):
-// mounted from a little before (2 s, or its premount + 1 s) to a little after, it plays exactly as before. Visual
-// sequences (any other layout) are left as they are. The renders never go through this module.
-import React, { forwardRef } from 'react';
-// @ts-ignore resolved by lib/player-build.mjs: the project's own remotion package
+// Adaptateur de l'aperçu uniquement. Les rendus importent Remotion directement.
+// Les attentes appartiennent à leur producteur, jamais à une heure de création.
+import React, { forwardRef, useContext, useLayoutEffect, useMemo, useRef } from 'react';
+// @ts-ignore résolu par lib/player-build.mjs vers le Remotion du projet
 import * as R from '@coulisses-remotion';
 // @ts-ignore
 export * from '@coulisses-remotion';
 
+type Lease = { unblock: () => void };
+type Request = { released: boolean; native: Lease | null };
+type Owner = {
+  id: number; kind: string; visible: boolean; committed: boolean; disposed: boolean;
+  requests: Set<Request>; handles: Set<number>; buffer: { delayPlayback: () => Lease };
+  render: { continueRender: (handle: number) => void } | null;
+};
+const owners = new Map<number, Owner>(), subscribers = new Set<() => void>();
+let nextOwner = 0;
+const changed = () => {
+  for (const fn of subscribers) fn();
+  window.dispatchEvent(new CustomEvent('coulisses-readiness'));
+};
+const snapshot = () => {
+  const pending = [...owners.values()].filter((o) => o.requests.size || o.handles.size)
+    .map((o) => ({ id: o.id, kind: o.kind, visible: o.visible, handles: [...o.handles], requests: o.requests.size }));
+  const tracked = new Set([...owners.values()].flatMap((o) => [...o.handles]));
+  const legacy: number[] = Array.isArray((window as any).remotion_delayRenderHandles) ? (window as any).remotion_delayRenderHandles : [];
+  return { pending, activePending: pending.filter((o) => o.visible).length, legacyPending: legacy.filter((h) => !tracked.has(h)) };
+};
+(window as any).__coulissesReadiness = {
+  snapshot,
+  subscribe(fn: () => void) { subscribers.add(fn); return () => subscribers.delete(fn); },
+};
+function release(owner: Owner, request: Request) {
+  if (request.released) return;
+  request.released = true; request.native?.unblock(); request.native = null;
+  owner.requests.delete(request); changed();
+}
+function synchronize(owner: Owner) {
+  for (const request of owner.requests) {
+    if (owner.committed && owner.visible && !owner.disposed && !request.native) request.native = owner.buffer.delayPlayback();
+    else if ((!owner.visible || owner.disposed) && request.native) { request.native.unblock(); request.native = null; }
+  }
+  changed();
+}
+function acquire(owner: Owner): Lease {
+  if (owner.disposed) return { unblock() {} };
+  const request: Request = { released: false, native: null };
+  owner.requests.add(request); synchronize(owner);
+  return { unblock: () => release(owner, request) };
+}
+function useOwner(kind: string): Owner {
+  // Le contexte interne est isolé ici : Remotion a déjà calculé le prémontage,
+  // y compris celui des ancêtres. Les producteurs utilisent des API publiques.
+  const sequence: any = useContext((R as any).Internals.SequenceContext);
+  const native = (R as any).useBufferState();
+  const visible = !sequence?.premounting && !sequence?.postmounting;
+  const ref = useRef<Owner | null>(null);
+  if (!ref.current) ref.current = { id: ++nextOwner, kind, visible, committed: false, disposed: false, requests: new Set(), handles: new Set(), buffer: native, render: null };
+  const owner = ref.current; owner.buffer = native;
+  useLayoutEffect(() => {
+    owner.committed = true; owner.disposed = false; owners.set(owner.id, owner);
+    synchronize(owner);
+    return () => {
+      owner.disposed = true; owner.committed = false;
+      for (const request of [...owner.requests]) release(owner, request);
+      for (const handle of owner.handles) owner.render?.continueRender(handle);
+      owner.handles.clear(); owners.delete(owner.id); changed();
+    };
+  }, [owner]);
+  useLayoutEffect(() => { owner.visible = visible; synchronize(owner); }, [owner, visible]);
+  return owner;
+}
+// Même forme que l'API publique ; le démontage protège aussi un producteur
+// qui aurait oublié unblock() lorsqu'un saut quitte sa scène.
+export function useBufferState() {
+  const owner = useOwner('playback');
+  return useMemo(() => ({ delayPlayback: () => acquire(owner) }), [owner]);
+}
+// Migration explicite : useDelayRender() remplace les fonctions globales. Chaque
+// poignée connue possède une identité et une durée de vie précises.
+export function useDelayRender() {
+  const native = (R as any).useDelayRender();
+  const owner = useOwner('render'); owner.render = native;
+  const leases = useRef(new Map<number, Lease>());
+  return useMemo(() => ({
+    delayRender: (label?: string, options?: any): number => {
+      const handle = native.delayRender(label, options);
+      if (!owner.disposed) { owner.handles.add(handle); leases.current.set(handle, acquire(owner)); changed(); }
+      return handle;
+    },
+    continueRender: (handle: number) => {
+      native.continueRender(handle); leases.current.get(handle)?.unblock(); leases.current.delete(handle);
+      owner.handles.delete(handle); changed();
+    },
+    cancelRender: (error: unknown) => {
+      for (const lease of leases.current.values()) lease.unblock(); leases.current.clear();
+      return native.cancelRender(error);
+    },
+  }), [native.delayRender, native.continueRender, native.cancelRender, owner]);
+}
 const Real: any = (R as any).Sequence;
-const PRE = 60, POST = 30;   // frames: 2 s before, 1 s after
+const PRE = 60, POST = 30;
 const Windowed = forwardRef<any, any>(function WindowedSequence(props, ref) {
-  const f: number = (R as any).useCurrentFrame();
-  const from = Number.isFinite(props.from) ? props.from : 0, dur = Number.isFinite(props.durationInFrames) ? props.durationInFrames : Infinity;
-  // (as Remotion's own span of a sequence: a loop never ends, a playbackRate stretches it)
-  const span = props.loop ? Infinity : dur / (props.playbackRate > 0 ? props.playbackRate : 1);
-  if (f < from - PRE || f >= from + span + POST) return null;
+  const frame: number = (R as any).useCurrentFrame();
+  const from = Number.isFinite(props.from) ? props.from : 0, duration = Number.isFinite(props.durationInFrames) ? props.durationInFrames : Infinity;
+  const span = props.loop ? Infinity : duration / (props.playbackRate > 0 ? props.playbackRate : 1);
+  if (frame < from - PRE || frame >= from + span + POST) return null;
   return <Real {...props} ref={ref} />;
 });
-// A visual sequence (any other layout) premounted 3 s ahead unless the project set its own premount/postmount (user
-// request 25/10/2026: « il y a pas moyen d'avoir une lecture fluide dès le début ? » — a scene that loads its assets when it
-// mounts, a Theatre stage, a bakery saynète of the lessons, was mounted only when the playback reached it: a wait each
-// time, player/assets-wait.tsx). Its children mounted hidden, at the sequence's first frame, from 3 s before: its assets
-// load while the scene before plays. A render never premounts (Remotion: only the Player does); COULISSES_PREMOUNT=0 (the
-// studio's environment, lib/player-build.mjs) turns it off.
-// Told to player/assets-wait.tsx: the sequences premounting now (their absolute start frame) and when a visible one last
-// mounted — a load begun while only premounting is waited for once the playback reaches its sequence.
-declare const __COULISSES_PREMOUNT__: number | undefined;
-const PREMOUNT_S = typeof __COULISSES_PREMOUNT__ === 'number' ? __COULISSES_PREMOUNT__ : 3;
-const PM: Map<object, number> = ((window as any).__coulissesPremounting ??= new Map());
-const Visual = forwardRef<any, any>(function VisualSequence(props, ref) {
-  const { fps } = (R as any).useVideoConfig();
-  const parent: any = React.useContext((R as any).Internals.SequenceContext);
-  const f: number = (R as any).useCurrentFrame();
-  const token = React.useRef<object>({}).current;
-  const own = props.premountFor != null || props.postmountFor != null;
-  const pre = own ? (props.premountFor ?? 0) : Math.round(PREMOUNT_S * fps);
-  const from = Number.isFinite(props.from) ? props.from : 0;
-  const ahead = pre > 0 && f < from && f >= from - pre;
-  if (ahead) PM.set(token, (parent ? parent.cumulatedFrom + parent.relativeFrom : 0) + from); else PM.delete(token);
-  React.useState(() => { if (!ahead) (window as any).__coulissesActiveMountAt = performance.now(); return 0; });   // (mounted visible: a seek, a cut)
-  React.useEffect(() => () => { PM.delete(token); }, []);
-  return <Real {...props} {...(own || pre <= 0 ? {} : { premountFor: pre })} ref={ref} />;
-});
+// Pas de prémontage ajouté à toutes les scènes : le projet choisit ses frontières.
 export const Sequence = forwardRef<any, any>(function Sequence(props, ref) {
-  return props.layout === 'none' ? <Windowed {...props} ref={ref} /> : <Visual {...props} ref={ref} />;
+  return props.layout === 'none' ? <Windowed {...props} ref={ref} /> : <Real {...props} ref={ref} />;
 });

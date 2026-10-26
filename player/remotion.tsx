@@ -9,11 +9,12 @@
 // staging reframes; ?stage=<base64url JSON> applies offsets at load (the server's « after » capture, /api/stage-shot).
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { Player, PlayerRef } from '@remotion/player';
 import { createStage2d } from './stage2d';
 import { createReady } from './ready';
 import { createCrash } from './crash';
-import { createSound } from './sound';
+import { createSound, SoundContext } from './sound';
 import { AssetsWait } from './assets-wait';
 // @ts-ignore resolved by lib/player-build.mjs: player/three-stage.ts when the project has @react-three/fiber, else player/no3d.ts
 import { create3d } from '@coulisses-3d';
@@ -58,7 +59,7 @@ const settle = async () => { if (s3?.hasScene()) await s3.settle(); await new Pr
 // what is under the point: the 3D objects of a 3D scene first (named by their React components), then the HTML element
 // named data-coulisses
 const pickAll = (x: number, y: number) => [...(s3?.hasScene() ? s3.pick(x, y) : []), ...pick(x, y)];
-const stage2d = createStage2d({ W, H, frame: () => ref?.getCurrentFrame() ?? 0, root: () => document.getElementById('coulisses-camera') });
+const stage2d = createStage2d({ W, H, frame: () => suspended ? suspendedFrame : ref?.getCurrentFrame() ?? 0, root: () => document.getElementById('coulisses-camera') });
 // a 3D scene on screen (a React Three Fiber canvas: a theatre shot, a 3D set): the Theatre's own 3D staging, else the 2D
 // one — chosen when the staging starts; each offset goes back to the stage it belongs to (2D ids are @root, @camera or
 // [data-coulisses="…"], 3D ids are React paths)
@@ -105,10 +106,14 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   composition: __COMPOSITION__, fps: FPS, width: W, height: H, durationInFrames, ok: !!comp,
   whenReady: () => settle(),
   sleep: (on: boolean) => s3?.sleep?.(on) ?? on,
-  seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
+  seek: (f: number) => { const next = Math.max(0, Math.min(durationInFrames - 1, Math.round(f))); if (suspended) suspendedFrame = next; else ref?.seekTo(next); },
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
-  frame: () => ref?.getCurrentFrame() ?? 0,
-  frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
+  isBuffering: () => !!(ref as (PlayerRef & { isBuffering?: () => boolean }) | null)?.isBuffering?.(),
+  unload: async () => { ref?.pause(); suspendedFrame = ref?.getCurrentFrame() ?? suspendedFrame; suspended = true; flushSync(() => root.render(null)); ref = null; R.setBuffering(false); return suspendedFrame; },
+  resume: async (f?: number) => { suspended = false; flushSync(() => C.recover(f ?? suspendedFrame)); await settle(); return ref?.getCurrentFrame(); },
+  dispose: () => { ref?.pause(); S.dispose(); R.dispose(); root.unmount(); ref = null; },
+  frame: () => suspended ? suspendedFrame : ref?.getCurrentFrame() ?? 0,
+  frameReady: () => !suspended && R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   crashed: () => C.crashed, recover: (f?: number) => C.recover(f ?? ref?.getCurrentFrame() ?? 0),
   __crash: () => { C.crashNext(); const f = ref?.getCurrentFrame() ?? 0; ref?.seekTo(f + 1); ref?.seekTo(f); },
   setVolume: (v: number) => ref?.setVolume(v), mute: () => S.mute(), unmute: () => S.unmute(), isMuted: () => !!ref?.isMuted(), restoreSound: () => S.restore(), soundLost: () => S.lost(),
@@ -125,10 +130,10 @@ const Framed: React.FC<any> = (p) => React.createElement('div', { id: 'coulisses
   },
 };
 
-let rate = 1;
+let rate = 1, suspended = false, suspendedFrame = 0;
 // the composition, a test crash first (player/crash.tsx)
 // (the playback waits for what the composition waits for: player/assets-wait.tsx — never a black frame played over)
-const Comp: React.FC<any> = (p) => { C.check(); return <><AssetsWait /><Framed {...p} /></>; };
+const Comp: React.FC<any> = (p) => { C.check(); return <><SoundContext sound={S} /><AssetsWait /><Framed {...p} /></>; };
 const App: React.FC = () => {
   const r = useRef<PlayerRef>(null);
   useEffect(() => {
@@ -168,5 +173,5 @@ const App: React.FC = () => {
   );
 };
 const root = createRoot(document.getElementById('root')!);
-const draw = () => root.render(<App key={C.gen} />);   // a new key: the Player mounted again (after an error)
+const draw = () => root.render(suspended ? null : <App key={C.gen} />);
 draw();

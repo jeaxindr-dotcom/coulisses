@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
 import { makeFixture, RUN, PROJET } from './coulisses-fixture.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,13 +26,14 @@ const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} $
 
 fs.rmSync(SCR, { recursive: true, force: true }); fs.mkdirSync(SCR, { recursive: true });
 fs.writeFileSync(path.join(SCR, 'settings.json'), JSON.stringify({ lang: 'fr' }));
-makeFixture();
+makeFixture({ master: true });
 process.env.STUDIO_PROJECTS = path.join(SCR, 'projets.json'); process.env.COULISSES_SETTINGS = path.join(SCR, 'settings.json'); process.env.COULISSES_LANG = 'fr';
 const { importProject } = await import('../lib/projects.mjs');
 const IMP = importProject(RUN);
 const st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', IMP.revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
 let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
 for (let i = 0; i < 160 && !/http:\/\/127/.test(out); i++) await sleep(250);
+await requireSandbox(URL, path.join(STUDIO, '.cache'));
 const p = await launch({ port: 9371, autoplay: 'tab' });
 const ev = (e) => p.eval(e).catch(() => null);
 const until = async (expr, ms = 60000) => { const t0 = Date.now(); for (;;) { if (await ev(`return !!(${expr})`)) return true; if (Date.now() - t0 > ms) return false; await sleep(250); } };
@@ -84,7 +85,7 @@ try {
   check(v1 !== v0 && s4.sig === sig0 && together(s4), `a new version of the picture: the same mix, the new preview muted (${JSON.stringify(s4)})`);
   // ---------- 5. its sound changed ----------
   await pauseAt(10);
-  const wav = path.join(PROJET, 'public', 'essai', 'voix.wav'), later = new Date(Date.now() + 5000);
+  const wav = path.join(PROJET, 'public', 'essai', 'mix.wav'), later = new Date(Date.now() + 5000);
   fs.utimesSync(wav, later, later);   // (the same file, newer: a new signature)
   fs.writeFileSync(runTs, fs.readFileSync(runTs, 'utf8').replace("titre: 'Trois chiffres'", "titre: 'Trois chiffres (v2)'"));   // (the timeline read again)
   let s5 = null; for (let i = 0; i < 120 && !(s5?.state === 'ready' && s5.sig !== sig0); i++) { await sleep(500); s5 = await status(); }

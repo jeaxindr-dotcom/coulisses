@@ -16,7 +16,7 @@ const w = (rel, txt) => { const f = path.join(PROJET, rel); fs.mkdirSync(path.di
 
 // slowScene: ms — the scene s02 mounts slowly (delayRender until then, nothing drawn: a Theatre stage loading its
 // textures), for tests/preview-wait.mjs
-export function makeFixture({ slowScene = 0 } = {}) {
+export function makeFixture({ slowScene = 0, premount = 0, forgetCleanup = false, master = false } = {}) {
   if (!MODULES) throw new Error("pas de projet Remotion avec ses node_modules sur ce PC (COULISSES_TEST_REMOTION=<son dossier>)");
   // never a recursive delete through the junction: remove it first
   const nm = path.join(PROJET, 'node_modules');
@@ -37,13 +37,13 @@ export const RUN = {
     { id: 's02', titre: 'Trois chiffres', de: 90, a: 210, couleur: '#14532d' },
     { id: 's03', titre: 'La conclusion', de: 210, a: 300, couleur: '#7c2d12' },
   ],
-  voix: 'essai/voix.wav',
+  voix: 'essai/${master ? 'mix' : 'voix'}.wav',
 ${slowScene ? `  lent: ${slowScene},
 ` : ''}};
 export const totalFrames = () => Math.max(...RUN.plans.map((p) => p.a));
 `);
   w('src/Video.tsx', `import React from 'react';
-import { AbsoluteFill, Audio, Sequence, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, useDelayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { RUN } from './runs/essai';
 
 const Plan: React.FC<{ id: string; titre: string; couleur: string }> = ({ id, titre, couleur }) => {
@@ -59,14 +59,15 @@ const Plan: React.FC<{ id: string; titre: string; couleur: string }> = ({ id, ti
 };
 // a scene slow to mount (RUN.lent ms): its assets loading, nothing drawn until then — as a Theatre stage
 const Lent: React.FC<{ ms: number; children: React.ReactNode }> = ({ ms, children }) => {
+  const { delayRender, continueRender } = useDelayRender();
   const [h] = React.useState(() => delayRender('scène lente'));
   const [ok, setOk] = React.useState(false);
-  React.useEffect(() => { const t = setTimeout(() => { setOk(true); continueRender(h); }, ms); return () => clearTimeout(t); }, []);
+  React.useEffect(() => { const t = setTimeout(() => { setOk(true); continueRender(h); }, ms); return () => { clearTimeout(t); ${forgetCleanup ? '' : 'continueRender(h);'} }; }, []);
   return ok ? <>{children}</> : null;
 };
 export const Video: React.FC<{ run: string }> = () => (
   <AbsoluteFill style={{ background: '#000' }}>
-    {RUN.plans.map((p) => <Sequence key={p.id} from={p.de} durationInFrames={p.a - p.de}>{p.id === 's02' && (RUN as any).lent ? <Lent ms={(RUN as any).lent}><Plan id={p.id} titre={p.titre} couleur={p.couleur} /></Lent> : <Plan id={p.id} titre={p.titre} couleur={p.couleur} />}</Sequence>)}
+    {RUN.plans.map((p) => <Sequence key={p.id} from={p.de} durationInFrames={p.a - p.de} premountFor={${premount}}>{p.id === 's02' && (RUN as any).lent ? <Lent ms={(RUN as any).lent}><Plan id={p.id} titre={p.titre} couleur={p.couleur} /></Lent> : <Plan id={p.id} titre={p.titre} couleur={p.couleur} />}</Sequence>)}
     <Audio src={staticFile(RUN.voix)} />
   </AbsoluteFill>
 );
@@ -83,6 +84,7 @@ import { RUN, totalFrames } from './runs/essai';
 export function timeline(_id: string, _props: unknown) {
   return {
     fps: RUN.fps, durationInFrames: totalFrames(),
+${master ? `    reviewAudio: { src: RUN.voix, offsetFrames: 0, volume: 1 },\n` : ''}
     pistes: [
       { id: 'chap', nom: 'Chapitres', type: 'band', clips: [{ de: 0, a: 210, label: 'acte 1' }, { de: 210, a: 300, label: 'acte 2' }] },
       { id: 'V1', nom: 'Plans', type: 'video', clips: RUN.plans.map((p) => ({ de: p.de, a: p.a, label: \`plan \${p.id} · \${p.titre}\`, fichier: 'src/Video.tsx', ref: p.id })) },
@@ -135,6 +137,9 @@ export const Root: React.FC = () => (
   fs.mkdirSync(path.join(PROJET, 'public', 'essai'), { recursive: true });
   const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=10', '-ac', '1', path.join(PROJET, 'public', 'essai', 'voix.wav')]);
   if (r.status) throw new Error('ffmpeg');
+  // Même source maître dans la composition et la déclaration : aucune reconstruction
+  // des pistes descriptives pour les tests du couplage son/image.
+  if (master) fs.copyFileSync(path.join(PROJET, 'public', 'essai', 'voix.wav'), path.join(PROJET, 'public', 'essai', 'mix.wav'));
   // the run folder, and its .coulisses file made like a pipeline would, at the start of the run
   fs.mkdirSync(path.join(RUN, '07-renders'), { recursive: true });
   const spec = path.join(FIX, 'spec.json');

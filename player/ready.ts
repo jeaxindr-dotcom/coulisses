@@ -1,60 +1,106 @@
-// A frame of the live preview is shown as the frame only once it is complete (fiche du 10/10/2026, long04: stepping over
-// a chapter junction, the preview showed the next chapter's page before its videos were loaded and sought — a grey board
-// the render never has — and notes went to the agent for a defect that was not in the video). The Player shows a frame
-// at once; a render waits for its media (delayRender). So after a seek with the playback paused, the page's VISIBLE media
-// are watched: while one is not ready — a <video> not loaded at its frame yet or still seeking, an <img> loading, a font
-// loading, the Player buffering — the preview says « loading » (the studio covers the image and says so), then « loaded ».
-// Used by player/remotion.tsx, player/entry.tsx and, its types stripped by the server (/hf-ready.js), player/hf-player.js.
-export function createReady(opts: { root: () => ParentNode | null; playing: () => boolean; emit: (type: string) => void }) {
-  let buffering = false, loading = false, raf = 0, t0 = 0;
-  // drawn on the image: not hidden, not transparent (a premounted Sequence is at opacity 0), not without a box
+// Disponibilité explicite de l'image de l'aperçu. Une échéance est une erreur,
+// jamais une image réputée complète. Les attentes du rendu non attribuées restent
+// un diagnostic ; elles ne suspendent pas l'horloge du Player.
+export function createReady(opts: {
+  root: () => ParentNode | null;
+  playing: () => boolean;
+  emit: (type: string, extra?: Record<string, unknown>) => void;
+  timeoutMs?: number;
+}) {
+  let buffering = false, loading = false, raf = 0, timer: any = 0, started = 0, reported = '', disposed = false;
+  const timeout = opts.timeoutMs ?? 30000;
   const shown = (el: Element) => {
     if (!(el as HTMLElement).getClientRects().length) return false;
-    for (let e: Element | null = el, i = 0; e && i < 60; e = e.parentElement, i++) {
-      const s = getComputedStyle(e);
-      if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return false;
+    for (let e: Element | null = el, i = 0; e && i < 80; e = e.parentElement, i++) {
+      const style = getComputedStyle(e);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
     }
     return true;
   };
-  const why = (): string | null => {
-    if (buffering) return 'buffering';
-    const r = opts.root(); if (!r) return null;
-    for (const v of Array.from(r.querySelectorAll('video'))) if (!v.error && v.networkState !== 3 && (v.readyState < 2 || v.seeking) && shown(v)) return 'video';
-    for (const im of Array.from(r.querySelectorAll('img'))) if (!im.complete && shown(im)) return 'image';
-    if ((document as any).fonts?.status === 'loading') return 'font';
-    return null;
+  const status = () => {
+    const resources = (window as any).__coulissesReadiness?.snapshot?.() ?? { activePending: 0, legacyPending: [] };
+    const extra = { activePending: resources.activePending ?? 0, legacyPending: resources.legacyPending ?? [] };
+    const result = (state: string, reason: string | null) => ({ state, reason, verified: state === 'ready', ...extra });
+    if (buffering) return result('loading', 'buffering');
+    if (extra.activePending) return result('loading', 'resources');
+    const root = opts.root(); if (!root) return result('loading', 'root');
+    for (const video of Array.from(root.querySelectorAll('video'))) {
+      if (!shown(video)) continue;
+      if (video.error) return result('error', 'video-error');
+      if (video.networkState !== 3 && (video.readyState < 2 || video.seeking)) return result('loading', 'video');
+    }
+    for (const image of Array.from(root.querySelectorAll('img'))) {
+      if (!shown(image)) continue;
+      if (!image.complete) return result('loading', 'image');
+      if ((image.currentSrc || image.getAttribute('src')) && image.naturalWidth === 0) return result('error', 'image-error');
+    }
+    if ((document as any).fonts?.status === 'loading') return result('loading', 'font');
+    const scene = (window as any).__coulissesSceneReadiness?.();
+    if (scene?.lost) return result('error', 'webgl-context-lost');
+    if (scene?.pendingDraw) return result('loading', 'webgl-first-draw');
+    // Sans propriétaire, impossible de promettre une image complète : un ancien
+    // producteur doit migrer vers useDelayRender/useBufferState. Ce signal ne crée
+    // aucun delayPlayback et n'empêche donc pas une autre scène de jouer.
+    if (extra.legacyPending.length) return result('unverified', 'unowned-render-handles');
+    return result('ready', null);
   };
-  // watched for a moment even when complete at once: the media of a page that mounts a little later are seen too
+  const failure = (reason: string | null, expired = false) => new Error(expired
+    ? `Préparation de l'image expirée après ${Math.round(timeout / 1000)} secondes (${reason ?? 'inconnu'})`
+    : `Image indisponible (${reason ?? 'inconnu'})`);
+  const sayError = (reason: string | null, expired = false) => {
+    const key = `${expired}:${reason}`; if (reported === key) return;
+    reported = key;
+    opts.emit('ready-error', { reason, error: { message: failure(reason, expired).message, where: 'préparation de l’image', stack: '' } });
+  };
   const tick = () => {
-    raf = 0;
-    // (playing: only its waits are said — a scene that mounts and loads, player/assets-wait.tsx)
-    const w = opts.playing() ? (buffering ? 'buffering' : null) : why(), el = performance.now() - t0;
-    if (w && !loading) { loading = true; opts.emit('loading'); }
-    if (!w && loading) { loading = false; opts.emit('loaded'); }
-    // (said 10 s at most: a badge in the corner, the picture seen meanwhile — HyperFrames Studio waits 5 to 8 s)
-    if ((w && el < 10000) || (!w && el < 300)) raf = requestAnimationFrame(tick);
-    else if (loading) { loading = false; opts.emit('loaded'); }   // never stuck
+    raf = 0; timer = 0; if (disposed) return;
+    const current = status(), pending = current.state !== 'ready', elapsed = performance.now() - started;
+    if (pending && !loading) { loading = true; opts.emit('loading'); }
+    if (!pending && loading) { loading = false; reported = ''; opts.emit('loaded'); }
+    if (current.state === 'error') sayError(current.reason);
+    else if (pending && elapsed >= timeout) sayError(current.reason, true);
+    // Surveillance ralentie après le premier dessin : pas de scan de milliers
+    // d'images à 60 Hz durant un chargement long, et aucune fausse notification.
+    if (pending) timer = setTimeout(tick, elapsed < 300 ? 50 : 200);
+    else if (elapsed < 300) raf = requestAnimationFrame(tick);
   };
-  const watch = () => { t0 = performance.now(); if (!raf) raf = requestAnimationFrame(tick); };
-  const waiters = new Set<{ res: () => void; t: number; armed: boolean }>();
-  let pollRaf = 0;
+  const watch = () => {
+    if (disposed) return;
+    started = performance.now(); reported = '';
+    if (!raf && !timer) raf = requestAnimationFrame(tick);
+  };
+  const waiters = new Set<{ res: () => void; rej: (e: Error) => void; t: number; armed: boolean }>();
+  let pollTimer: any = 0;
   const poll = () => {
-    pollRaf = 0;
-    const done = !why(), now = performance.now();
-    for (const w of [...waiters]) if (w.armed && (done || now - w.t > 30000)) { waiters.delete(w); w.res(); }
-    if (waiters.size) pollRaf = requestAnimationFrame(poll);
+    pollTimer = 0; if (disposed) return;
+    const current = status(), now = performance.now();
+    for (const waiter of [...waiters]) {
+      if (!waiter.armed) continue;
+      if (current.state === 'ready') { waiters.delete(waiter); waiter.res(); }
+      else if (current.state === 'error' || now - waiter.t >= timeout) {
+        waiters.delete(waiter); waiter.rej(failure(current.reason, current.state !== 'error'));
+      }
+    }
+    if (waiters.size) pollTimer = setTimeout(poll, 50);
   };
+  const onResources = () => { if (!raf && !timer && !disposed) raf = requestAnimationFrame(tick); };
+  window.addEventListener('coulisses-readiness', onResources);
   return {
     watch,
-    setBuffering: (b: boolean) => { buffering = b; watch(); },
+    setBuffering: (value: boolean) => { buffering = value; watch(); },
     isLoading: () => loading,
-    ready: () => !why(),
-    why,
-    // the frame complete (a pick, a capture, the « after » image of a staging), at most 30 s
-    // (two frames first: the Player has drawn the frame asked, its new media are in the page)
-    when: () => new Promise<void>((res) => {
-      const w = { res, t: performance.now(), armed: false }; waiters.add(w);
-      requestAnimationFrame(() => requestAnimationFrame(() => { w.armed = true; if (!pollRaf) pollRaf = requestAnimationFrame(poll); }));
+    ready: () => status().state === 'ready',
+    why: () => status().reason,
+    status,
+    when: () => new Promise<void>((res, rej) => {
+      if (disposed) { rej(new Error('Aperçu fermé')); return; }
+      const waiter = { res, rej, t: performance.now(), armed: false }; waiters.add(waiter);
+      requestAnimationFrame(() => requestAnimationFrame(() => { waiter.armed = true; if (!pollTimer) poll(); }));
     }),
+    dispose: () => {
+      disposed = true; cancelAnimationFrame(raf); clearTimeout(timer); clearTimeout(pollTimer);
+      window.removeEventListener('coulisses-readiness', onResources);
+      for (const waiter of waiters) waiter.rej(new Error('Aperçu fermé')); waiters.clear();
+    },
   };
 }

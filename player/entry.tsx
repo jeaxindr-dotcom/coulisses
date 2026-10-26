@@ -6,12 +6,13 @@
 // 3D object under a point, by ray casting in the React Three Fiber scene — `_roots` is R3F's own registry of canvases).
 import React, { useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { Player, PlayerRef } from '@remotion/player';
 import * as R3F from './r3f';
 import { createStage } from './stage';
 import { createReady } from './ready';
 import { createCrash } from './crash';
-import { createSound } from './sound';
+import { createSound, SoundContext } from './sound';
 import { AssetsWait } from './assets-wait';
 // @ts-ignore resolved through esbuild's alias "@episode-src" -> 06_Remotion/src
 import { Episode } from '@episode-src/Episode';
@@ -40,7 +41,7 @@ const settle = async () => { await R3F.settle(); await R.when(); };
 // « Mise en scène »: move objects in the preview, the offsets go to Claude (player/stage.ts)
 const stage = createStage({
   roots: R3F.roots, index: R3F.indexFibers, fiberOf: R3F.fiberOf, reactPath: R3F.reactPath, describe: R3F.describe, seen: R3F.seen, noise: R3F.NOISE,
-  frame: () => ref?.getCurrentFrame() ?? 0, W, H,
+  frame: () => suspended ? suspendedFrame : ref?.getCurrentFrame() ?? 0, W, H,
 });
 (window as any).StudioPlayer = {
   stage,
@@ -48,10 +49,14 @@ const stage = createStage({
   // ready to be shown: the stage's canvas there and its meshes loaded (a new version is shown only then: ~20 s for an episode)
   whenReady: () => settle(),
   sleep: (on: boolean) => R3F.sleep(on),
-  seek: (f: number) => ref?.seekTo(Math.max(0, Math.min(durationInFrames - 1, Math.round(f)))),
+  seek: (f: number) => { const next = Math.max(0, Math.min(durationInFrames - 1, Math.round(f))); if (suspended) suspendedFrame = next; else ref?.seekTo(next); },
   play: () => ref?.play(), pause: () => ref?.pause(), isPlaying: () => !!ref?.isPlaying(),
-  frame: () => ref?.getCurrentFrame() ?? 0,
-  frameReady: () => R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
+  isBuffering: () => !!(ref as (PlayerRef & { isBuffering?: () => boolean }) | null)?.isBuffering?.(),
+  unload: async () => { ref?.pause(); suspendedFrame = ref?.getCurrentFrame() ?? suspendedFrame; suspended = true; flushSync(() => root.render(null)); ref = null; R.setBuffering(false); return suspendedFrame; },
+  resume: async (f?: number) => { suspended = false; flushSync(() => C.recover(f ?? suspendedFrame)); await settle(); return ref?.getCurrentFrame(); },
+  dispose: () => { ref?.pause(); S.dispose(); R.dispose(); root.unmount(); ref = null; },
+  frame: () => suspended ? suspendedFrame : ref?.getCurrentFrame() ?? 0,
+  frameReady: () => !suspended && R.ready(), frameLoading: () => R.isLoading(), whenFrameReady: () => R.when(),
   crashed: () => C.crashed, recover: (f?: number) => C.recover(f ?? ref?.getCurrentFrame() ?? 0),
   __crash: () => { C.crashNext(); const f = ref?.getCurrentFrame() ?? 0; ref?.seekTo(f + 1); ref?.seekTo(f); },
   setVolume: (v: number) => ref?.setVolume(v), mute: () => S.mute(), unmute: () => S.unmute(), isMuted: () => !!ref?.isMuted(), restoreSound: () => S.restore(), soundLost: () => S.lost(),
@@ -78,10 +83,10 @@ const stage = createStage({
   },
 };
 
-let rate = 1;
+let rate = 1, suspended = false, suspendedFrame = 0;
 // the episode, a test crash first (player/crash.tsx)
 // (the playback waits for what the composition waits for: player/assets-wait.tsx — never a black frame played over)
-const Comp: React.FC<any> = (p) => { C.check(); return <><AssetsWait /><Episode {...p} /></>; };
+const Comp: React.FC<any> = (p) => { C.check(); return <><SoundContext sound={S} /><AssetsWait /><Episode {...p} /></>; };
 const App: React.FC = () => {
   const r = useRef<PlayerRef>(null);
   useEffect(() => {
@@ -111,5 +116,5 @@ const App: React.FC = () => {
   );
 };
 const root = createRoot(document.getElementById('root')!);
-const draw = () => root.render(<App key={C.gen} />);   // a new key: the Player mounted again (after an error)
+const draw = () => root.render(suspended ? null : <App key={C.gen} />);
 draw();

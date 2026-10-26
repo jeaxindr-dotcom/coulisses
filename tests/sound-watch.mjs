@@ -1,15 +1,7 @@
-// The preview's sound never needs F5 (user report 22/10/2026: « quand je rajoute une note et que je relance la vidéo, il
-// n'y a plus de son et je suis obligé d'appuyer sur F5 »), on the sample Remotion project of tests/coulisses-fixture.mjs
-// (an <Audio> of a 330 Hz sine, played at ½ speed; nothing real is touched; the test's Chrome is silent: tests/cdp.mjs). Remotion's Player
-// plays all its sound through ONE AudioContext; each way it can die, played here, and the sound back without F5
-// (player/sound.ts watches, page/studio/01-preview.js makes the preview again):
-//   0. a normal playback: nothing done (no preview made again);
-//   1. its context suspended behind the Player's back: started again, the same preview;
-//   2. its context refusing for good (each resume() rejected): the Player mutes itself again and again — the preview made
-//      again, at the same image, playing, with its sound;
-//   3. its context running with its clock stopped: the same;
-//   4. its « error » (the sound device failing): a 3rd time in 2 min is only said (a device really gone), « Rétablir le
-//      son » (the speaker under the image) makes the preview again anyway.
+// Le son revient sans F5 et sans reconstruction automatique : une suspension
+// temporaire est reprise sur place ; une panne durable est annoncée. Le clic
+// explicite sur le haut-parleur reconstruit à l'image courante, à l'arrêt ; le clic
+// Lecture reprend le son. Projet synthétique, Chrome muet, aucun projet réel.
 // usage: node tests/sound-watch.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,16 +46,24 @@ async function sound() {
 }
 const good = (s) => !!s && s.playing && !s.muted && s.ctx === 'running' && s.clock > 0.5 && s.going > 0;
 const play = () => ev(`document.querySelector('#bPlay').click(); return 1`);
+const click = async selector => {
+  const xy = await ev(`const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]`);
+  await p.mouse('mouseMoved', ...xy); await p.mouse('mousePressed', ...xy); await p.mouse('mouseReleased', ...xy);
+};
 const playing = () => ev('return window.__preview.isPlaying()');
 const playFrom = async (f) => { if (await playing()) { await play(); await sleep(400); } await ev(`window.__preview.seek(${f}); return 1`); await sleep(700); await play(); await sleep(2500); };
 const save = () => ev(`return document.querySelector('#save').textContent`);
 const deaths = () => ev('return window.__soundDead ?? 0');
-// a new preview, then its sound: [made again, its sound]
-async function remade(before, ms = 25000) {
+// La préparation garde l'image à l'arrêt. Le nouveau départ est un geste explicite.
+async function remade(before, frame, ms = 25000) {
   const t0 = Date.now(); let s = null;
   while (Date.now() - t0 < ms) { s = await shown(); if (s && s !== before) break; await sleep(300); }
   if (!s || s === before) return [false, null];
-  await sleep(1500);
+  await sleep(300);
+  const prepared = await ev('return {frame: __studio.state().frame, playing: window.__preview.isPlaying()}');
+  check(prepared && !prepared.playing && Math.abs(prepared.frame - frame) <= 2,
+    `restauration à l'arrêt à la même image (${JSON.stringify(prepared)}, cible ${frame})`);
+  await click('#bPlay'); await sleep(1200);
   const r = await sound();
   if (!good(r) && process.env.SOUND_DEBUG) {
     console.log('   balise sur 2 s :', JSON.stringify(await inFrame(`const a = [...document.querySelectorAll('audio')].find((x) => x.src && !x.src.startsWith('data:')), P = window.StudioPlayer, out = [];
@@ -72,6 +72,17 @@ async function remade(before, ms = 25000) {
     console.log('   journaux :', JSON.stringify(p.logs.filter((x) => /audio|mute|resume|play\(|NotAllowed|interrupt/i.test(x)).slice(-8)));
   }
   return [true, r];
+}
+async function incident(before, count, titre, ms = 30000) {
+  const announced = await until(`/Toujours pas de son/.test(document.querySelector('#save').textContent)`, ms);
+  await sleep(1000);
+  check(announced && (await shown()) === before && (await deaths()) === count,
+    `${titre} : panne annoncée, aucune reconstruction automatique (« ${await save()} »)`);
+  const frame = await ev('return __studio.state().frame');
+  await click('#bSound');
+  const [made, state] = await remade(before, frame, 30000);
+  check(made && (await deaths()) === count + 1 && good(state),
+    `${titre} : le clic explicite rétablit le son sans F5 (${JSON.stringify(state)})`);
 }
 try {
   await p.goto(URL);
@@ -97,36 +108,34 @@ try {
   for (let i = 0; i < 16 && !back1; i++) { await sleep(500); const s = await sound(); if (good(s)) back1 = { ...s, after: (i + 1) * 1.5 }; }
   check(!!back1 && (await shown()) === f1 && (await deaths()) === 0, `started again by itself, the same preview (${back1 ? `${back1.after} s` : 'never'})`);
 
-  // ---------- 2. refusing for good ----------
+  // ---------- 2. refus durable ----------
   console.log('le contexte audio refuse pour de bon');
   await playFrom(20);
   const f2 = await shown(), d2 = await deaths();
   await inFrame(`AudioContext.prototype.resume = function () { return Promise.reject(new DOMException('device', 'InvalidStateError')); }; return 1`);
   await play(); await sleep(400); await play();   // (a pause, a play: the Player starts its sound again — refused)
-  const [m2, s2] = await remade(f2, 30000);
-  check(m2 && (await deaths()) === d2 + 1 && good(s2), `the preview made again, playing with its sound (${JSON.stringify(s2)})`);
-  const fr2 = await ev('return __studio.state().frame');
-  check(fr2 > 20 && fr2 < 300, `… at its image (${fr2}), « ${await save()} »`);
+  await incident(f2, d2, 'refus de reprise');
 
   // ---------- 3. its clock stopped ----------
   console.log("le contexte audio tourne, son horloge arrêtée");
   await playFrom(20);
   const f3 = await shown(), d3 = await deaths();
   await inFrame(`const C = window.__coulissesAudio, c = C[C.length - 1], t = c.currentTime; Object.defineProperty(c, 'currentTime', { get: () => t }); return 1`);
-  const [m3, s3] = await remade(f3, 30000);
-  check(m3 && (await deaths()) === d3 + 1 && good(s3), `the preview made again, playing with its sound (${JSON.stringify(s3)})`);
+  await incident(f3, d3, 'horloge audio figée');
 
-  // ---------- 4. its « error », a 3rd time in 2 min; then « Rétablir le son » ----------
-  console.log("l'« error » du périphérique, une 3e fois en 2 min ; puis « Rétablir le son »");
+  // ---------- 4. contexte fermé ----------
+  console.log('le contexte audio fermé');
   await playFrom(20);
   const f4 = await shown(), d4 = await deaths();
+  await inFrame(`const C = window.__coulissesAudio; await C[C.length - 1].close(); return 1`);
+  await incident(f4, d4, 'contexte fermé');
+
+  // ---------- 5. erreur du périphérique ----------
+  console.log("l'« error » du périphérique");
+  await playFrom(20);
+  const f5 = await shown(), d5 = await deaths();
   await inFrame(`const C = window.__coulissesAudio; C[C.length - 1].dispatchEvent(new Event('error')); return 1`);
-  await sleep(2500);
-  const msg4 = await save();
-  check((await shown()) === f4 && (await deaths()) === d4 && /Toujours pas de son/.test(msg4), `a 3rd time in 2 min: only said (« ${msg4} »)`);
-  await ev(`document.querySelector('#bSound').click(); return 1`);
-  const [m4, s4] = await remade(f4, 30000);
-  check(m4 && good(s4), `« Rétablir le son »: the preview made again, with its sound (${JSON.stringify(s4)}, « ${await save()} »)`);
+  await incident(f5, d5, 'erreur du périphérique');
   await play();
 } catch (e) { ko++; console.log('  ✗ ERREUR', e.stack); } finally {
   await p.close(); st.kill();
