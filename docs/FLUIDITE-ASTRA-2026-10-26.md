@@ -201,3 +201,78 @@ Limites supplémentaires : première ouverture d'une scène lourde encore coûte
 ## Résumé transmissible
 
 Les défauts de lecture relevant de Coulisses sont corrigés dans une branche séparée, avec tests de régression et essais navigateur. Les patchs des quatre moteurs sont fournis sans toucher aux projets réels. Le mode Code conserve désormais son aperçu quand le résultat visuel ne change pas et propose une préparation de plage pour une lecture régulière après calcul. Les premières préparations restent coûteuses ; les FPS des quatre vrais projets après patch ne sont pas encore mesurés. Rien n'est fusionné, poussé ou installé.
+
+## Complément du 26 octobre — G15 : réponses utilisateur invisibles à l’agent
+
+**Gravité : bloquant pour la boucle de correction. Corrigé et testé dans `revue-astra`, pas encore intégré ni installé.** Ce défaut est distinct des problèmes de lecture vidéo : il explique pourquoi une précision enregistrée dans une note ne parvenait pas à l’agent, même lorsque celui-ci exécutait `wait`.
+
+### Cause et preuve du cas Lesson 0
+
+Dans la référence `f273f8e`, `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\page\studio\07-cards.js:123` ajoutait seulement la réponse à `notes[].thread`. La sauvegarde passait par `page\studio\02-notes.js:306`, puis `studio-server.mjs:627`. `studio-cli.mjs:134` ne cherchait que `lotNumbers(P).find(n => !replies.lots[n])`. Il ne consultait jamais les réponses utilisateur. Le lot conservait uniquement le fil photographié lors de son envoi (`lib\lots.mjs:112`). Une reconnexion ne réparait donc rien.
+
+Constat en lecture seule dans `C:\Users\owner\Desktop\Youtube\Jap for Eng\10_Scripts\01_lesson0\revue` :
+
+- `notes.json` : note 27, identifiant `0rt1b5q9`, lot 4 ; réponse du 26 octobre à **02:44:07.262 UTC, soit 11:44 au Japon**, avec une image.
+- `lots\004.json` : envoyé le 25 octobre à 13:32:48 UTC ; `thread: []` pour cette note.
+- `lots\005.json` : envoyé à **02:45:03 UTC**, exactement le dernier battement et `lastLot: 5` de `studio-agent.json`. Ce lot contient trois autres notes, pas la note 27. Le battement une minute après la réponse prouve la sortie sur le lot 5, pas la réception de la réponse.
+- L’état a évolué pendant que d’autres sessions travaillaient : `replies.json` contenait déjà une nouvelle réponse de Claude à 04:08:29 UTC et une prise du lot 6 à 04:08:34 UTC. Je n’affirme donc pas que la note est encore ignorée aujourd’hui ; sa correction visuelle n’a pas été vérifiée dans ce complément.
+
+Deux pertes connexes ont aussi été reproduites : les images des réponses n’apparaissaient pas dans le Markdown d’un lot renvoyé (`lib\lots.mjs:185`), et la fusion après conflit entre onglets choisissait une note entière selon sa date, écrasant le fil de l’autre onglet (`page\studio\02-notes.js:228` dans la référence).
+
+### Chemin corrigé et portée de « vue »
+
+1. La page donne un identifiant stable à la réponse et attend la sauvegarde avant d’annoncer son envoi. Lors d’un conflit HTTP 409, elle réunit les messages des deux onglets au lieu de remplacer tout le fil.
+2. Le serveur archive les réponses de l’ancien et du nouveau document dans `revue\user-replies.json` **avant** de remplacer `notes.json` et de confirmer la sauvegarde. Les écritures sont atomiques et verrouillées. Retirer ensuite la carte ne supprime pas une réponse en attente. Un fichier illisible provoque une erreur explicite ; il n’est jamais remplacé silencieusement par une file vide.
+3. `wait` consulte les réponses non acquittées avant les lots, à chaque passage de sa boucle de 1,5 seconde. Il retrouve également les anciennes réponses sans identifiant, sans réécrire `notes.json`. Chaque livraison contient au plus **20 réponses**. Elle cite le texte initial, le moment, le lot, les trois dernières réponses de l’agent et les chemins absolus des images.
+4. Un fichier complet est conservé dans `revue\user-reply-deliveries\<identifiant>.md`, avec un manifeste JSON et l’empreinte SHA-256 du document. La sortie de la commande est bornée à **12 000 caractères** lorsqu’elle contient une livraison : une très longue réponse reste intégrale dans le fichier. Un lot trop long est également fourni par son chemin.
+5. **La sortie de `wait` ne marque pas la réponse comme vue.** L’agent doit lire le fichier complet, regarder les pièces jointes, puis exécuter la commande `ack-replies` imprimée. Elle ne confirme que les versions précises de cette livraison ; un document modifié ou tronqué est refusé. Sans accusé, la prochaine connexion représente les réponses. Cette précaution évite de perdre la suite d’une sortie tronquée par l’outil de l’agent.
+6. `GET /api/replies` expose les accusés à la page. Chaque message affiche « Non vue par l’agent » ou « Vue par l’agent ». L’infobulle précise que l’agent a confirmé sa réception : **cela ne certifie pas que la correction est faite**. Un battement, un `take`, un `done` ou une réponse ultérieure ne vaut jamais accusé.
+
+À l’envoi sans surveillance, la page affiche : **« Aucun agent ne surveille Coulisses : ta réponse attendra sa reconnexion. »** La même fenêtre fournit la ligne de connexion et son bouton de copie. L’option existante « Renvoyer à l’agent » reste disponible pour en faire un lot. Si la réception a déjà été confirmée entre la sauvegarde et la consultation du statut, la page le reconnaît et évite une fausse demande de reconnexion.
+
+Les notifications techniques d’annulation/rétablissement sont désormais marquées `kind: 'system'` et exclues de la livraison et des badges de lecture. Les anciens messages techniques non marqués restent ambigus : ils peuvent réapparaître lors de la première migration, plutôt que de supprimer par supposition une vraie réponse utilisateur.
+
+### Fin de surveillance et limites restantes
+
+`wait` reste une commande qui s’arrête après une livraison, à expiration ou sur interruption. Sur une fin normale, `waiting` repasse à `false`. Une mort brutale peut laisser un affichage « connecté » pendant au plus environ 20 secondes, durée de validité du battement. **Coulisses ne crée ni ne relance une session d’agent** ; le protocole actualisé demande de relancer `wait` après traitement ou expiration tant que l’utilisateur souhaite rester connecté. Aucune session extérieure n’a été contactée ou relancée pendant ce travail.
+
+L’attente utilisateur dépend donc encore de la disponibilité de l’agent : sans session, aucun délai de correction ne peut être promis. Avec un `wait` actif, la détection se fait au prochain passage de sa boucle ; le test impose moins de 4 secondes pour le réveil CLI. L’affichage de l’accusé suit l’interrogation périodique de la page, environ toutes les 3 secondes.
+
+La migration présente aussi les anciennes réponses déjà traitées autrement mais dépourvues d’accusé : l’agent doit lire l’historique avant de refaire une correction. Deux attentes concurrentes peuvent proposer le même message ; l’acquittement est idempotent et aucune réponse n’est perdue. La file et les documents de livraison restent conservés sans purge automatique ; un historique exceptionnellement volumineux augmentera le stockage et le coût de lecture. « Vue » est une déclaration explicite de l’agent, pas une preuve indépendante de compréhension. La durabilité couvre les envois enregistrés par Coulisses ; elle ne récupère pas un texte jamais sauvegardé ni un fichier effacé manuellement hors du protocole.
+
+### Fichiers, tests et commits
+
+Repères dans le code corrigé, sous `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra` :
+
+- `lib\reply-delivery.mjs:39` : archivage ; `:53` : projection des accusés ; `:110` : livraison bornée ; `:129` : accusé explicite et vérification du manifeste.
+- `studio-cli.mjs:132` : attente ; `:167` : `ack-replies`.
+- `studio-server.mjs:326` : sauvegarde durable ; `:590` : réponses et accusés, erreur 503 sur fichier illisible.
+- `page\studio\02-notes.js:78` : identité et état des réponses ; `:100` : envoi ; fonction `mergeNotes` : conservation des fils concurrents.
+- `page\studio\05-agent.js:118` : événements système ; `lib\lots.mjs:185` : images des réponses dans les demandes renvoyées.
+- `AGENT.md` et `AGENT.en.md` : réception, lecture complète, accusé, relance de l’attente et traitement des anciennes réponses.
+
+| Vérification | Avant | Après |
+|---|---|---|
+| `tests/reply-delivery.mjs` | Référence `f273f8e` : 2 réussites, **9 échecs** ; notamment reconnexion, réveil sans lot, pièces jointes, priorité et livraison après expiration | **29 réussites, 0 échec** ; aussi accusés concurrents, arrivée pendant livraison, retrait de carte, contenu de 4 Mio, document tronqué, fichier illisible |
+| `tests/reply-delivery-ui.mjs` | Référence `f273f8e` : 3 réussites, **20 échecs** | **23 réussites, 0 échec**, dont test croisé entre le vrai stockage et la page pour les identités anciennes/mélangées |
+| `tests/reply-images.mjs` | **3 échecs sur 3**, exécutés avant le patch | **3 réussites, 0 échec** |
+| `tests/reply-delivery-browser.mjs` | Le défaut initial est reproduit par les tests CLI et interface ci-dessus | **22 réussites, 0 échec** dans Chrome muet : envoi avec image hors ligne, rechargement, reconnexion sans accusé, accusé explicite visible, réveil, erreur de stockage et retrait de carte |
+| Suites existantes `send-lots`, `notes-safety`, `note-states`, `e2e-agent` | Les premiers essais ont révélé quatre attentes de nom d’agent non isolées dans `e2e-agent` | Respectivement **13, 11, 19 et 11 réussites**, aucun échec |
+| Langue du cache de lecture | Nouveau test `code-playback-i18n` contre `f273f8e` : **4 échecs** ; textes français visibles en anglais | **5 réussites** ; `code-playback-ui` : **21 réussites** ; `i18n` : **78 réussites**, 2 contrôles du binaire absents et explicitement non exécutés |
+
+Les tests croisés ont aussi décelé puis corrigé deux erreurs dans une première version du correctif : accusé trop précoce après simple écriture de la sortie, et comptage divergent des anciens messages mélangés à des messages identifiés. Ces versions intermédiaires n’ont pas été livrées.
+
+| Commit | Contenu et validation |
+|---|---|
+| `9293fc3` — Livrer les réponses aux notes et confirmer explicitement leur lecture | G15 : file, réveil, migration, accusé explicite, images, interface et protocole ; tests CLI, interface et navigateur ci-dessus. |
+| `13e666a` — Fiabiliser les suites de connexion et traduire le cache de lecture | Test de connexion indépendant de l’agent qui l’exécute, vraie adoption d’une version du Player, ports réservés évités, tests enregistrés dans le lanceur, traductions et contrôles du binaire clairement signalés lorsqu’absent. |
+
+Total de cette série : **11 suites, 235 vérifications réussies, aucun échec** dans leurs dernières exécutions ; 2 contrôles du binaire non exécutés. Le présent complément et l’inventaire sont enregistrés dans un commit documentaire séparé.
+
+Les journaux détaillés sont conservés dans `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\run-all`. L’inventaire avec résultats et empreintes se trouve dans `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\validation-reponses.json`. Preuves avant correction : `\.cache\reply-delivery\avant-YV2IlN\resultat.json`, `\.cache\revue-astra\reply-delivery-ui-avant.log`, `\.cache\run-all\reply-images-avant.log`, `\.cache\run-all\code-playback-i18n-avant.log`, sous le même worktree. Essai navigateur final : `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\reply-delivery-browser\essai-2XkPlx`, avec `resultat.json`, `server.log` et `reponses.png`.
+
+Précisions de validation : les suites ont utilisé des projets d’essai, leurs propres réglages et des navigateurs muets, avec contrôle des rendus/exports par GET avant les tests lourds. Le premier passage de l’ancienne suite `i18n` gardait sa configuration de hub sur **4183**, contraire à la réservation demandée ; ce point a été repéré et corrigé vers des ports libres à partir de 4220 avant le dernier passage. Il ne faut donc pas présenter cette première configuration comme conforme. Aucun studio utilisateur n’a été piloté. Le binaire `Coulisses.exe` n’étant pas présent dans le worktree, les deux contrôles qui en dépendent sont signalés comme non exécutés ; aucune installation n’a été utilisée pour les contourner. Les processus de test ont été fermés. Les quatre projets réels, l’installation et les réglages personnels n’ont pas été modifiés.
+
+### Résumé transmissible de ce complément
+
+Les réponses ajoutées aux notes étaient sauvegardées, mais `wait` ne les lisait jamais : il ne surveillait que les lots. Le correctif les conserve dans une file durable, les présente en premier à la reconnexion et affiche leur état sur la carte. Sans agent connecté, Coulisses l’indique et fournit la ligne de reconnexion. Une réponse reste « non vue » tant que l’agent n’a pas confirmé sa réception, même si sa sortie a été tronquée. Le parcours est testé ; les commits attendent la relecture et l’intégration de l’agent principal. Rien n’est fusionné, poussé ou installé.
