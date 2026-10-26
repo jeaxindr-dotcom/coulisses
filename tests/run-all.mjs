@@ -1,27 +1,33 @@
-// Every test of Coulisses, in one command (code review, 08/10/2026: some suites needed a studio started by hand, and
-// nothing ran them all). It starts what they need itself — a studio on the sandbox E03 (port 4174) for e2e, staging and
-// grade, e2e-agent; a studio on the render test's own copy (.cache\sandbox-test, port 4180) for render, then puts that copy
-// back — with the tests' own settings and media library (never the user's), runs the suites one after another, and
-// prints a summary. A suite whose resource is not on this PC skips itself (tests/where.mjs).
+// Toutes les suites, l'une après l'autre, avec leurs réglages et médias propres.
+// Les studios du bac E03 et de sa copie de rendu utilisent des ports libres >= 4240.
+// La copie de rendu est restaurée après le test. Les ressources absentes sont
+// signalées explicitement par les suites concernées (tests/where.mjs).
 // usage: node tests/run-all.mjs [--only a,b] [--skip a,b] [--quick]   (--quick: without the slowest: app, render, staging3d-run)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { waitForRenderIdle } from '../lib/render-activity.mjs';
+import { freePort } from './where.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? String(process.argv[i + 1] ?? '').split(',').filter(Boolean) : null; };
 const only = arg('--only'), skip = new Set(arg('--skip') ?? []), quick = process.argv.includes('--quick');
 const SCR = path.join(STUDIO, '.cache', 'run-all'); fs.mkdirSync(SCR, { recursive: true });
+const TEST_TEMP = path.join(SCR, 'temp'); fs.mkdirSync(TEST_TEMP, { recursive: true });
 // the servers this runner starts: the tests' own settings and media, the French texts the suites check
-const ENV = { ...process.env, COULISSES_LANG: 'fr', COULISSES_SETTINGS: path.join(SCR, 'settings.json'), COULISSES_MEDIAS: path.join(SCR, 'medias'), COULISSES_HISTORY_DIR: path.join(SCR, 'historique') };
+const ENV = { ...process.env, TEMP: TEST_TEMP, TMP: TEST_TEMP, COULISSES_LANG: 'fr', COULISSES_SETTINGS: path.join(SCR, 'settings.json'), COULISSES_MEDIAS: path.join(SCR, 'medias'), COULISSES_HISTORY_DIR: path.join(SCR, 'historique') };
+ENV.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import=${pathToFileURL(path.join(STUDIO, 'tests', 'isolation-runtime.mjs')).href}`].filter(Boolean).join(' ');
 fs.writeFileSync(ENV.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));
-// the sandbox studio's port: 4174, or COULISSES_TEST_SANDBOX_PORT when the workshop's own studio is open on 4174
-const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4186) || 4186;
+// Point de départ de la recherche d'un port libre pour le studio du bac.
+const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4240) || 4240;
+if (BOX_PORT < 4240 || BOX_PORT > 65535) throw new Error('Le port du bac de test doit être compris entre 4240 et 65535.');
 const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
-// [suite, what it needs]: self = starts its own servers; sandbox = a studio on 4174; render = a studio on 4180 on its copy
+const RENDER_SOURCE = path.join(SANDBOX, 'E03 - The Secret Garden', 'E03 - The Secret Garden.mp4');
+// [suite, besoin] : self crée ses serveurs ; sandbox utilise E03 ; render utilise sa copie.
 const SUITES = [
+  ['isolation-runtime-test', 'self'],
+  ['shot-render-regressions', 'self'],
   ['reply-delivery', 'self'], ['reply-delivery-ui', 'self'], ['reply-images', 'self'], ['reply-delivery-browser', 'self'],
   ['code-playback-i18n', 'self'],
   ['audio-regressions', 'self'], ['player-build-regressions', 'self'], ['preview-transaction-regressions', 'self'], ['initial-code-mode', 'self'], ['preview-protocol-regressions', 'self'], ['preview-lifecycle', 'self'], ['preview-server-regressions', 'self'], ['project-patches', 'self'], ['project-patches-e15', 'self'], ['timeline-loop-regressions', 'self'], ['code-playback-regressions', 'self'], ['code-playback-render-regressions', 'self'], ['frames-cache-regressions', 'self'], ['code-playback-sources', 'self'], ['code-playback-ui', 'self'], ['code-playback-routes', 'self'], ['render-activity', 'self'], ['code-playback-browser', 'self'],
@@ -68,19 +74,19 @@ try {
     if (need !== 'sandbox' && box) { kill(box); box = null; await sleep(1000); }
     if (need === 'sandbox') {
       if (!fs.existsSync(path.join(SANDBOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }
-      box ??= await studioOn(SANDBOX, BOX_PORT, 'sandbox-server.log');
+      box ??= await studioOn(SANDBOX, await freePort(BOX_PORT), 'sandbox-server.log');
       env = { STUDIO_PORT: String(box.port) };
     }
     if (need === 'render') {
       if (!fs.existsSync(path.join(RENDER_BOX, 'E03 - The Secret Garden'))) { results.push({ name, ok: 0, ko: 0, skipped: true, s: 0, failed: [] }); continue; }
-      rbox = await studioOn(RENDER_BOX, 4180, 'render-server.log');
-      env = { STUDIO_PORT: String(rbox.port), STUDIO_SANDBOX: RENDER_BOX };
+      rbox = await studioOn(RENDER_BOX, await freePort(4240), 'render-server.log');
+      env = { STUDIO_PORT: String(rbox.port), STUDIO_SANDBOX: RENDER_BOX, COULISSES_TEST_E03: RENDER_SOURCE };
     }
     process.stdout.write(`${name.padEnd(16)} `);
     const r = await run(name, env);
     if (need === 'render') {   // the render test's copy put back once its studio is stopped (nothing may hold its files)
       kill(rbox); rbox = null; await sleep(1500);
-      try { execFileSync(process.execPath, [path.join(STUDIO, 'tests', 'render.mjs'), '--restore'], { cwd: STUDIO, env: { ...process.env, STUDIO_SANDBOX: RENDER_BOX }, stdio: 'ignore' }); } catch { r.failed.push('render --restore a échoué'); }
+      try { execFileSync(process.execPath, [path.join(STUDIO, 'tests', 'render.mjs'), '--restore'], { cwd: STUDIO, env: { ...ENV, STUDIO_SANDBOX: RENDER_BOX, COULISSES_TEST_E03: RENDER_SOURCE }, stdio: 'ignore' }); } catch { r.ko++; r.failed.push('render --restore a échoué'); }
     }
     results.push(r);
     console.log(r.skipped ? 'sauté' : `${r.ko ? '✗' : '✓'} ${r.ok} ok, ${r.ko} ko  (${r.s} s)`);

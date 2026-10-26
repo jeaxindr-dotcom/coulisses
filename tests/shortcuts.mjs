@@ -12,7 +12,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
+import { freePort } from './where.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'shortcuts-test');
@@ -24,8 +25,8 @@ process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
 const { makeFixture } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const I = await import('../lib/i18n.mjs');
-const PORT = 4195;
-let U = `http://127.0.0.1:${PORT}`;   // (the port the studio says: the next one when another program holds 4195)
+const PORT = await freePort(4240);
+let U = `http://127.0.0.1:${PORT}`;   // Le port effectivement annoncé est vérifié avant toute interaction.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
@@ -40,7 +41,8 @@ try {
   let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
   U = /Ouvre : (http:\/\/127\.0\.0\.1:[0-9]+)/.exec(out)?.[1] ?? U;
-  p = await launch({ port: 9376 });
+  await requireSandbox(U + '/', path.join(STUDIO, '.cache'));
+  p = await launch({ port: await freePort(9376) });
   await p.goto(U + '/');
   await p.until(`window.__preview?.durationInFrames`, 60000); await sleep(1200);
 

@@ -12,6 +12,7 @@ import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { freePort } from './where.mjs';
+import { requireSandbox } from './cdp.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'guard-test');
@@ -41,10 +42,12 @@ const ask = (port, p, headers = {}, method = 'GET') => new Promise((resolve) => 
 let a = null, b = null, c = null, hub = null;
 try {
   const file = makeFixture(), imp = importProject(file);
-  a = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', '4188']);
+  const firstPort = await freePort(4240), otherPort = await freePort(firstPort + 1);
+  a = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', String(firstPort)]);
   await until(() => /Ouvre : http/.test(a.out));
   const port = +/Ouvre : http:\/\/127\.0\.0\.1:(\d+)\//.exec(a.out)?.[1];
-  check(port >= 4188, `the studio announces 127.0.0.1, the home screen's address (port ${port})`);
+  await requireSandbox(`http://127.0.0.1:${port}/`, path.join(STUDIO, '.cache'));
+  check(port === firstPort, `the studio announces 127.0.0.1, the home screen's address (port ${port})`);
   // ---------- 1. who may call it ----------
   console.log('qui peut appeler le studio');
   check((await ask(port, '/api/meta')).code === 200, 'a tool (no Origin, no Sec-Fetch-Site): allowed');
@@ -60,17 +63,17 @@ try {
   console.log('un seul studio par projet');
   const lock = JSON.parse(fs.readFileSync(path.join(imp.revue, 'studio.lock.json'), 'utf8'));
   check(lock.pid === a.pid && lock.port === port, `revue/studio.lock.json names it (pid ${lock.pid}, port ${lock.port})`);
-  b = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', '4192']);
+  b = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', String(otherPort)]);
   const code = await Promise.race([b.done, sleep(30000).then(() => 'timeout')]);
   check(code === 0 && /déjà ouvert dans un autre studio/.test(b.out) && new RegExp(`Ouvre : http://127\\.0\\.0\\.1:${port}/`).test(b.out), `a second studio on the same project hands over to the first and stops (« ${b.out.trim().split('\n')[0].trim().slice(0, 90)}… »)`);
-  check((await ask(4192, '/api/meta')).code === 0, '… it never listened (no second writer of the notes)');
+  check((await ask(otherPort, '/api/meta')).code === 0, '… it never listened (no second writer of the notes)');
   kill(a); a = null; await sleep(800);
-  c = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', '4188']);
+  c = start('studio-server.mjs', ['--project', imp.revue, '--no-open', '--port', String(firstPort)]);
   check(await until(() => /Ouvre : http/.test(c.out)) && !/déjà ouvert/.test(c.out), 'its studio gone (closed by force), the lock is taken over: a new studio opens');
   check(JSON.parse(fs.readFileSync(path.join(imp.revue, 'studio.lock.json'), 'utf8')).pid === c.pid, '… and the lock names the new one');
   // ---------- 3. the home screen ----------
   console.log("l'accueil");
-  const hp = await freePort(4196);   // (not a port another program holds)
+  const hp = await freePort(firstPort + 2);   // Port libre, hors des ports réservés aux studios de l'utilisateur.
   hub = start('hub-server.mjs', ['--port', String(hp)]);
   await until(() => hub.out.includes('HUB_READY') || hub.out.includes(`127.0.0.1:${hp}`), 30000); await sleep(500);
   check((await ask(hp, '/api/episodes')).code === 200, 'the home screen: a tool is allowed');
