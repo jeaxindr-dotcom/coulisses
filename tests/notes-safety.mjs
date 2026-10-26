@@ -33,7 +33,7 @@ try {
   const VID = path.join(SCR, 'Clip', 'Clip.mp4');
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=0x406080:s=640x360:r=30:d=3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', VID]);
   const imp = importProject(VID), NOTES = path.join(imp.revue, 'notes.json');
-  const port = await freePort(4191);
+  const port = await freePort(4200);
   st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', imp.revue, '--no-open', '--port', String(port)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 200 && !/Ouvre : http/.test(out); i++) await sleep(150);

@@ -1,13 +1,14 @@
   // Préparation explicite d'une plage du code : une seule session possède le Player
   // suspendu et le travail serveur. Aucun retour au direct avant annulation confirmée.
   {
+    const words = (fr, en) => typeof FR !== 'undefined' && !FR ? en : fr;
     const transport = Object.getOwnPropertyDescriptors(M);
     const button = document.createElement('button'), back = document.createElement('button');
     const panel = document.createElement('div'), label = document.createElement('span');
     const film = document.createElement('video');
-    button.id = 'prepareCodeRange'; button.textContent = 'Préparer 30 s';
-    button.title = 'Calculer une plage du code courant ; durée de préparation variable selon la scène';
-    back.id = 'returnLiveCode'; back.textContent = 'Revenir au direct'; back.hidden = true;
+    button.id = 'prepareCodeRange'; button.textContent = words('Préparer 30 s', 'Prepare 30 s');
+    button.title = words('Calculer une plage du code courant ; durée de préparation variable selon la scène', 'Prepare a range of the current code; preparation time depends on the scene');
+    back.id = 'returnLiveCode'; back.textContent = words('Revenir au direct', 'Return to live code'); back.hidden = true;
     panel.id = 'codeRangeTools'; panel.hidden = true; panel.append(button, back, label); media.after(panel);
     film.id = 'codeRangeVideo'; film.playsInline = true; film.preload = 'auto'; film.hidden = true; codeEl.after(film);
     let session = null, leaving = null, parked = null, waking = null, pollBusy = false, modeSerial = 0;
@@ -19,7 +20,7 @@
     const note = (text) => { label.textContent = text; };
     const json = async (url, body) => {
       const r = await fetch(url, body === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const d = await r.json(); if (!r.ok) throw new Error(d.error ?? 'Préparation indisponible'); return d;
+      const d = await r.json(); if (!r.ok) throw new Error(d.error ?? words('Préparation indisponible', 'Preparation unavailable')); return d;
     };
     async function leave(frame, resumeLive = true) {
       const s = session; if (!s) return;
@@ -28,27 +29,27 @@
       else if (!s.closing && ready()) s.target = Math.min(s.job.to - 1, Math.floor(s.job.from + film.currentTime * rangeFps()));
       if (leaving) return leaving;
       s.closing = true; film.pause(); film.hidden = true; film.removeAttribute('src'); film.load();
-      note('Arrêt de la préparation puis retour au direct…');
+      note(words('Arrêt de la préparation puis retour au direct…', 'Stopping preparation, then returning to live code…'));
       leaving = (async () => {
         // Une réponse de création peut encore arriver. Son propriétaire permet aussi
         // d'annuler si la réponse HTTP a été perdue après démarrage du travail serveur.
         await s.start;
         if (s.requested) await json('/api/code-playback/cancel', { owner: s.owner, id: s.job?.id });
-        if (session !== s || SP !== s.sp) throw new Error('L’aperçu a changé pendant le retour au direct');
+        if (session !== s || SP !== s.sp) throw new Error(words('L’aperçu a changé pendant le retour au direct', 'The preview changed while returning to live code'));
         if (!s.returnToLive) {
           s.sp.seek(s.target); parked = { sp: s.sp, frame: s.target }; session = null;
-          codeWait(false); back.hidden = true; note('Aperçu en sommeil'); return;
+          codeWait(false); back.hidden = true; note(words('Aperçu en sommeil', 'Preview suspended')); return;
         }
         let restored = s.target;
         await s.sp.resume(restored);
         while (session === s && restored !== s.target) { restored = s.target; await s.sp.prepare(restored); }
-        if (session !== s || SP !== s.sp) throw new Error('L’aperçu a changé pendant sa reprise');
+        if (session !== s || SP !== s.sp) throw new Error(words('L’aperçu a changé pendant sa reprise', 'The preview changed while resuming'));
         s.sp.setRate(rate); s.sp.setVolume(vol);
         session = null; RS.wait = !!s.sp.isBuffering?.(); rsStatus();
         if ((STATUS.code?.version ?? codeVer) !== codeVer) await loadCode();
-        codeWait(false); back.hidden = true; note('Code en direct'); fire('pause'); fire('seeked');
+        codeWait(false); back.hidden = true; note(words('Code en direct', 'Live code')); fire('pause'); fire('seeked');
       })().catch((e) => {
-        note(`Retour au direct interrompu : ${e.message}. Réessayer.`); setSave(e.message, 'err');
+        note(words(`Retour au direct interrompu : ${e.message}. Réessayer.`, `Return to live code interrupted: ${e.message}. Retry.`)); setSave(e.message, 'err');
         if (session === s) s.closing = false;
         throw e;
       }).finally(() => { leaving = null; });
@@ -60,7 +61,7 @@
       waking = (async () => {
         if (SP !== saved.sp) { parked = null; return; }
         await saved.sp.resume(frame);
-        if (SP !== saved.sp) throw new Error('L’aperçu a changé pendant sa reprise');
+        if (SP !== saved.sp) throw new Error(words('L’aperçu a changé pendant sa reprise', 'The preview changed while resuming'));
         saved.sp.setRate(rate); saved.sp.setVolume(vol); parked = null;
         RS.wait = !!saved.sp.isBuffering?.(); rsStatus();
       })().finally(() => { waking = null; });
@@ -84,19 +85,19 @@
     M.play = () => {
       if (!active()) return transport.play.value.call(M);
       if (!current(session)) { requestLeave(); return; }
-      if (!ready()) return note('La plage est encore en préparation.');
-      film.play().catch((e) => { note(`Lecture refusée : ${e.message}`); fire('pause'); });
+      if (!ready()) return note(words('La plage est encore en préparation.', 'The range is still being prepared.'));
+      film.play().catch((e) => { note(words(`Lecture refusée : ${e.message}`, `Playback refused: ${e.message}`)); fire('pause'); });
     };
     M.pause = () => { film.pause(); if (!active()) transport.pause.value.call(M); else fire('pause'); };
     const originalSound = restoreSound;
     restoreSound = async () => {
       if (!active()) return originalSound();
       RS.el?.pause();
-      if (!ready() || !current(session)) { note('Le son sera disponible après la préparation de la plage.'); return; }
+      if (!ready() || !current(session)) { note(words('Le son sera disponible après la préparation de la plage.', 'Sound will be available after the range is prepared.')); return; }
       session.restoreTime = film.currentTime;
       session.target = Math.floor(session.job.from + film.currentTime * rangeFps());
       film.pause(); film.muted = false; film.volume = vol; film.hidden = true; codeWait(true);
-      film.load(); note('Son de la plage rechargé. Cliquer sur Lecture pour reprendre.'); fire('pause');
+      film.load(); note(words('Son de la plage rechargé. Cliquer sur Lecture pour reprendre.', 'Range sound reloaded. Click Play to resume.')); fire('pause');
     };
     for (const type of ['play', 'pause', 'seeked', 'ended']) film.addEventListener(type, () => { if (active()) fire(type === 'ended' ? 'pause' : type); });
     film.addEventListener('loadedmetadata', () => {
@@ -108,14 +109,14 @@
           film.getAttribute('src') !== `/api/code-playback/${encodeURIComponent(session.job.id)}.mp4`) return;
       film.hidden = false; codeWait(false); fire('seeked');
     });
-    film.addEventListener('error', () => { if (active()) { note('La plage préparée ne peut pas être lue. Revenir au direct.'); film.pause(); } });
+    film.addEventListener('error', () => { if (active()) { note(words('La plage préparée ne peut pas être lue. Revenir au direct.', 'The prepared range cannot be played. Return to live code.')); film.pause(); } });
     back.onclick = () => requestLeave();
     button.onclick = async () => {
       if (active() || mode !== 'code' || !SP || staging || codeLoading || STATUS.code?.status !== 'ready' || STATUS.code.version !== codeVer) return;
       const s = { sp: SP, target: curFrame(), version: codeVer, hash: STATUS.code.hash, job: null, requested: false, closing: false,
         owner: globalThis.crypto?.randomUUID?.() ?? `plage-${Date.now()}-${Math.random().toString(36).slice(2)}`, start: null };
       transport.pause.value.call(M); cancelCodePreparation(); session = s; back.hidden = false;
-      RS.el?.pause(); note('Préparation du code courant…'); codeWait(true);
+      RS.el?.pause(); note(words('Préparation du code courant…', 'Preparing the current code…')); codeWait(true);
       s.start = (async () => {
         await s.sp.unload();
         if (!current(s)) return;
@@ -147,15 +148,15 @@
       try {
         const state = await json(`/api/code-playback?id=${encodeURIComponent(s.job.id)}`);
         if (!current(s)) { if (session === s && !s.closing) requestLeave(); return; }
-        if (state.id !== s.job.id || state.current === false || (s.hash && state.hash !== s.hash)) throw new Error('La plage préparée ne correspond plus au code affiché');
+        if (state.id !== s.job.id || state.current === false || (s.hash && state.hash !== s.hash)) throw new Error(words('La plage préparée ne correspond plus au code affiché', 'The prepared range no longer matches the displayed code'));
         s.job = state;
         if (state.status === 'ready') {
           const src = `/api/code-playback/${encodeURIComponent(state.id)}.mp4`;
           if (film.getAttribute('src') !== src) { film.src = src; film.volume = vol; film.playbackRate = rate; }
-          note(`Code v${s.version} · plage ${Math.floor(state.from / state.fps)}–${Math.ceil(state.to / state.fps)} s · Lecture pour démarrer`);
+          note(words(`Code v${s.version} · plage ${Math.floor(state.from / state.fps)}–${Math.ceil(state.to / state.fps)} s · Lecture pour démarrer`, `Code v${s.version} · range ${Math.floor(state.from / state.fps)}–${Math.ceil(state.to / state.fps)} s · Click Play to start`));
         } else if (['error', 'cancelled'].includes(state.status)) {
-          film.pause(); film.hidden = true; codeWait(false); note(state.reason ?? state.error ?? 'Plage annulée. Revenir au direct.');
-        } else note(state.status === 'queued' ? 'En attente : la priorité est au rendu en cours.' : `Préparation du code : ${Math.round((state.progress ?? 0) * 100)} %`);
+          film.pause(); film.hidden = true; codeWait(false); note(state.reason ?? state.error ?? words('Plage annulée. Revenir au direct.', 'Range cancelled. Return to live code.'));
+        } else note(state.status === 'queued' ? words('En attente : la priorité est au rendu en cours.', 'Waiting: the current render has priority.') : words(`Préparation du code : ${Math.round((state.progress ?? 0) * 100)} %`, `Preparing code: ${Math.round((state.progress ?? 0) * 100)} %`));
       } catch (e) { if (session === s && !s.closing) { film.pause(); film.hidden = true; codeWait(false); note(e.message); } }
       finally { pollBusy = false; }
     }, 1000);

@@ -12,7 +12,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
+import { freePort } from './where.mjs';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'i18n-test');
@@ -25,13 +27,13 @@ const I = await import('../lib/i18n.mjs');
 const { lotMarkdown, renderMarkdown, pasteLine, renderLine, connectLine } = await import('../lib/lots.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const FR = I.DICTS.fr, EN = I.DICTS.en;
-// the home screen takes the next port when 4183 is busy (16/10/2026: another project's test server held it, and the test
-// looked at that server): its own port is read from what it says, « HUB_READY http://127.0.0.1:<port>/ »
-let HUB_PORT = 4183;
+// Ports propres au test, hors des ports réservés ; le port réellement pris est
+// toujours relu dans « HUB_READY http://127.0.0.1:<port>/ ».
+let HUB_PORT = await freePort(4220);
 const hubPort = (out) => +(/HUB_READY http:\/\/127\.0\.0\.1:(\d+)/.exec(out)?.[1] ?? HUB_PORT);
-const CLI = path.join(STUDIO, 'studio-cli.mjs'), ST_PORT = 4182, shots = path.join(STUDIO, '.cache', 'shots');
+const CLI = path.join(STUDIO, 'studio-cli.mjs'), ST_PORT = await freePort(HUB_PORT + 2), shots = path.join(STUDIO, '.cache', 'shots');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
-let ok = 0, ko = 0;
+let ok = 0, ko = 0, skipped = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const cli = (...a) => { const r = spawnSync(process.execPath, [CLI, ...a], { encoding: 'utf8', env: process.env }); return { code: r.status, out: (r.stdout + r.stderr).trim() }; };
 fs.mkdirSync(shots, { recursive: true });
@@ -43,8 +45,9 @@ const ALLOWED = [/Vidéo du monde/g, /L'AItelier/g, /Théatre/g, /Langue · Lang
 const FRENCH = /[éèêàùçôîâûœ«»]|\b(le|la|les|des|une|du|et|pour|dans|sur|pas|avec|depuis|aucun|aucune|est|sont|ou|toi|ton|tes|mise|rendu|lot|modifs?|envoyer|corrige[rz]?|vidéo|chargement|préparation|en cours|à)\b/i;
 const frenchIn = (s) => { let x = String(s).replace(/\{\w+(?:\|[^{}|]*\|[^{}]*)?\}/g, ''); for (const a of ALLOWED) x = x.replace(a, ''); const m = FRENCH.exec(x); return m ? x.slice(Math.max(0, m.index - 30), m.index + 40) : null; };
 
-let hub = null, st = null, p = null;
+let hub = null, st = null, fixtureStudio = null, p = null;
 const kill = (c) => { if (c) try { execFileSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } };
+await waitForRenderIdle();
 try {
   // ---------- 1. the dictionaries ----------
   console.log('dictionaries');
@@ -74,9 +77,14 @@ try {
   check(langWith({ COULISSES_LANG: 'fr' }) === 'fr env', 'COULISSES_LANG wins over the settings file');
   const exe = path.join(STUDIO, 'Coulisses.exe'), out = path.join(SCR, 'lang.txt');
   const exeLang = (env) => { fs.rmSync(out, { force: true }); spawnSync(exe, ['--lang', out], { env: { ...process.env, COULISSES_LANG: '', COULISSES_SETTINGS: SET, ...env }, timeout: 20000 }); return fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '?'; };
-  check(exeLang({}) === 'en' && exeLang({ COULISSES_LANG: 'fr' }) === 'fr', 'Coulisses.exe (its dialogs, and the installer\'s) follows the same choice');
-  fs.rmSync(SET, { force: true });
-  check(exeLang({}) === sys.split(' ')[0], `… and the same Windows language when nothing is chosen (${exeLang({})})`);
+  if (fs.existsSync(exe)) {
+    check(exeLang({}) === 'en' && exeLang({ COULISSES_LANG: 'fr' }) === 'fr', 'Coulisses.exe (its dialogs, and the installer\'s) follows the same choice');
+    fs.rmSync(SET, { force: true });
+    check(exeLang({}) === sys.split(' ')[0], `… and the same Windows language when nothing is chosen (${exeLang({})})`);
+  } else {
+    skipped += 2;
+    console.log('  (sautés : 2 contrôles de Coulisses.exe ; binaire absent de ce worktree, aucune installation utilisée)');
+  }
 
   // ---------- 3. a batch and the lines to paste ----------
   console.log('the batch and the lines to paste');
@@ -118,6 +126,15 @@ try {
   const imp = importProject(FILE);
   check(imp.kind === 'remotion', `the sample run is imported (${imp.revue})`);
 
+  // Le hub retrouve ce studio par son verrou : il ne cherche aucun port réservé.
+  const fixturePort = await freePort(ST_PORT + 2);
+  fixtureStudio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', imp.revue, '--no-open', '--port', String(fixturePort)], {cwd: STUDIO, env: process.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']});
+  let fixtureOut = ''; fixtureStudio.stdout.on('data', (d) => {fixtureOut += d;}); fixtureStudio.stderr.on('data', (d) => {fixtureOut += d;});
+  for (let i = 0; i < 240 && !/Open: http/.test(fixtureOut); i++) await sleep(250);
+  const fixtureUrl = /Open: (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(fixtureOut)?.[1];
+  if (!fixtureUrl) throw new Error(`Le studio d’essai ne démarre pas : ${fixtureOut.slice(-1500)}`);
+  await requireSandbox(fixtureUrl, RUN);
+
   // ---------- 5. the home screen and the studio ----------
   console.log('the home screen and the studio');
   hub = spawn(process.execPath, [path.join(STUDIO, 'hub-server.mjs'), '--port', String(HUB_PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -125,7 +142,7 @@ try {
   for (let i = 0; i < 60 && !/HUB_READY/.test(hubOut); i++) await sleep(250);
   HUB_PORT = hubPort(hubOut);
   check(/home screen ready: http/.test(hubOut), 'the home screen\'s log is in English');
-  p = await launch({ port: 9381 });
+  p = await launch({ port: await freePort(9381) });
   const until = async (expr, ms = 30000) => { const t0 = Date.now(); for (;;) { try { if (await p.eval(`return !!(${expr})`)) return true; } catch { /* navigating */ } if (Date.now() - t0 > ms) throw new Error(`timeout: ${expr}`); await sleep(150); } };
   const ev = (e) => p.eval(e).catch(() => null);
   // the visible text of the page: text nodes and the titles / placeholders, minus the user's own data
@@ -174,6 +191,7 @@ try {
   await until(`location.port !== '${HUB_PORT}' && window.__studio && __studio.state().mode === 'code' && window.__preview?.durationInFrames > 1`, 120000);
   await until(`__studio.state().lanes.length >= 3`, 30000).catch(() => {}); await sleep(600);
   const studioUrl = await ev('return location.origin');
+  await requireSandbox(studioUrl, RUN);
   check(/live code/.test(await ev(`return document.querySelector('#kindTag').textContent`)) && (await ev(`return [...document.querySelectorAll('.tabbar button')].map((b) => [...b.childNodes].find((n) => n.nodeType === 3)?.textContent).join('|')`)) === 'Agent|Edits|Batches|Media|Notes|Scene|Inspector',
     'studio: the tabs « Agent · Edits · Batches » (left) and « Media · Notes · Scene · Inspector » (right), the tag « · live code »');
   // a pin on the title of plan s02 (frame 150), named by data-coulisses, sent as a batch
@@ -240,6 +258,7 @@ try {
   for (let i = 0; i < 120 && !/Open: http/.test(stOut); i++) await sleep(250);
   const stUrl = /Open: (http:\/\/(?:localhost|127\.0\.0\.1):\d+\/)/.exec(stOut)?.[1];
   check(!!stUrl && /review studio for E03/.test(stOut) && /Close this window to stop the tool\./.test(stOut), `the studio's console, in English (« Open: ${stUrl} »)`);
+  await requireSandbox(stUrl, path.join(STUDIO, 'sandbox', '07_Episodes'));
   await p.goto(stUrl);
   await until(`document.querySelector('#v').readyState >= 2`, 60000); await sleep(2500);
   for (const tab of ['agent', 'queue', 'notes', 'lots', 'insp', 'medias', 'scene']) { await p.eval(`document.querySelector('button[data-tab=${tab}]').click(); return 1`); await sleep(500); await scan(`studio (episode E03), tab ${tab}`); }
@@ -276,6 +295,8 @@ try {
   }
   if (hub) { await fetch(`http://127.0.0.1:${HUB_PORT}/api/quit`, { method: 'POST' }).catch(() => {}); await sleep(600); kill(hub); }
   kill(st);
+  kill(fixtureStudio);
+  if (skipped) console.log(`${skipped} contrôles non exécutés : binaire Coulisses.exe absent du worktree.`);
   console.log(`\n${ok} ok, ${ko} échec(s)`);
   process.exit(ko ? 1 : 0);
 }

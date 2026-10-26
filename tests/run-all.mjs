@@ -22,6 +22,8 @@ const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4186) || 4186;
 const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
 // [suite, what it needs]: self = starts its own servers; sandbox = a studio on 4174; render = a studio on 4180 on its copy
 const SUITES = [
+  ['reply-delivery', 'self'], ['reply-delivery-ui', 'self'], ['reply-images', 'self'], ['reply-delivery-browser', 'self'],
+  ['code-playback-i18n', 'self'],
   ['audio-regressions', 'self'], ['player-build-regressions', 'self'], ['preview-transaction-regressions', 'self'], ['initial-code-mode', 'self'], ['preview-protocol-regressions', 'self'], ['preview-lifecycle', 'self'], ['preview-server-regressions', 'self'], ['project-patches', 'self'], ['project-patches-e15', 'self'], ['timeline-loop-regressions', 'self'], ['code-playback-regressions', 'self'], ['code-playback-render-regressions', 'self'], ['frames-cache-regressions', 'self'], ['code-playback-sources', 'self'], ['code-playback-ui', 'self'], ['code-playback-routes', 'self'], ['render-activity', 'self'], ['code-playback-browser', 'self'],
   ['typecheck', 'self'], ['guard', 'self'], ['temp-sweep', 'self'], ['file-release', 'self'], ['export-speed', 'self'], ['speed-envois', 'self'], ['send-lots', 'self'], ['notes-safety', 'self'], ['note-states', 'self'], ['note-follow', 'self'], ['dictate', 'self'], ['browser-access', 'self'], ['preview-memory', 'self'], ['preview-speed', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
