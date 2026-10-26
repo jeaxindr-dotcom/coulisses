@@ -329,6 +329,7 @@
     media.classList.toggle('code', m === 'code');
     $('#srcVideo').classList.toggle('on', m === 'video'); $('#srcCode').classList.toggle('on', m === 'code'); $('#bSrc').classList.toggle('on', m === 'code');
     f = await frameOn(f, planFrom, viewPlan());   // (the code changed since the video: the same moment, not the same frame)
+    if (request !== modeRequest || mode !== m) return;
     seekFrame(f); if (was) M.play();
     followPlans();   // (the notes on this version's frames)
   }

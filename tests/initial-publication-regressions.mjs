@@ -22,7 +22,7 @@ const functions = preview.slice(preview.indexOf('  function loadCode('), preview
 const defer = () => {let resolve; const promise = new Promise((r) => {resolve = r;}); return {promise, resolve};};
 const settle = () => new Promise((r) => setImmediate(r));
 function fixture(version = 0) {
-  const remotes = [], timers = [], requests = [], messages = [], pauses = [], seeks = [];
+  const remotes = [], timers = [], requests = [], messages = [], pauses = [], plays = [], seeks = [];
   const el = {contentWindow: {}, title: '', hasAttribute: () => false,
     classList: {toggle() {}, remove() {}}, querySelector: () => ({textContent: ''}),
     set src(value) {requests.push(value);}};
@@ -37,20 +37,20 @@ function fixture(version = 0) {
       const player = {version: +ver, durationInFrames: 300, at: 0, disposed: false,
         frame() {return this.at;}, isBuffering: () => false, frameReady: () => true,
         async prepare(f) {this.at = f; return {frame: f, ready: true};},
-        dispose() {this.disposed = true; ready.resolve(null);}, setVolume() {}, setRate() {}};
+        dispose() {this.disposed = true; ready.resolve(null);}, pause() {}, setVolume() {}, setRate() {}};
       const remote = {hello: ready.promise, api: player, resolve: () => ready.resolve(player)};
       remotes.push(remote); return remote;
     },
     plain: (x) => x, drafts: () => [], adoptCode() {}, watchPlayer() {}, rsStatus() {}, codeWait() {}, showCodeStatus() {},
     showCodeNote() {}, setSave: (text) => messages.push(text), T: (text) => text, TN: (text) => text, $: () => el,
     followPlans() {}, hhmm: () => '', liveVer: 0, loadLive() {}, renderPill() {}, onHeld() {}, markGo() {},
-    M: {paused: false, pause() {pauses.push(1); this.paused = true;}, play() {this.paused = false;}},
+    M: {paused: false, pause() {pauses.push(1); this.paused = true;}, play() {plays.push(1); this.paused = false;}},
     viewPlan: () => null, frameOn: async (f) => f, seekFrame: (f) => seeks.push(f),
     codeWaitEl: el, media: el, pendF: null, cwSeq: 0,
     clearInterval() {}, clearTimeout() {}, setTimeout(fn, ms) {timers.push({fn, ms}); return timers.length;},
   };
   vm.createContext(c); vm.runInContext(functions, c);
-  return {c, remotes, timers, requests, messages, pauses, seeks};
+  return {c, remotes, timers, requests, messages, pauses, plays, seeks};
 }
 const cases = [
   ['Avant la première publication, aucune iframe v0 ni attente de 60 secondes', () => {
@@ -110,6 +110,19 @@ const cases = [
     f.remotes[1].resolve(); await f.c.codeLoading; await first; await settle();
     assert.equal(f.c.mode, 'code'); assert.equal(f.c.SP?.version, 2); assert.equal(f.c.modeWant, null);
     assert.equal(f.c.M.paused, false, 'La pause technique de v1 ne doit pas devenir une pause utilisateur dans v2');
+  }],
+  ['Un recalage Code tardif ne déplace ni ne relance le MP4 choisi entre-temps', async () => {
+    const f = fixture(1), mappedCode = defer(); f.c.mode = 'video'; f.c.META.render = {size: 123};
+    f.c.curFrame = () => 83;
+    f.c.frameOn = (frame) => f.c.mode === 'code' ? mappedCode.promise : Promise.resolve(frame);
+    const code = f.c.setMode('code'); f.remotes[0].resolve(); await settle();
+    assert.equal(f.c.mode, 'code'); assert.equal(f.seeks.length, 0, 'Le recalage Code doit encore attendre');
+    f.c.curFrame = () => 31; await f.c.setMode('video');
+    assert.deepEqual(f.seeks, [31]); assert.equal(f.c.M.paused, true);
+    mappedCode.resolve(83); await code;
+    assert.deepEqual({mode: f.c.mode, seeks: f.seeks, paused: f.c.M.paused, plays: f.plays.length},
+      {mode: 'video', seeks: [31], paused: true, plays: 0},
+      'La réponse Code périmée doit préserver le MP4 à l’image 31, en pause');
   }],
 ];
 let ok = 0, ko = 0;
