@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
+import { stageRebuild } from './staging-rebuild.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { uchuTheatre, short12, skip, freePort } = await import('./where.mjs');
@@ -30,22 +32,38 @@ async function studioOn(revue, port) {
   const c = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', revue, '--no-open', '--port', String(port)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 240 && !/Ouvre : http/.test(out); i++) await sleep(250);
+  c.url = /Ouvre : (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1];
+  if (!c.url) { kill(c); throw new Error('Le studio d’essai ne démarre pas : ' + out.slice(-1000)); }
+  await requireSandbox(c.url, SCR);
   return c;
 }
-let a = null, b = null, p = null;
+let a = null, b = null, p = null, rebuild = null;
 try {
+  await waitForRenderIdle();
+  // Le moteur et l’export existant sont lus, mais tous les fichiers de revue et
+  // le verrou du studio vivent dans notre copie ; aucun studio réel n’est ouvert.
+  const shortData = JSON.parse(fs.readFileSync(SHORT, 'utf8')), shortBase = path.dirname(SHORT);
+  shortData.remotion.projet = path.resolve(shortBase, shortData.remotion.projet);
+  if (shortData.export?.dossier) shortData.export.dossier = Array.isArray(shortData.export.dossier)
+    ? shortData.export.dossier.map((d) => path.resolve(shortBase, d)) : path.resolve(shortBase, shortData.export.dossier);
+  if (shortData.plan) shortData.plan = path.resolve(shortBase, shortData.plan);
+  shortData.revue = 'revue';
+  const shortCopy = path.join(SCR, 'Short12', 'short12.coulisses');
+  fs.mkdirSync(path.dirname(shortCopy), {recursive: true}); fs.writeFileSync(shortCopy, JSON.stringify(shortData, null, 2));
   const spec = path.join(SCR, 'spec.json');
   fs.writeFileSync(spec, JSON.stringify({ dossier: path.join(SCR, 'CH1'), titre: 'S12 · plan chibi 1', nom: 'S12-CH1 plan 3D', chaine: '宇宙ちゃん', format: '9:16', projet: THEATRE, composition: 'S12-CH1',
-    utilise: [{ coulisses: SHORT, fichier: 'public/short12_yottsu_no_chikara/mg/chibi1.mp4' }] }));
+    utilise: [{ coulisses: shortCopy, fichier: 'public/short12_yottsu_no_chikara/mg/chibi1.mp4' }] }));
   const file = spawnSync(process.execPath, [path.join(STUDIO, 'studio-cli.mjs'), 'projet', 'creer', '--depuis', spec], { encoding: 'utf8', env: process.env }).stdout.trim();
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-  check(data.utilise?.[0]?.fichier === 'public/short12_yottsu_no_chikara/mg/chibi1.mp4' && path.isAbsolute(data.utilise[0].coulisses), '« utilise » in the shot\'s .coulisses: the Short, and the file the shot becomes there');
+  check(data.utilise?.[0]?.fichier === 'public/short12_yottsu_no_chikara/mg/chibi1.mp4' &&
+    typeof data.utilise[0].coulisses === 'string' && path.resolve(path.dirname(file), data.utilise[0].coulisses) === shortCopy,
+    '« utilise » désigne la copie du Short et le fichier cible, par un chemin relatif ou absolu');
   const shot = P.importProject(file);
   // 1) the shot, live, in 3D
-  const port = await freePort(4196);   // (not a port another program holds)
+  const port = await freePort(4245);
   a = await studioOn(shot.revue, port);
-  p = await launch({ port: 9378 });
-  await p.goto(`http://127.0.0.1:${port}/`);
+  p = await launch({ port: await freePort(9378) });
+  await p.goto(a.url + '/');
   await p.until(`window.__preview?.durationInFrames > 1`, 180000);
   const info = await p.eval(`const sp = window.__preview; return { d: sp.durationInFrames, w: sp.width, h: sp.height }`);
   check(info.d === 261 && info.w === 1080 && info.h === 1920, `the theatre's shot plays live (${info.d} frames, ${info.w}×${info.h})`);
@@ -106,14 +124,14 @@ try {
   { const KEYS = path.join(STUDIO, 'player', 'keys.ts');
     const look = () => p.eval(`const sp = window.__preview; return { ver: document.querySelector('#codeStatus').textContent, frames: document.querySelectorAll('#media iframe').length,
       cam: (await Promise.resolve(sp.stage.freePose?.()).catch(() => null))?.p ?? null, sel: sp.stage.selected, list: sp.stage.list().map((x) => x.id + '|' + x.delta.p.map((v) => v.toFixed(3)).join(',')).sort().join(';'), sp: !!sp }`);
-    const b0 = await look();
-    fs.writeFileSync(KEYS, fs.readFileSync(KEYS));   // the server watches player/: a new version of the preview
-    let two = false, l = b0;
-    for (let i = 0; i < 120; i++) { await sleep(500); l = await look(); if (l.frames === 2) two = true; if (l.ver.match(/v(\d+)/)?.[1] !== b0.ver.match(/v(\d+)/)?.[1] && l.frames === 1 && !/préparation/.test(l.ver)) break; }
-    await sleep(2500); l = await look();
+    const b0 = await look(), f0 = await p.eval(`return __studio.state().frame`);
+    rebuild = await stageRebuild(p, KEYS);
+    const transition = await rebuild.adopted();
+    await sleep(500); const l = await look();
+    fs.writeFileSync(path.join(SCR, 'rebuild-proof.json'), JSON.stringify({transition, before: b0, after: l, frame: f0}, null, 2));
     const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
-    check(two && l.ver !== b0.ver && l.frames === 1, `a rebuild: the new version is prepared behind the old one (two frames for a while), then takes its place (« ${b0.ver} » → « ${l.ver} »)`);
-    check(same(l.cam, b0.cam) && l.sel === b0.sel && l.list === b0.list && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)),
+    check(transition.preparedBehind && transition.adopted && transition.oldSrc !== transition.newSrc && transition.markerMatches && l.frames === 1, `une vraie révision 3D est préparée derrière l’ancienne, puis adoptée (« ${b0.ver} » → « ${l.ver} »)`);
+    check(same(l.cam, b0.cam) && l.sel === b0.sel && l.list === b0.list && (await p.eval(`return __studio.state().frame`)) === f0 && /Caméra libre active/.test(await p.eval(`return document.querySelector('#scene').innerText`)),
       'the staging survives it: the free camera where it was, the object chosen, its offset not queued yet'
       + (same(l.cam, b0.cam) && l.sel === b0.sel && l.list === b0.list ? '' : ` (${JSON.stringify(b0)} → ${JSON.stringify(l)})`));
   }
@@ -171,12 +189,12 @@ try {
   check(/Ce plan 3D est utilisé dans « 宇宙を動かす/.test(md) && md.includes('06_remotion\\public\\short12_yottsu_no_chikara\\mg\\chibi1.mp4') && /refaire le rendu de la composition `S12-CH1`/.test(md), 'the batch tells the agent to render the shot again into the Short\'s file');
   await p.close(); p = null; kill(a); a = null;
   // 2) the Short 12 studio: « Ouvrir la scène 3D » on the chibi clip
-  const shortImp = P.importProject(SHORT);
-  b = await studioOn(shortImp.revue, 4197);
-  const meta = await (await fetch('http://127.0.0.1:4197/api/meta')).json();
+  const shortImp = P.importProject(shortCopy);
+  b = await studioOn(shortImp.revue, await freePort(4246));
+  const meta = await (await fetch(b.url + '/api/meta')).json();
   check(meta.shots3d?.length === 1 && meta.shots3d[0].id === shot.id && meta.shots3d[0].fichier.endsWith('chibi1.mp4'), 'the Short knows its 3D shot (the shot says it is used there)');
-  p = await launch({ port: 9379 });
-  await p.goto('http://127.0.0.1:4197/');
+  p = await launch({ port: await freePort(9379) });
+  await p.goto(b.url + '/');
   await p.until(`window.__studio && __studio.state().frame !== undefined`, 60000); await sleep(4000);
   await p.eval(`document.querySelector('#v').currentTime = 2; return 1`); await sleep(1500);
   const btn = await p.eval(`const b = document.querySelector('#open3d'); return { shown: getComputedStyle(b).display !== 'none', text: b.textContent }`);
@@ -188,6 +206,7 @@ try {
 } finally {
   if (p) await p.close();
   kill(a); kill(b);
+  try { rebuild?.restore(); } catch (e) { check(false, e.message); }
 }
 console.log(`\n${ok} ok, ${ko} ko`);
 process.exit(ko ? 1 : 0);

@@ -13,7 +13,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
+import { freePort } from './where.mjs';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
+import { stageRebuild } from './staging-rebuild.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'staging2d-test');
@@ -26,7 +29,7 @@ fs.writeFileSync(process.env.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort
 const { makeFixture } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const { lotMarkdown } = await import('../lib/lots.mjs');
-const PORT = 4193, U = `http://127.0.0.1:${PORT}`;
+const PORT = await freePort(4240); let U;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
@@ -35,7 +38,9 @@ async function studioOn(revue, port) {
   const c = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', revue, '--no-open', '--port', String(port)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
-  if (!/Ouvre : http/.test(out)) throw new Error('le studio ne démarre pas : ' + out.slice(-300));
+  if (!/Ouvre : http/.test(out)) { kill(c); throw new Error('le studio ne démarre pas : ' + out.slice(-300)); }
+  c.url = /Ouvre : (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1];
+  await requireSandbox(c.url, path.join(STUDIO, '.cache'));
   c.log = () => out;
   return c;
 }
@@ -49,11 +54,13 @@ async function menuIds(p) {   // Outils: its entries, and the reason of each gre
   return r;
 }
 
-let st = null, st2 = null, p = null;
+let st = null, st2 = null, p = null, rebuild = null;
 try {
+  await waitForRenderIdle();
   const file = makeFixture(), imp = importProject(file);
   st = await studioOn(imp.revue, PORT);
-  p = await launch({ port: 9372 });
+  U = st.url;
+  p = await launch({ port: await freePort(9372) });
   await p.goto(U + '/');
   await p.until(`window.__preview?.durationInFrames`, 60000);
   await sleep(1500);
@@ -126,11 +133,17 @@ try {
   // a rebuild of the preview while an offset is in progress (here the frame, not queued): the new version takes over, the offset with it
   { const KEYS = path.join(STUDIO, 'player', 'keys.ts');
     await p.eval(`window.__preview.stage.setDelta('@camera', { p: [33, 0, 0], r: [0, 0, 0], s: 1 }, 0, 1e9); return 1`); await sleep(300);
-    const v0 = await p.eval(`return document.querySelector('#codeStatus').textContent`), f0 = await p.eval(`return __studio.state().frame`);
-    fs.writeFileSync(KEYS, fs.readFileSync(KEYS));
-    await p.until(`document.querySelector('#codeStatus').textContent !== ${JSON.stringify(v0)} && document.querySelectorAll('#media iframe').length === 1 && !/préparation/.test(document.querySelector('#codeStatus').textContent)`, 90000); await sleep(1500);
+    const f0 = await p.eval(`return __studio.state().frame`);
+    const staged = () => p.eval(`const s = window.__preview.stage; return {selected: __studio.state().stage, list: s.list().map(({id, delta, from, to}) => ({id, delta, from, to})).sort((a, b) => a.id.localeCompare(b.id)), camera: s.info('@camera').delta}`);
+    const before = await staged();
+    rebuild = await stageRebuild(p, KEYS);
+    const transition = await rebuild.adopted(); await sleep(500);
+    check(transition.preparedBehind && transition.adopted && transition.oldSrc !== transition.newSrc && transition.markerMatches && transition.frames === 1,
+      'une vraie révision 2D est préparée derrière l’ancienne iframe, puis devient seule active avec son nouveau code');
     const dx = await p.eval(`return window.__preview.stage.info('@camera').delta.p[0]`);
-    check(dx === 33 && (await p.eval(`return __studio.state().frame`)) === f0, `a rebuild of the preview: the new version shows the offset in progress (Δx ${dx}) at the same frame (${f0})`);
+    const after = await staged();
+    fs.writeFileSync(path.join(SCR, 'rebuild-proof.json'), JSON.stringify({transition, before, after, frame: f0}, null, 2));
+    check(dx === 33 && (await p.eval(`return __studio.state().frame`)) === f0 && JSON.stringify(after) === JSON.stringify(before), `la nouvelle version conserve sélection, décalages et caméra (Δx ${dx}) à la même image (${f0})`);
     await p.eval(`window.__preview.stage.reset('@camera'); return 1`);
   }
   // « Médias » on a 2D picture: the image itself, laid where it was dropped, staged, queued with its box
@@ -169,12 +182,13 @@ try {
 
   // ---------- 4. a project with only its video ----------
   console.log('un projet vidéo seule');
+  await waitForRenderIdle();
   const vdir = path.join(SCR, 'video-seule'); fs.mkdirSync(vdir, { recursive: true });
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30', '-t', '2', '-pix_fmt', 'yuv420p', path.join(vdir, 'essai.mp4')]);
   const vimp = importProject(vdir);
-  st2 = await studioOn(vimp.revue, PORT + 1);
-  p = await launch({ port: 9373 });
-  await p.goto(`http://127.0.0.1:${PORT + 1}/`);
+  st2 = await studioOn(vimp.revue, await freePort(PORT + 1));
+  p = await launch({ port: await freePort(9373) });
+  await p.goto(st2.url + '/');
   await p.until(`document.querySelector('#v').readyState >= 1`, 30000); await sleep(1200);
   const r2 = await p.eval(`return [...document.querySelectorAll('#rail button, #ctlbar button[data-tool]')].map((b) => ({ id: b.id || b.dataset.tool, shown: getComputedStyle(b).display !== 'none', off: b.classList.contains('off'), why: b.querySelector('.why')?.textContent ?? '' }))`);
   check(r2.map((b) => b.id).join() === rail.map((b) => b.id).join() && r2.every((b) => b.shown), 'the same rail for a video');
@@ -189,6 +203,7 @@ try {
 } finally {
   if (p) await p.close();
   kill(st); kill(st2);
+  try { rebuild?.restore(); } catch (e) { check(false, e.message); }
 }
 async function sleepMove(page, x, y) { await page.mouse('mouseMoved', x, y); await sleep(40); }
 console.log(`\n${ok} ok, ${ko} ko`);
