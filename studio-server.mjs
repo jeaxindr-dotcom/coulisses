@@ -34,6 +34,9 @@ import { listRuns, step } from './lib/runs.mjs';
 import { playerBuilder } from './lib/player-build.mjs';
 import { timelineBuilder } from './lib/timeline-live.mjs';
 import { reviewSound } from './lib/review-sound.mjs';
+import { createCodePlayback } from './lib/code-playback.mjs';
+import { renderCodeRange } from './lib/code-playback-render.mjs';
+import { codePlaybackSources } from './lib/code-playback-sources.mjs';
 import { peaksOf } from './lib/peaks.mjs';
 import { CACHE, DEFAULT_PORT, INSTALLED } from './lib/place.mjs';
 import { project, tracksOf, shotsUsedIn } from './lib/projects.mjs';
@@ -140,6 +143,30 @@ const rsNow = () => { if (!RSND) return null; const valid = player.state.status 
 const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: syncTimeline, watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
+const CODE_PLAYBACK = (B || G) ? createCodePlayback({
+  cacheDir: path.join(CACHE, 'lecture-code', crypto.createHash('sha256').update(P.EP).digest('hex').slice(0, 16)),
+  render: renderCodeRange, fingerprint: () => codePlaybackSources(P),
+}) : null;
+const playbackOwners = new Map();
+async function releasePlaybackOwner(entry) {
+  if (!entry?.id) return;
+  const shared = [...playbackOwners.values()].some((other) => other !== entry && !other.cancelled && (other.id === entry.id || other.requestKey === entry.requestKey));
+  if (shared) await CODE_PLAYBACK.waitForIdle(entry.id); else await CODE_PLAYBACK.cancelAndWait(entry.id);
+}
+async function playbackGeneration(dimensions = {}) {
+  // Une source enregistrée juste avant la demande peut précéder le debounce du
+  // constructeur. L'empreinte seule ne permet pas de lui attribuer l'ancien hash.
+  const before = await codePlaybackSources(P);
+  await player.build(); await timelineChain;
+  if (!CODE_PLAYBACK || player.state.status !== 'ready' || timeline.state.status !== 'ready' || timelineCodeVersion !== player.state.version) throw new Error('Le code et sa frise doivent être prêts pour la même version.');
+  const hash = player.state.hash, version = player.state.version, data = timeline.state.data;
+  const fps = data.fps || 30, durationInFrames = data.frames || Math.ceil(data.duration * fps);
+  const mediaSignature = await codePlaybackSources(P);
+  if (mediaSignature !== before || player.state.hash !== hash || player.state.status !== 'ready' || timelineCodeVersion !== version || (dimensions.version !== undefined && dimensions.version !== version)) throw new Error('Le code a changé pendant la demande.');
+  const width = Number(dimensions.width) || 1920, height = Number(dimensions.height) || 1080;
+  if (![width, height].every((v) => Number.isInteger(v) && v > 0 && v <= 16384)) throw new Error('Dimensions de composition invalides.');
+  return { project: P, hash, version, fps, durationInFrames, mediaSignature, width, height };
+}
 // ---- the plans of the versions (lib/plans.mjs; user request, 19/10/2026: « quand l'agent rallonge la vidéo, la note doit
 // rester collée à la même partie de la vidéo, pas à la même frame »): every version of the code's plan and of the video's is
 // kept (revue/plans/), the page asks where its notes' moments are in the version it shows (POST /api/remap)
@@ -648,6 +675,54 @@ const server = http.createServer(async (req, res) => {
       if (b.release) { player.release?.(b.owner); return json(res, { ok: true }); }
       return json(res, { ok: !!player.retain?.(b.hash, b.owner) });
     }
+    if (pn === '/api/code-playback' && CODE_PLAYBACK && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      if (typeof b.owner !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(b.owner)) return json(res, { error: 'Propriétaire de préparation invalide.' }, 400);
+      let entry = playbackOwners.get(b.owner);
+      if (entry?.cancelled) return json(res, { error: 'Cette préparation a été annulée.' }, 409);
+      if (!entry) {
+        if (playbackOwners.size >= 1000) return json(res, { error: 'Trop de demandes dans cette session.' }, 429);
+        entry = { id: null, promise: null, requestKey: JSON.stringify([b.version, b.from, b.to, b.width, b.height]) };
+        playbackOwners.set(b.owner, entry);
+        entry.promise = (async () => {
+          if (b.version !== player.state.version) throw new Error('La version demandée a changé.');
+          const generation = await playbackGeneration(b);
+          if (entry.cancelled) throw new Error('Préparation annulée avant le calcul.');
+          CODE_PLAYBACK.update(generation);
+          const state = await CODE_PLAYBACK.request({ from: b.from, to: b.to }); entry.id = state.id;
+          if (entry.cancelled) { await releasePlaybackOwner(entry); throw new Error('Préparation annulée.'); }
+          return state;
+        })();
+      }
+      try { return json(res, await entry.promise); }
+      catch (e) { return json(res, { error: e.message }, 409); }
+    }
+    if (pn === '/api/code-playback/cancel' && CODE_PLAYBACK && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      if (typeof b.owner !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(b.owner)) return json(res, { error: 'Propriétaire invalide.' }, 400);
+      let entry = playbackOwners.get(b.owner);
+      if (!entry) { entry = { cancelled: true, id: null, promise: Promise.resolve() }; playbackOwners.set(b.owner, entry); }
+      entry.cancelled = true;
+      await entry.promise.catch(() => {});
+      await releasePlaybackOwner(entry);
+      return json(res, { ok: true });
+    }
+    if (pn === '/api/code-playback' && CODE_PLAYBACK && req.method === 'GET') {
+      const id = url.searchParams.get('id'), state = CODE_PLAYBACK.status(id);
+      if (!state) return json(res, { error: 'Plage inconnue.' }, 404);
+      const source = state.status === 'ready' ? await codePlaybackSources(P) : state.mediaSignature;
+      if (state.hash && (state.hash !== player.state.hash || state.mediaSignature !== source)) {
+        await CODE_PLAYBACK.cancelAndWait(id); return json(res, CODE_PLAYBACK.status(id));
+      }
+      return json(res, CODE_PLAYBACK.status(id));
+    }
+    if (pn.startsWith('/api/code-playback/') && pn.endsWith('.mp4') && CODE_PLAYBACK && req.method === 'GET') {
+      const id = pn.slice('/api/code-playback/'.length, -4), state = CODE_PLAYBACK.status(id);
+      const source = await codePlaybackSources(P);
+      const f = state?.hash === player.state.hash && player.state.status === 'ready' && state.mediaSignature === source ? CODE_PLAYBACK.file(id) : null;
+      if (!f) return json(res, { error: 'Plage périmée ou indisponible.' }, 410);
+      return sendFile(req, res, f, 'video/mp4');
+    }
     // the preview's messages with the page (player/bridge.js): the preview is shown from another site, in its own process
     if (pn === '/player-bridge.js') return sendFile(req, res, path.join(HERE, 'player', 'bridge.js'), 'text/javascript; charset=utf-8');
     // the review sound (lib/review-sound.mjs): only the current mix, by its signature
@@ -826,7 +901,7 @@ process.on('exit', () => { try { if (readJson(LOCK, null)?.pid === process.pid) 
 let closing = false;
 async function shutdown() {
   if (closing) return; closing = true; server.close(); RSND?.stop();
-  await player.dispose?.(); process.exit(0);
+  await Promise.allSettled([player.dispose?.(), CODE_PLAYBACK?.dispose()]); process.exit(0);
 }
 for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, shutdown);
 const first = [];

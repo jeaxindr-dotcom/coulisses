@@ -8,23 +8,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? String(process.argv[i + 1] ?? '').split(',').filter(Boolean) : null; };
 const only = arg('--only'), skip = new Set(arg('--skip') ?? []), quick = process.argv.includes('--quick');
 const SCR = path.join(STUDIO, '.cache', 'run-all'); fs.mkdirSync(SCR, { recursive: true });
 // the servers this runner starts: the tests' own settings and media, the French texts the suites check
-const ENV = { ...process.env, COULISSES_LANG: 'fr', COULISSES_SETTINGS: path.join(SCR, 'settings.json'), COULISSES_MEDIAS: path.join(SCR, 'medias') };
+const ENV = { ...process.env, COULISSES_LANG: 'fr', COULISSES_SETTINGS: path.join(SCR, 'settings.json'), COULISSES_MEDIAS: path.join(SCR, 'medias'), COULISSES_HISTORY_DIR: path.join(SCR, 'historique') };
 fs.writeFileSync(ENV.COULISSES_SETTINGS, JSON.stringify({ mediasAutoSort: false }));
 // the sandbox studio's port: 4174, or COULISSES_TEST_SANDBOX_PORT when the workshop's own studio is open on 4174
-const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4174) || 4174;
+const BOX_PORT = +(process.env.COULISSES_TEST_SANDBOX_PORT ?? 4186) || 4186;
 const SANDBOX = path.join(STUDIO, 'sandbox', '07_Episodes'), RENDER_BOX = path.join(STUDIO, '.cache', 'sandbox-test', '07_Episodes');
 // [suite, what it needs]: self = starts its own servers; sandbox = a studio on 4174; render = a studio on 4180 on its copy
 const SUITES = [
+  ['audio-regressions', 'self'], ['player-build-regressions', 'self'], ['preview-transaction-regressions', 'self'], ['preview-protocol-regressions', 'self'], ['preview-lifecycle', 'self'], ['preview-server-regressions', 'self'], ['project-patches', 'self'], ['project-patches-e15', 'self'], ['timeline-loop-regressions', 'self'], ['code-playback-regressions', 'self'], ['code-playback-render-regressions', 'self'], ['frames-cache-regressions', 'self'], ['code-playback-sources', 'self'], ['code-playback-ui', 'self'], ['code-playback-routes', 'self'], ['render-activity', 'self'], ['code-playback-browser', 'self'],
   ['typecheck', 'self'], ['guard', 'self'], ['temp-sweep', 'self'], ['file-release', 'self'], ['export-speed', 'self'], ['speed-envois', 'self'], ['send-lots', 'self'], ['notes-safety', 'self'], ['note-states', 'self'], ['note-follow', 'self'], ['dictate', 'self'], ['browser-access', 'self'], ['preview-memory', 'self'], ['preview-speed', 'self'], ['coulisses', 'self'], ['coulisses-video', 'self'], ['coulisses-export', 'self'], ['projects', 'self'],
   ['hub-folders', 'self'], ['new-project', 'self'], ['medias', 'self'], ['shortcuts', 'self'], ['staging2d', 'self'], ['menu', 'self'], ['i18n', 'self'],
   ['hyperframes', 'self'], ['ipad-layout', 'self'], ['e2e', 'sandbox'], ['staging', 'sandbox'], ['grade', 'sandbox'], ['e2e-agent', 'sandbox'], ['sound-recovery', 'sandbox'], ['sound-watch', 'self'], ['sound-tab', 'self'], ['review-sound', 'self'], ['preview-wait', 'self'], ['timeline-draw', 'self'], ['preview-premount', 'self'], ['staging3d-run', 'self'], ['shot-render', 'self'], ['app', 'self'], ['render', 'render'],
-].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run'].includes(n))));
+].filter(([n]) => (only ? only.includes(n) : !skip.has(n) && !(quick && ['app', 'render', 'staging3d-run', 'code-playback-browser'].includes(n))));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 const kill = (c) => { if (c?.pid) try { execFileSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } };
@@ -40,7 +42,7 @@ async function studioOn(episodes, port, log) {
 }
 function run(name, env) {
   return new Promise((resolve) => {
-    const t0 = Date.now(), c = spawn(process.execPath, [path.join(STUDIO, 'tests', `${name}.mjs`)], { cwd: STUDIO, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const t0 = Date.now(), c = spawn(process.execPath, [path.join(STUDIO, 'tests', `${name}.mjs`)], { cwd: STUDIO, env: { ...ENV, ...env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let out = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
     const timer = setTimeout(() => { out += '\n(arrêté : plus de 15 min)'; kill(c); }, 15 * 60000);
     c.on('exit', (code) => {
@@ -57,6 +59,7 @@ const results = [];
 let box = null, rbox = null;
 try {
   for (const [name, need] of SUITES) {
+    await waitForRenderIdle();
     let env = {};
     // the sandbox studio stops once its suites are done: one studio per project — the app's own studio of E03 (tests/app.mjs)
     // would otherwise hand over to it (studio-server.mjs, revue/studio.lock.json)
