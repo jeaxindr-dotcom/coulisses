@@ -75,7 +75,7 @@
         ${n.draft ? '' : `<button class="vf${sk === 'ok' ? ' on' : ''}" title="${esc(TN('st.card.verifyTitle'))}">${ic('check')}${TN(sk === 'ok' ? 'st.card.verifiedBtn' : 'st.card.verify')}</button>`}</span>
       </div>
       ${msgs.length ? `<div class="thread">${msgs.map((m) => `
-        <div class="msg ${m.from}"><div class="who">${m.from === 'claude' ? esc(m.by ?? T('st.card.agent')) : T('st.card.you')} · ${esc(hhmm(m.at))}</div>${esc(m.text)}
+        <div class="msg ${m.from}"><div class="who">${m.from === 'claude' ? esc(m.by ?? T('st.card.agent')) : T('st.card.you')} · ${esc(hhmm(m.at))}${replyDeliveryHtml(m)}</div>${esc(m.text)}
           <div class="imgs">${(m.images || []).map((img) => thumbHtml(img, false)).join('')}</div></div>`).join('')}</div>` : ''}
       ${hasClaude ? `<div class="repbox">
         <textarea class="rep" placeholder="${esc(T('st.card.reply'))}">${esc(pend.text)}</textarea>
@@ -117,18 +117,13 @@
     const box = el.querySelector('.repbox');
     if (box) {
       const rt = box.querySelector('textarea.rep');
-      const send = () => {
-        const p = pending[n.id] ?? { text: '', images: [] };
-        if (!p.text.trim() && !p.images.length) return;
-        (n.thread ??= []).push({ text: p.text.trim(), images: p.images, at: now() });
-        delete pending[n.id]; n.updated = now(); if (fixedOf(n)) { n.status = 'open'; n.statusAt = now(); }
-        save(); renderAll();
-      };
+      const send = () => sendNoteReply(byId(n.id) ?? n);
       rt.addEventListener('input', () => { (pending[n.id] ??= { text: '', images: [] }).text = rt.value; });
       rt.addEventListener('keydown', (e) => { if (enterKey(e) || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); send(); } });   // Entrée envoie, Maj+Entrée va à la ligne
       box.querySelectorAll('.repimgs .x').forEach((b, k) => b.addEventListener('click', () => { pending[n.id].images.splice(k, 1); renderAll(); }));
       box.querySelector('.rimg').addEventListener('click', () => pick({ kind: 'reply', id: n.id }));
       box.querySelector('.send').addEventListener('click', send);
+      box.querySelector('.send').disabled = replySending.has(n.id);
       dropZone(box, () => ({ kind: 'reply', id: n.id }));
     }
     dropZone(el, () => ({ kind: 'note', id: n.id }));

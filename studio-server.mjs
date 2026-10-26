@@ -19,6 +19,7 @@
 // Local only (127.0.0.1). Close the window (or Ctrl+C) to stop it.
 import http from 'node:http';
 import fs from 'node:fs';
+import { syncUserReplies, userReplyReceipts } from './lib/reply-delivery.mjs';
 import path from 'node:path';
 import { exec, spawn, execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -323,6 +324,10 @@ function readNotes() {
 }
 const stampNow = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };   // (the user's time)
 function writeNotes(data, before) {
+  // Garder les réponses avant toute suppression/remplacement de leur note.
+  // Un échec de cette écriture refuse la sauvegarde, sans annoncer un envoi réussi.
+  if (before) syncUserReplies(P, before);
+  syncUserReplies(P, data);
   if (fs.existsSync(NOTES) && !before) {   // unreadable: kept as it is before anything replaces it
     try { fs.copyFileSync(NOTES, NOTES.replace(/\.json$/, `.illisible-${stampNow()}.json`)); } catch { /* */ }
   }
@@ -583,8 +588,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, d);
     }
     if (pn === '/api/replies') {
-      let txt = '{"notes":{}}';
-      try { txt = JSON.stringify(JSON.parse(fs.readFileSync(REPLIES, 'utf8'))); } catch { /* none yet (or being written) */ }
+      let replies = { notes: {} };
+      try { replies = JSON.parse(fs.readFileSync(REPLIES, 'utf8').replace(/^\uFEFF/, '')); } catch (e) {
+        if (e.code !== 'ENOENT') return json(res, { error: 'unreadable', file: REPLIES }, 503);
+      }
+      try { replies.userReplies = userReplyReceipts(P); } catch {
+        return json(res, { error: 'unreadable', file: path.join(REVUE, 'user-replies.json') }, 503);
+      }
+      const txt = JSON.stringify(replies);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(txt);
     }
     if (pn === '/api/image' && req.method === 'POST') {

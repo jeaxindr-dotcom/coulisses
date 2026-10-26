@@ -27,11 +27,15 @@ The command names and their flags (`projet creer`, `projet verifier`, `--depuis`
 1. **A pasted line.** The user pastes for example `Coulisses · E03 · batch 3 (4 edits) → read "…\revue\lots\003.md" and fix …`. Read that `.md` file: it holds the whole request. (In French the same line reads `Coulisses · E03 · lot 3 (4 modifs) → lis "…" et corrige …`.)
 2. **The connection** (the studio's "Connect to the agent" button). The user pastes once `Coulisses · E03 · connect → …`.
    - Run `CLI wait E03` **in the background** (Claude Code: Bash `run_in_background`; another agent: its own way of running a background task that wakes it up when it ends). While it runs, the tool shows "Agent connected · <agent name>". The name comes from the command itself (the `AI_AGENT` variable, or `STUDIO_AGENT=claude|codex` to force it, or `--agent claude|codex`).
-   - When the user sends a batch, the command prints the whole request and stops: its end wakes the session.
-   - Handle the batch, then **run `wait` again in the background** to keep watching.
+   - When the user sends a batch or replies to a note, the command prints the whole request and stops: its end wakes the session. Unseen replies, including those sent while disconnected, come first under `RÉPONSES UTILISATEUR REÇUES`. A batch may follow in the same output.
+   - Handle the replies and any batch, then **run `wait` again in the background** to keep watching. After `--timeout`, restart it while the user wants to stay connected. Coulisses cannot start or wake a session that no longer runs `wait`.
    - To stop watching, the user says so, or the task is stopped.
 
 Both ways can bring the same batch. `take` refuses a batch already taken: in that case, do not handle it twice.
+
+A reply includes its note, previous batch and absolute image paths. A complete file under `revue/user-reply-deliveries/` and an `ack-replies` command are printed too. Read that file and inspect its images before new batches, then execute the acknowledgment command. Deliveries are bounded: run `wait` again for any remaining replies. Do not `take` a completed old batch: use `reply` on the note, preserving the usual snapshots and checks before making changes. If the note has since been removed, report that fact instead of recreating it or blindly applying the archived request.
+
+“Seen by the agent” means explicitly acknowledged with `ack-replies`; it does not certify a fix. Merely printing to `wait` is insufficient because a tool may truncate its output. Without acknowledgment, the next wait redelivers the message: compare its contents before repeating work. A heartbeat, `take`, `done`, or later answer never counts as a receipt. Older replies without receipts are offered at first reconnection, even if handled by another route: read existing answers before repeating a fix, then acknowledge them. Newly written undo/redo notifications are marked as system events and are not delivered as requests.
 
 ## Updates, checked with every batch
 

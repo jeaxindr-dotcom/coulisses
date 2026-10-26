@@ -36,7 +36,11 @@
   // the texts added with the colours and the batch filter, for a studio started before them (its dictionary is the one
   // it read when it started; the page itself is read again at each load): the key itself never shows
   const NEWT = {
-    fr: { 'st.card.verify': 'Valider', 'st.card.verifiedBtn': 'Validée', 'st.card.verified': 'validée', 'st.card.verifyTitle': 'Tu as vérifié la correction : la note passe au vert. Clique encore pour revenir à « corrigée ».',
+    fr: { 'st.reply.unseen': 'Non vue par l’agent', 'st.reply.seen': 'Vue par l’agent', 'st.reply.seenTitle': 'L’agent a confirmé avoir reçu cette réponse le {at}. Cela ne signifie pas que la correction est faite.',
+      'st.reply.unseenTitle': 'Cette réponse attend sa remise à un agent connecté.', 'st.reply.saved': 'Réponse enregistrée', 'st.reply.waiting': 'Réponse enregistrée, en attente de remise à l’agent.', 'st.reply.delivered': 'Réponse remise à l’agent.',
+      'st.reply.offline': 'Aucun agent ne surveille Coulisses : ta réponse attendra sa reconnexion.', 'st.reply.unknown': 'La surveillance de l’agent n’a pas pu être vérifiée : ta réponse est enregistrée et attendra sa reconnexion si nécessaire.',
+      'st.reply.connect': 'Copie cette ligne dans la session de l’agent pour le reconnecter. Les réponses non vues lui seront remises en premier.', 'st.reply.failed': 'La réponse n’est pas encore enregistrée. Coulisses réessaie ; garde cette page ouverte.',
+      'st.card.verify': 'Valider', 'st.card.verifiedBtn': 'Validée', 'st.card.verified': 'validée', 'st.card.verifyTitle': 'Tu as vérifié la correction : la note passe au vert. Clique encore pour revenir à « corrigée ».',
       'st.list.verified': ' · {n} validée{n||s}', 'st.list.allHidden': 'Rien à afficher : les notes d’ici sont toutes validées (décoche « masquer les validées »).', 'st.notes.hideOk': 'masquer les validées',
       'st.notes.lotAll': 'Toutes les notes ({n})', 'st.notes.lotOne': 'Lot {lot} · {n} note{n||s}', 'st.notes.lotNone': 'Hors lot · {n} note{n||s}', 'st.notes.lotTitle': 'Toutes les notes, ou celles d’un seul lot : dans cette liste, sur la timeline et sur l’image',
       'st.notes.okAll': 'Tout valider ({n})', 'st.notes.okAllTitle': 'Les notes corrigées de ce lot passent au vert (Ctrl+Z pour revenir)', 'st.notes.okAllDone': '{n} note{n||s} validée{n||s} · Ctrl+Z pour revenir', 'st.insp.stVerified': 'validée',
@@ -48,7 +52,11 @@
       'st.q.no1080': "Le script d'export de ce projet ne fait pas de 1080p", 'st.ex.confirmGpu': "\n\nEncodage : GPU ({name}).", 'st.ex.confirmCpu': "\n\nEncodage : processeur — la case « Encoder avec le GPU » est décochée (plus lent).", 
       'st.q.title': "Qualité", 'st.q.no4k': "Le script d'export de ce projet ne fait pas la 4K", 'st.rc.liveCode': "Pas encore de vidéo : tu relis le code en direct ({comp}, {w}×{h} à {fps} i/s).", 'st.rc.goQ': "Lancer le rendu en {q}", 'st.launch.q': "Qualité : {q}.", 'st.top.goQTitle': "Lancer le rendu en {q} avec le script d'export du projet (suivi dans « Envois »)",
       'st.steps.prep': "Préparation", 'st.steps.prepWhat': "le projet empaqueté, les scènes 3D refaites en 4K s’il le faut", 'st.steps.finishX': "assemblage des morceaux, son, volume, copies", 'st.steps.reviewX': "Relecture", 'st.steps.reviewXWhat': "Coulisses charge la nouvelle vidéo : tu la relis, et tu compares les notes corrigées", 'st.steps.goesOn': "Tu peux fermer Coulisses : le rendu continue." },
-    en: { 'st.card.verify': 'Validate', 'st.card.verifiedBtn': 'Validated', 'st.card.verified': 'validated', 'st.card.verifyTitle': 'You checked the fix: the note turns green. Click again to go back to "fixed".',
+    en: { 'st.reply.unseen': 'Not seen by the agent', 'st.reply.seen': 'Seen by the agent', 'st.reply.seenTitle': 'The agent confirmed receiving this reply on {at}. This does not mean the fix is done.',
+      'st.reply.unseenTitle': 'This reply is waiting to be delivered to a connected agent.', 'st.reply.saved': 'Reply saved', 'st.reply.waiting': 'Reply saved, waiting to be delivered to the agent.', 'st.reply.delivered': 'Reply delivered to the agent.',
+      'st.reply.offline': 'No agent is watching Coulisses: your reply will wait until it reconnects.', 'st.reply.unknown': 'Agent monitoring could not be checked: your reply is saved and will wait for reconnection if needed.',
+      'st.reply.connect': 'Copy this line into the agent’s session to reconnect it. Unseen replies will be delivered first.', 'st.reply.failed': 'Your reply has not been saved yet. Coulisses is retrying; keep this page open.',
+      'st.card.verify': 'Validate', 'st.card.verifiedBtn': 'Validated', 'st.card.verified': 'validated', 'st.card.verifyTitle': 'You checked the fix: the note turns green. Click again to go back to "fixed".',
       'st.list.verified': ' · {n} validated', 'st.list.allHidden': 'Nothing to show: the notes here are all validated (untick "hide the validated ones").', 'st.notes.hideOk': 'hide the validated ones',
       'st.notes.lotAll': 'All notes ({n})', 'st.notes.lotOne': 'Batch {lot} · {n} note{n||s}', 'st.notes.lotNone': 'No batch · {n} note{n||s}', 'st.notes.lotTitle': 'All the notes, or one batch’s only: in this list, on the timeline and on the picture',
       'st.notes.okAll': 'Validate all ({n})', 'st.notes.okAllTitle': 'The fixed notes of this batch turn green (Ctrl+Z to undo)', 'st.notes.okAllDone': '{n} note{n||s} validated · Ctrl+Z to undo', 'st.insp.stVerified': 'validated',
@@ -66,11 +74,63 @@
     const f = NEWT[FR ? 'fr' : 'en'][k]; if (f === undefined) return k;
     return f.replace(/\{(\w+)(?:\|([^{}|]*)\|([^{}]*))?\}/g, (m, x, one, other) => one === undefined ? String(v?.[x] ?? '') : ((FR ? Math.abs(v?.[x]) > 1 : Math.abs(v?.[x]) !== 1) ? other : one));
   };
+  const userReplyParts = (m) => [m.at ?? '', m.text ?? '', (m.images ?? []).map((im) => im?.file ?? im)];
   function threadOf(n) {
-    const msgs = (n.thread || []).map((m) => ({ ...m, from: 'user' }));
+    const counts = new Map();
+    const msgs = (n.thread || []).map((m) => {
+      if (m.kind === 'system') return { ...m, from: 'user', delivery: null };
+      const parts = userReplyParts(m), signature = JSON.stringify(parts);
+      const occurrence = counts.get(signature) ?? 0;
+      const identified = typeof m.id === 'string' && m.id;
+      if (!identified && (String(m.text ?? '').trim() || m.images?.length)) counts.set(signature, occurrence + 1);
+      const key = identified ? m.id : `legacy:${JSON.stringify([...parts, occurrence])}`;
+      const receipt = REPLIES.userReplies?.[n.id]?.[key];
+      const delivery = receipt?.message && JSON.stringify(userReplyParts(receipt.message)) === signature ? receipt : null;
+      return { ...m, from: 'user', delivery };
+    });
     for (const m of reply(n)?.messages || []) msgs.push({ ...m, from: 'claude' });
     if (n.reply) msgs.push({ from: 'claude', text: n.reply, images: [], at: n.updated });
     return msgs.sort((a, b) => (Date.parse(a.at || 0) || 0) - (Date.parse(b.at || 0) || 0));
+  }
+  function replyDeliveryHtml(m) {
+    if (m.from !== 'user' || m.kind === 'system') return '';
+    const seen = !!m.delivery?.seenAt;
+    return `<span class="reply-delivery ${seen ? 'seen' : 'unseen'}" title="${esc(TN(seen ? 'st.reply.seenTitle' : 'st.reply.unseenTitle', { at: m.delivery?.seenAt ?? '' }))}">${esc(TN(seen ? 'st.reply.seen' : 'st.reply.unseen'))}</span>`;
+  }
+  const replySending = new Set();
+  async function sendNoteReply(n) {
+    const p = pending[n.id];
+    if (replySending.has(n.id) || !p || (!p.text.trim() && !p.images.length)) return;
+    replySending.add(n.id);
+    const message = { id: uid(), text: p.text.trim(), images: p.images, at: now() };
+    (n.thread ??= []).push(message);
+    delete pending[n.id]; n.updated = now();
+    if (fixedOf(n)) { n.status = 'open'; n.statusAt = now(); }
+    save(); renderAll();
+    try {
+      if (!(await flushNow())) { setSave(TN('st.reply.failed'), 'err'); return; }
+      let watching = null;
+      try {
+        const r = await fetch('/api/status', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+        if (r.ok) { const fresh = await r.json(); watching = fresh.agent?.watching === true; STATUS.agent = fresh.agent; }
+      } catch { /* A saved reply remains pending even when the status request fails. */ }
+      if (watching !== true) {
+        // L'agent peut avoir accusé réception puis quitté son attente avant ce
+        // contrôle : son accusé explicite décide, pas le dernier battement.
+        try {
+          const r = await fetch('/api/replies', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+          if (r.ok) {
+            const fresh = await r.json();
+            if (fresh?.notes && typeof fresh.notes === 'object' && !Array.isArray(fresh.notes)) REPLIES = fresh;
+          }
+        } catch { /* Preserve the last known receipts if this read fails. */ }
+        const receipt = REPLIES.userReplies?.[n.id]?.[message.id];
+        const delivered = receipt?.seenAt && receipt.message && JSON.stringify(userReplyParts(receipt.message)) === JSON.stringify(userReplyParts(message));
+        if (delivered) setSave(TN('st.reply.delivered'), 'ok');
+        else showModal(TN('st.reply.saved'), TN(watching === false ? 'st.reply.offline' : 'st.reply.unknown'), META.connectLine, TN('st.reply.connect'));
+      } else setSave(TN('st.reply.waiting'), 'ok');
+    } catch { setSave(TN('st.reply.failed'), 'err'); }
+    finally { replySending.delete(n.id); renderAll(); }
   }
   function stamp(n) { n.updated = now(); n.context = contextAt(n.frame, n.end ?? n.frame); }
   function queueFull() {
@@ -228,7 +288,24 @@
   function mergeNotes(mine, theirs) {
     const t = (n) => Date.parse(n?.updated ?? n?.created ?? 0) || 0, saved = NOTES_LAST_SAVE;
     const A = new Map(mine.map((n) => [n.id, n])), B = new Map(theirs.map((n) => [n.id, n])), out = [];
-    for (const [id, a] of A) { const b = B.get(id); if (b) out.push(t(b) > t(a) ? b : a); else if (!NOTES_KNOWN.has(id) || t(a) > saved) out.push(a); }
+    for (const [id, a] of A) {
+      const b = B.get(id);
+      if (b) {
+        const newest = t(b) > t(a) ? b : a, messages = new Map();
+        // A conflict between tabs may choose newer note fields, but never discard a reply from the other tab.
+        for (const side of newest === a ? [a, b] : [b, a]) {
+          const counts = new Map();
+          for (const m of side.thread ?? []) {
+            const signature = JSON.stringify(userReplyParts(m)), kind = m.kind === 'system' ? 'system' : 'legacy';
+            const occurrenceKey = `${kind}:${signature}`, occurrence = counts.get(occurrenceKey) ?? 0, identified = typeof m.id === 'string' && m.id;
+            if (!identified) counts.set(occurrenceKey, occurrence + 1);
+            const key = identified ? `id:${m.id}` : `${occurrenceKey}:${occurrence}`;
+            if (!messages.has(key)) messages.set(key, m);
+          }
+        }
+        out.push({ ...newest, thread: [...messages.values()].sort((x, y) => (Date.parse(x.at) || 0) - (Date.parse(y.at) || 0)) });
+      } else if (!NOTES_KNOWN.has(id) || t(a) > saved) out.push(a);
+    }
     for (const [id, b] of B) if (!A.has(id) && (!NOTES_KNOWN.has(id) || t(b) > saved)) out.push(b);
     return out.map((n) => ({ status: 'open', end: null, images: [], thread: [], ...n }));
   }
@@ -361,8 +438,11 @@
   let repliesTxt = '', statusTxt = '', statusKey = '', offline = false;
   async function pollReplies() {
     try {
-      const t = await (await fetch('/api/replies', { cache: 'no-store' })).text();
-      const s = await (await fetch('/api/status', { cache: 'no-store' })).text();
+      const response = await fetch('/api/replies', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Lecture des réponses indisponible.');
+      const statusResponse = await fetch('/api/status', { cache: 'no-store' });
+      if (!statusResponse.ok) throw new Error('Lecture du statut indisponible.');
+      const t = await response.text(), s = await statusResponse.text();
       let changed = false;
       if (t !== repliesTxt) { repliesTxt = t; REPLIES = JSON.parse(t); if (!REPLIES.notes) REPLIES.notes = {}; applyRemaps(); changed = true; }
       // (the agent's heartbeat changes every 5 s while it watches: taken, but the cards are not built again for it —

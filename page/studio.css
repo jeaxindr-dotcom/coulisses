@@ -474,6 +474,8 @@
   .msg.claude { background: linear-gradient(135deg, rgba(111, 231, 200, 0.10), rgba(201, 242, 107, 0.05)); border-color: rgba(111, 231, 200, 0.18); }
   .msg.user { background: linear-gradient(135deg, rgba(180, 156, 255, 0.12), rgba(180, 156, 255, 0.04)); border-color: rgba(180, 156, 255, 0.18); }
   .msg .who { font: 600 11px var(--font-d); color: var(--s11); margin-bottom: 3px; }
+  .reply-delivery { display: inline-block; margin-left: 8px; font-weight: 400; color: var(--amber); }
+  .reply-delivery.seen { color: var(--lime); }
   .repbox { margin-top: 10px; border-radius: 14px; }
   .repbox.drop { outline: 2px dashed var(--lime); }
   .repacts { display: flex; gap: 4px; margin-top: 6px; align-items: center; }

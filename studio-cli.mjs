@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // What the Claude session uses to work the studio's batches (protocol: AGENT.md). Writes only revue/replies.json
 // (Claude's file) and revue/runs/ (snapshots); never revue/notes.json (the page's file).
-//   wait     <ep>                      wait for a batch sent from the tool, print it, exit (run in the background:
+//   wait     <ep>                      attend un lot ou une réponse utilisateur, les imprime et sort (en arrière-plan :
 //                                      its exit wakes the session); while waiting, the tool shows « Claude surveille »
 //   take     <ep> <lot>                the tool shows « l'agent corrige » on the batch and its notes
 //   snapshot <ep> <lot> <file…>        copy the files BEFORE changing them (« Annuler cette correction »)
@@ -26,7 +26,8 @@
 // there, no live preview (frame / sheet use the video), no staging, and no render from the studio.
 import fs from 'node:fs';
 import path from 'node:path';
-import { optionsFrom, readJson, writeJson, updateJson, nowIso, stillSource, pad3, flagsOf } from './lib/episode.mjs';
+import { optionsFrom, readJson, readJsonStrict, writeJson, updateJson, nowIso, stillSource, pad3, flagsOf } from './lib/episode.mjs';
+import { syncUserReplies, pendingUserReplies, prepareUserReplyDelivery, acknowledgeUserReplyDelivery, writeDelivered } from './lib/reply-delivery.mjs';
 import { videoFrame, codeFrame, codeFrames, tile, closeCode, probeVideo } from './lib/frames.mjs';
 import { lotNumbers, readLot, lotFile, lotMarkdown, renderMarkdown } from './lib/lots.mjs';
 import { resolveTarget } from './lib/projects.mjs';
@@ -132,25 +133,41 @@ async function main() {
       const beat = (waiting, lastLot) => writeJson(P.AGENT, { pid: process.pid, since, beat: nowIso(), waiting, lastLot: lastLot ?? null, agent: AG ? { id: AG.id, name: AG.name } : null });
       const since = nowIso(), limit = +(flag('--timeout', 0)) * 1000, t0 = Date.now();
       const pendingLot = () => { const r = replies(); return lotNumbers(P).find((n) => !r.lots[n]); };
+      const again = () => t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}` });
       let last = 0;
       const stop = () => { try { beat(false); } catch { /* ignore */ } process.exit(0); };
       process.on('SIGINT', stop); process.on('SIGTERM', stop);
       for (;;) {
+        syncUserReplies(P, readJsonStrict(P.NOTES, { notes: [] }));
+        const messages = pendingUserReplies(P);
         const n = pendingLot();
-        if (n) {
-          beat(false, n);
-          const render = readLot(P, n)?.kind === 'render';   // the marker never changes with the language
-          console.log(t('cli.waitGot', { marker: render ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`, gloss: render ? `render request ${n} received` : `batch ${n} received`, ep: P.ep, md: lotFile(P, n, 'md') }));
-          // (a batch written by an older Coulisses whose request failed: its request made now from the batch)
-          if (!fs.existsSync(lotFile(P, n, 'md'))) { try { const L = readLot(P, n); fs.writeFileSync(lotFile(P, n, 'md'), L?.kind === 'render' ? renderMarkdown(P, L) : lotMarkdown(P, L)); } catch (e) { console.log(e.message); } }
-          console.log(fs.existsSync(lotFile(P, n, 'md')) ? fs.readFileSync(lotFile(P, n, 'md'), 'utf8') : lotFile(P, n));
-          console.log(t('cli.waitAgain', { cmd: `node "${process.argv[1]}" wait ${argv.slice(1).filter((a) => a !== 'wait').map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')}` }));
+        if (messages.length || n) {
+          const delivery = messages.length ? prepareUserReplyDelivery(P, messages, { cli: process.argv[1] }) : null;
+          const output = delivery ? [delivery.output] : [];
+          if (n) {
+            const render = readLot(P, n)?.kind === 'render';   // the marker never changes with the language
+            output.push(t('cli.waitGot', { marker: render ? `DEMANDE DE RENDU (lot ${n}) REÇUE` : `LOT ${n} REÇU`, gloss: render ? `render request ${n} received` : `batch ${n} received`, ep: P.ep, md: lotFile(P, n, 'md') }));
+            // (a batch written by an older Coulisses whose request failed: its request made now from the batch)
+            if (!fs.existsSync(lotFile(P, n, 'md'))) { try { const L = readLot(P, n); fs.writeFileSync(lotFile(P, n, 'md'), L?.kind === 'render' ? renderMarkdown(P, L) : lotMarkdown(P, L)); } catch (e) { output.push(e.message); } }
+            const content = fs.existsSync(lotFile(P, n, 'md')) ? fs.readFileSync(lotFile(P, n, 'md'), 'utf8') : lotFile(P, n);
+            output.push(delivery && content.length > 1500 ? `Lire la demande complète du lot : ${lotFile(P, n, 'md')}` : content);
+          }
+          output.push(again());
+          try {
+            const text = output.join('\n') + '\n';
+            await writeDelivered(process.stdout, delivery && text.length > 12000 ? text.slice(0, 11800) + '\n[Sortie abrégée : lire les fichiers complets indiqués en tête avant tout accusé.]\n' : text);
+          } finally { beat(false, n); }
           return;
         }
         if (limit && Date.now() - t0 > limit) { beat(false); console.log(t('cli.waitNone')); return; }
         if (Date.now() - last > 5000) { beat(true); last = Date.now(); }
         await new Promise((r) => setTimeout(r, 1500));
       }
+    }
+    case 'ack-replies': {
+      const count = acknowledgeUserReplyDelivery(P, rest[0], AG);
+      console.log(`LECTURE DES RÉPONSES CONFIRMÉE : ${count} réponse${count > 1 ? 's' : ''} · livraison ${rest[0]}`);
+      return;
     }
     case 'take': {
       const n = +rest[0], L = readLot(P, n); if (!L) die(t('cli.noLot', { n }));

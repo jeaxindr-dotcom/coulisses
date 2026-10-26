@@ -115,7 +115,7 @@
     const msg = r.ok ? T(verb === 'undo' ? 'st.lot.undoneRes' : 'st.lot.redoneRes', { files: r.files.join(', ') }) : r.why;
     if (resEl) resEl.textContent = msg; else setSave(msg, r.ok ? 'ok' : 'err');
     if (r.ok) {
-      for (const id of L.ids) { const n = byId(id); if (!n) continue; (n.thread ??= []).push({ text: T(verb === 'undo' ? 'st.lot.undoneThread' : 'st.lot.redoneThread', { lot: L.lot }), images: [], at: now() }); n.status = verb === 'undo' ? 'open' : 'done'; n.statusAt = now(); }
+      for (const id of L.ids) { const n = byId(id); if (!n) continue; (n.thread ??= []).push({ kind: 'system', text: T(verb === 'undo' ? 'st.lot.undoneThread' : 'st.lot.redoneThread', { lot: L.lot }), images: [], at: now() }); n.status = verb === 'undo' ? 'open' : 'done'; n.statusAt = now(); }
       save(); setTimeout(() => { statusTxt = ''; }, 0);
     }
     return r;

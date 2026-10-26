@@ -14,11 +14,17 @@ Le plus simple est de reprendre telles quelles les commandes complètes écrites
 1. **Ligne collée.** L'utilisateur colle par exemple `Coulisses · E03 · lot 3 (4 modifs) → lis "…\revue\lots\003.md" et corrige …`. Lis ce fichier `.md` : il contient toute la demande.
 2. **Connexion** (le bouton « Connecter à l'agent » du studio). L'utilisateur colle une fois `Coulisses · E03 · connexion → …`.
    - Lance `CLI wait E03` **en tâche de fond** (Claude Code : Bash `run_in_background` ; un autre agent : sa propre façon de lancer une tâche de fond qui le réveille à sa fin). Tant qu'il tourne, l'outil affiche « Agent connecté · <nom de l'agent> ». Le nom vient de la commande elle-même (variable `AI_AGENT`, ou `STUDIO_AGENT=claude|codex` pour le forcer, ou `--agent claude|codex`).
-   - Quand l'utilisateur envoie un lot, la commande imprime la demande complète et s'arrête : sa fin réveille la session.
-   - Traite le lot, puis **relance `wait` en tâche de fond** pour continuer à surveiller.
+   - Quand l'utilisateur envoie un lot **ou répond à une note**, la commande imprime la demande complète et s'arrête : sa fin réveille la session. Les réponses non vues sont livrées en tête, y compris celles envoyées pendant une déconnexion. Le marqueur est `RÉPONSES UTILISATEUR REÇUES` ; un lot peut suivre dans la même sortie.
+   - Traite les réponses et le lot éventuel, puis **relance `wait` en tâche de fond** pour continuer à surveiller. Après expiration (`--timeout`), relance aussi l'attente tant que l'utilisateur souhaite rester connecté. Coulisses ne crée ni ne réveille une session qui a cessé d'exécuter `wait`.
    - Pour arrêter de surveiller, l'utilisateur le dit, ou on arrête la tâche.
 
 Les deux façons peuvent arriver pour le même lot. `take` refuse un lot déjà pris : dans ce cas, ne pas le traiter deux fois.
+
+### Une réponse à une note déjà envoyée
+
+`wait` transmet le texte, le contexte de la note, son ancien lot et les chemins des images jointes. Il indique aussi un fichier complet dans `revue/user-reply-deliveries/` et une commande `ack-replies`. Lis ce fichier et regarde les images avant les nouveaux lots, puis exécute la commande d'accusé affichée. Les livraisons sont bornées : relance `wait` pour recevoir la suite éventuelle. N'appelle pas `take` sur un ancien lot terminé : réponds sur l'identifiant de la note avec `reply`, en conservant les instantanés et vérifications habituels avant toute nouvelle correction. Si une réponse invalide une correction précédente, explique ce que tu reprends. Si la note a été retirée, signale ce retrait au lieu de la recréer ou d'appliquer aveuglément la demande archivée.
+
+« Vue par l'agent » signifie que l'agent a confirmé explicitement la réception avec `ack-replies`. Cela ne certifie pas que la correction est faite. L'affichage de `wait` seul ne suffit pas : sa sortie peut être tronquée par un outil. Sans accusé, la prochaine attente présente à nouveau le message ; compare son contenu avant de corriger deux fois. Un simple battement de surveillance, `take`, `done` ou une réponse ultérieure ne marque jamais un message comme vu. Les anciennes réponses sans accusé seront proposées à la première reconnexion, même si elles ont déjà été traitées autrement : vérifie les réponses existantes avant de refaire une correction, puis accuse-les. Les notifications d'annulation/rétablissement nouvellement écrites sont identifiées comme système et ne sont pas livrées comme demandes.
 
 ## Les mises à jour, vérifiées à chaque envoi
 
@@ -57,7 +63,7 @@ Ce qu'il faut en faire :
    - `CLI sheet E03 <note id>` : bandes `revue\images\claude-<id>-avant.jpg` (MP4) et `-apres.jpg` (code), 8 images autour d'une note sur une image, environ 16 sur une plage, en un seul chargement de page. Pour un saut ou une « téléportation », c'est la bande qui fait foi.
 6. **Répondre sur chaque note :** `CLI reply E03 <note id> "<ce que j'ai changé>" --status done`.
    - Les bandes avant et après sont jointes d'office si elles existent. `--image <fichier>` en ajoute d'autres.
-   - Si je ne corrige pas une note : `--status open`, avec la raison ou la question pour l'utilisateur. Il répond dans la note, puis « Renvoyer à l'agent ».
+   - Si je ne corrige pas une note : `--status open`, avec la raison ou la question pour l'utilisateur. Il répond dans la note ; sa réponse sera livrée au prochain `wait`. « Renvoyer à l'agent » reste possible pour en faire un nouveau lot.
 7. **Clore le lot :** `CLI done E03 <lot> "<résumé en une ligne>"`, ou `--declined` si rien n'a été fait. Cela enregistre l'état « après » des fichiers : le bouton « ↶ Annuler cette correction » devient actif dans « Envois ».
 8. **Pas de re-rendu complet du MP4,** sauf si l'utilisateur le demande. On regroupe plusieurs lots par rendu. Après un rendu, suivre la procédure habituelle (`scripts/finish-render.sh`, recalage des notes par `review/remap-notes.mjs`).
 9. **En mode connexion,** relancer `CLI wait E03` en tâche de fond.
