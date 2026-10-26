@@ -1,0 +1,203 @@
+# Coulisses : corrections et lecture fluide en mode Code
+
+26 octobre 2026 — complément de `REVUE-ASTRA-2026-10-26.md`.
+
+Travail dans `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra`, branche `revue-astra`, à partir de `10633a9`. Aucun changement fusionné, poussé ou installé. Les moteurs réels et les réglages personnels n'ont pas été modifiés. Les patchs de moteurs sont des propositions appliquées et vérifiées sur copies.
+
+## Réponse : comment obtenir une lecture fluide en mode Code ?
+
+Il faut supprimer le travail inutile et les blocages incorrects, puis donner un chemin de lecture calculée aux passages qui dépassent le budget du temps réel. Aucun réglage universel de Remotion ne transforme des milliers d'images, plusieurs décodeurs vidéo et une scène 3D reconstruite en une animation garantie à 30 images/s.
+
+Le worktree apporte deux chemins dans **le même mode Code** : le Player interactif corrigé et une commande **« Préparer 30 s »**. Cette commande calcule la plage depuis les sources courantes, l'affiche dans le cadre du code avec la frise et les annotations, puis permet de revenir au Player à l'image choisie. La vidéo calculée contient son propre son et utilise une seule horloge. Il ne s'agit pas de sélectionner le dernier export du projet ; la plage est associée à une génération et refusée lorsqu'elle est périmée.
+
+Cette première version reste une préparation explicite de plage. Elle n'est ni une compilation à chaud conservant arbitrairement tout l'état React entre changements de code, ni un calcul automatique des seules plages touchées par chaque modification. Ces deux extensions exigent des frontières et dépendances explicites dans les moteurs.
+
+### Ce qui coûte réellement, projet par projet
+
+| Projet | Cause et mesure disponibles | Correction livrée et effet attendu | Ce qui n'est pas prouvé |
+|---|---|---|---|
+| **Lesson 0** | À la sortie des fondus, le parent de `Live` changeait vers `Freeze` : 2 montages au lieu de 1. La reproduction de la première revue montrait environ 5 s de noir avec le chargeur lent injecté, puis 0 s avec un parent stable. Les scènes 3D réelles ont aussi un premier chargement et des vidéos. | Patch `Freeze` stable, nettoyage des attentes, `pauseWhenBuffering`, master exact `lesson0/mix.wav`. Le Player corrigé attend le producteur visible ; les passages lourds peuvent être préparés dans le mode Code. | Les 5 s sont celles de la reproduction contrôlée, pas le temps réel de toutes les saynètes. Aucun chiffre de FPS du film réel après patch n'est revendiqué. |
+| **Brambleshire E15** | Le montage complet fabriquait 681 ressources : 244 éléments de décor, 233 variantes d'accessoires, 204 poses. L'analyse des dimensions représente environ 3,89 Gio de tableaux RGBA pour une génération, potentiellement 7,78 Gio pendant deux préparations. Ce ne sont pas des mesures de VRAM. | Patch de sélection par fenêtre, dépendances des quatre plans E15, deux décodages à la fois, textures d'aperçu réduites et cache à baux. Sur 36 points de la timeline copiée : **102 à 181 ressources sélectionnées** au lieu de 681. | La sélection prend environ 1,5 ms en moyenne ; ce n'est ni le décodage ni le rendu. Les FPS, les pics GPU et la fidélité des quatre plans restent à vérifier sur copie. |
+| **AItelier** | La revue dénombrait jusqu'à 9 408 `img` pour certaines combinaisons de bobines et huit copies de scène avec flou. Sept couches vidéo et un WAV volumineux ajoutent du décodage. Le snapshot actuel possède déjà un chemin `Html5Video` pour le Player. | Une seule copie de scène en aperçu, huit conservées au rendu ; quatre scènes passent à des bobines bornées à 12 images et 32 Mio RGBA chacune ; attente locale de l'image réellement consultée. Les deux chemins vidéo attendent leur tampon. | Le plafond est par bobine, pas celui de Chrome entier. Aucun nouveau proxy vidéo n'a été fabriqué et les FPS du film réel ne sont pas mesurés. |
+| **宇宙ちゃん** | Risques de chargement/démontage du moteur 3D, changements cockpit/page et tampon des vidéos. Le pilote de page nettoyait déjà son handle : lui attribuer cette fuite aurait été faux. | Patch des attentes de `Stage.tsx`, bail de lecture du pilote jusqu'à son premier positionnement, vidéos avec `pauseWhenBuffering`. | Pas de mesure de FPS du vrai Short après patch. La préparation de plage permet d'éviter le coût temps réel pendant sa relecture, mais sa préparation reste à chronométrer sur ce projet. |
+
+Les observations de la première revue restent utiles : une fixture avec 32 Mio de tableaux passait de 34,56 à 69,10 Mio pendant deux générations, puis revenait à 34,56 Mio après collecte ; remplacement en environ 7,8 s dont 5 s de délai injecté ; cadence de référence autour de 30,09 images/s. Les compteurs d'isolate partagés ne doivent pas être additionnés entre parent et iframe. Aucun plantage GPU réel des quatre projets n'a été reproduit et attribué avec certitude.
+
+Mesure supplémentaire après corrections, sur le **bac E03 du worktree** : **30,1 images/s pendant six secondes**, intervalle au 95e percentile **36 ms**, 181 dessins de frise pour 181 événements d'image ; processus parent occupé à 9 %, processus d'aperçu à 25 %. Le Player montait 14 séquences effectives derrière 580 enveloppes de sélection temporelle. Cela valide E03 dans ce scénario, pas E15.
+
+### Architecture retenue, et compromis
+
+1. **Un Player vivant, une candidate au maximum.** Les commentaires et changements hors du graphe visuel ne changent plus la génération si les sorties JS/CSS/ressources importées sont identiques. L'iframe et ses ressources restent alors en place. Une vraie nouvelle génération est préparée à l'arrêt, à l'image demandée, avec ses offsets et sa caméra, puis adoptée seulement après validation. Une erreur garde l'ancienne version et dit que la nouvelle n'a pas été adoptée. Un échange réel peut encore retenir deux générations : le patch E15 et le chemin calculé sont nécessaires pour les moteurs volumineux.
+2. **Attentes possédées par les composants.** `useDelayRender()` et `useBufferState()` sont enveloppés dans le shim d'aperçu ; chaque attente a un propriétaire, une visibilité et un nettoyage. Une scène future ne bloque pas celle qui est affichée ; son attente devient active lorsqu'elle apparaît. Le prémontage global de trois secondes est retiré. Un projet peut déclarer son propre prémontage, sur des frontières choisies et avec une charge mesurée.
+3. **Horloge unique pour la composition.** Le Player pilote le temps réel. Le son externe éventuel suit ses déplacements, pauses et attentes ; il ne fait plus avancer la composition par des `seek` toutes les 200 ms. Sans master final explicitement déclaré, le son natif reste utilisé. Pour une plage calculée, le seul élément vidéo pilote à la fois image, son et frise.
+4. **Plages calculées bornées et invalidables.** Maximum 30 s par demande, cache de six plages et 512 Mio par studio/projet, un calcul à la fois entre studios, concurrence Remotion 1, dimensions réelles plafonnées dans 1280 × 720. La qualité de ce chemin est celle d'un aperçu, pas celle du rendu final. L'iframe reste présente mais son arbre React est démonté pendant le calcul et la lecture calculée. Les caches des moteurs peuvent conserver leur budget de ressources inactives ; le démontage ne garantit pas zéro mémoire GPU. Le retour au direct remonte cet arbre, avec une nouvelle attente possible.
+5. **Priorité aux rendus de l'utilisateur.** La file contrôle par GET les états des studios sur 4170–4199 avant de démarrer et pendant le calcul. Si un rendu/export apparaît, elle annule uniquement son propre processus. Le retour au direct attend la fermeture effective de ce processus ; le verrou couvre aussi son PID pour éviter un second travail pendant le nettoyage après disparition du serveur.
+6. **Proxies là où le décodage coûte.** Les réductions de textures E15 sont livrées dans le patch moteur. Des proxies vidéo à résolution d'aperçu et à accès rapide restent à produire pour les couches AItelier et les vidéos des autres moteurs. Coulisses doit sélectionner ces proxies uniquement en aperçu, conserver les sources au rendu et indexer leur version. Ce générateur universel n'est pas présenté comme livré.
+
+Les sorties du bundle sont immuables, y compris CSS et images importées. Les médias `staticFile()` servis depuis `public/` restent externes : les recopier intégralement à chaque correction d'E15 serait contre-productif. Pour le cache de plages, le contenu du code et des données est contrôlé, et les médias binaires sont indexés par taille/date. Une modification binaire conservant volontairement taille **et** date est une limite documentée ; un manifeste de médias à empreintes fortes ou une publication atomique du projet serait nécessaire pour la supprimer.
+
+### Ce que l'utilisateur verra
+
+- Un changement de commentaire : pas de nouvelle iframe, pas de chargement de la scène entière.
+- Un vrai changement visuel pendant Lecture : annonce d'une version disponible ; adoption à la pause. Pendant sa préparation, l'ancienne version demeure identifiée comme celle affichée.
+- Une ressource visible lente : lecture suspendue avec un état de chargement. Une ressource prémontée correctement déclarée peut charger sans arrêter la scène courante. Un délai expiré devient une erreur ; il ne transforme plus une image incomplète en image prête.
+- Une panne de contexte sonore : diagnostic, puis restauration explicite par le bouton son. Pas de boucle silencieuse de reconstruction de la 3D. La reprise reste arrêtée jusqu'au clic Lecture.
+- **Préparer 30 s** : attente du calcul, puis lecture avec les transports et la frise habituels. La fin de plage arrête la lecture ; un déplacement hors plage revient au direct. Un changement de génération invalide la plage. Le retour au direct peut recharger les ressources de la scène, car son arbre avait été libéré.
+
+Les temps de préparation de Lesson 0, E15, AItelier et 宇宙ちゃん ne sont pas prédits à partir d'une petite fixture. Le premier essai réel du nouveau chemin a pris environ 18 s pour calculer une seconde synthétique, avec démarrage du navigateur et du bundle ; le cache a répondu en 184 ms. Cette mesure interdit de promettre une première préparation instantanée. Les mesures de l'exécution finale figurent plus bas.
+
+## Couverture des défauts de la revue
+
+Les chemins de cette section sont relatifs au worktree complet `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra`. Les patchs des moteurs n'ont pas été appliqués aux projets réels.
+
+| Défaut | Modification et preuve | État et risque |
+|---|---|---|
+| **B1** attribution temporelle de `delayRender` | `player/sequence-window.tsx`, `player/assets-wait.tsx` : suppression de l'attribution globale, propriétaires explicites. `preview-lifecycle` couvre scène courante/future et transition de visibilité. | Corrigé pour le contrat possédé. Les producteurs utilisant encore la fonction globale doivent être migrés par les patchs moteurs. |
+| **B2** attente orpheline | Nettoyage des handles et baux au démontage ; scène quittée avant fin du chargement dans le test. | Corrigé dans le shim et proposé dans les quatre moteurs. Un handle global inconnu est diagnostiqué comme non certifié ; Coulisses ne lui invente pas un propriétaire. |
+| **B3** remontage `Freeze` | `lesson0.patch`, test de réconciliation : 2 montages/1 démontage deviennent 1/0. | Correction moteur seulement, sur copie ; vérification visuelle des fondus encore nécessaire. |
+| **G1** charge E15/prémontage massif | Zéro prémontage implicite ; cache de plages libérant le Player ; patch moteur bornant la sélection/décodage/textures. | Partie Coulisses corrigée. Patch E15 à risque élevé et non validé visuellement sur tout le film. |
+| **G2** multiplication des images/flou | `aitelier.patch` : une copie Player, bobines à fenêtre, huit sous-images au rendu conservées. | Moteur seulement. Tests de fonctions et cycles de vie ; comparaison visuelle encore ouverte. |
+| **G3** vidéos ne bloquant pas la lecture | `pauseWhenBuffering` fourni dans les chemins vidéo des patchs concernés. | Moteurs seulement ; pas de remplacement global trompeur du composant vidéo. |
+| **G4** image validée différente de l'image adoptée | `page/studio/01-preview.js`, `player/bridge.js` : `prepare(frame)`, preuve de la même image, offsets et caméra recontrôlés. Test caméra déplacée pendant attente et lien initial `#f=270`. | Corrigé ; une interaction pendant la préparation annule la candidate au lieu d'adopter un état périmé. |
+| **G5** ancienne transaction réinstallée | Gardes de génération après chaque attente ; fermeture de la transaction avant les déplacements induits par l'adoption. | Corrigé ; tests avant/après de réponses tardives. |
+| **G6** délais considérés comme succès | `player/ready.ts`, `player/r3f.ts`, appels RPC : erreurs explicites, premier dessin visible, attentes bornées. | Corrigé. La certification des moteurs hérités utilisant des handles globaux reste impossible sans leur migration. |
+| **G7** mix descriptif différent du master | `lib/review-sound.mjs`, `lib/remotion-module.mjs` : `reviewAudio` explicite ; valeur invalide refusée ; absence de master = son natif. | Corrigé. Mode historique uniquement par opt-in `COULISSES_REVIEW_SOUND=legacy`, à éviter pour ces projets. |
+| **G8** horloges et attente héritée | Son externe suiveur du Player ; état d'attente réinitialisé à chaque génération ; suppression du `seek` périodique. | Corrigé ; suites navigateur `review-sound`, `preview-wait`, `sound-tab`. Le cache calculé dispose d'une seule horloge native. |
+| **G9** cache audio A→B→A/WAV seul | Bonne signature associée au fichier, annulation des publications tardives, métadonnées du master vérifiées même sans nouvelle version. | Corrigé ; tests avec appels ffmpeg simulés et suite navigateur sur master explicite. |
+| **G10** contexte audio tiers/fermé | `SoundContext` lie le vrai contexte du Player. Plus de sous-classe globale de `AudioContext` ; nettoyage et fermeture seulement du contexte possédé. | Corrigé ; tests de contexte tiers, fermeture et restauration. Dépendance interne Remotion isolée et vérifiée sur les versions locales. |
+| **G11** racines 3D oubliées | `player/r3f.ts` sépare visibilité de pointage et liste de toutes les racines à endormir/réveiller. | Corrigé ; test racine cachée puis visible. |
+| **G12** rechargements sans changement visuel | Empreinte des sorties esbuild ; même JS/CSS/ressource = même génération. Test mémoire distingue commentaire et vrais changements de titre. | Corrigé pour les changements identiques. Pas de conservation universelle de l'état React à travers un vrai changement de code. |
+| **G13** bundle mutable, génération incohérente | Publication atomique par hash, JS/CSS/ressources servis par version, baux de conservation, master associé au code après construction de la frise. | Corrigé pour les bundles. Médias `public/` externes : limite indiquée ci-dessus. |
+| **G14** pannes non diagnostiquées/RPC infinis | Battement de présence, diagnostic `webglcontextlost`, état d'attente transporté, délais des RPC, renouvellement des baux au retour d'onglet. | Corrigé pour détection/reprise explicite. Un battement absent ne prouve pas un crash GPU ; le rapport ne le prétend pas. |
+| **N1** boucle de frise arrêtée par une exception | Prochaine animation programmée avant le dessin ; état de dessin validé après succès. `timeline-loop-regressions` exécute la vraie boucle avec une exception injectée. | Corrigé ; 0/10 avant, 10/10 après et suite canvas existante. |
+
+Les diffs exacts Coulisses sont ceux des commits ci-dessous. La comparaison complète reste disponible avec `git diff 10633a9..revue-astra`. Les tests `--baseline`/`--reference` chargent le code de référence sans réinitialiser le worktree ni modifier `main`.
+
+## Validations et commits
+
+**État final : 28 suites concernées, 378 assertions réussies, zéro échec dans leurs dernières exécutions.** Ce total agrège les dernières exécutions de chaque suite ; ce n'est pas l'annonce d'un passage de toutes les suites du dépôt. Le relevé exact est `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\validation-finale.json`. Les journaux sont dans `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\run-all`.
+
+### Commits fonctionnels de `revue-astra`
+
+| Commit | Travail | Tests principaux |
+|---|---|---|
+| `2b7c083` — Attribuer les attentes et le son au Player et nettoyer leur cycle de vie | B1/B2, partie G1, G6–G11 ; contrat des moteurs et fixture adaptée. | `preview-lifecycle` 0/12 → 12/12 ; `audio-regressions` 3/25 → 25/25 ; suites navigateur d'attente et de son. |
+| `8a0497a` — Publier des aperçus immuables et sécuriser leur adoption à la bonne image | G4/G5, G12/G13/G14, N1 ; garde des tests ; renouvellement des baux ; lecture des sources même à taille/date constantes. | Construction 6/23 → 23/23 ; transactions 0/17 → 17/17 ; protocole 1/17 → 17/17 ; HTTP 3/14 → 14/14 ; frise 0/10 → 10/10. |
+| `538f914` — Préparer des plages bornées du code pour les relire dans le même mode | File, cache, empreintes, worker isolé, annulations confirmées et interface intégrée. | File 53/53, worker 17/17, empreintes 14/14, interface 21/21, routes 20/20 et navigateur réel 13/13. |
+| `400b593` — Fournir les patchs des quatre moteurs et leurs validations sur copies | B3, G1/G2/G3 et nettoyages des moteurs. Quatre patchs exacts et preuves conservés dans Git ; copies non ajoutées. | 14 cas avant/après sur copies, sélection E15 1/1, application exacte des quatre patchs. |
+| `2839ee1` — Afficher le mode Code dès le démarrage sans export | L'interface sélectionnait visuellement « MP4 rendu » alors que son état réel était Code. | Vrai branchement de démarrage exécuté : 2/3 → 3/3. |
+
+Un dernier commit documentaire contient ce rapport, le relevé final et l'inscription du dernier test au lanceur. Son identifiant est fourni avec la livraison, sans chercher à inscrire le hash d'un document dans le document qui définit ce hash.
+
+### Avant/après : défauts existants et nouvelles fonctionnalités distingués
+
+| Suite | Référence sans correction | Résultat corrigé | Nature de la preuve |
+|---|---:|---:|---|
+| `audio-regressions` | 3 réussites / 22 échecs sur `10633a9` | 25/25 | Vrai code du cache et du son, interfaces natives et ffmpeg simulés. |
+| `preview-lifecycle` | 0/12 sur `10633a9` | 12/12 | Vrais hooks/réconciliateur ; horloge et données natives contrôlées. |
+| `player-build-regressions` | 6/23 sur `10633a9` | 23/23 | Vrais builds JS/CSS/images et erreurs. Le prototype intermédiaire faisait 21/23 : les contenus à taille/date constantes étaient encore ignorés. |
+| `preview-transaction-regressions` | 0/17 sur `10633a9` | 17/17 | Vraies fonctions de page, réponses asynchrones ordonnées par le test. |
+| `preview-protocol-regressions` | 1/17 sur `10633a9` | 17/17 | Vrais ponts/RPC, délais, génération, contexte perdu, baux. |
+| `preview-server-regressions` | 3/14 sur routes/constructeur/mixeur de `10633a9` | 14/14 | Vrai studio de fixture, GET/POST uniquement sur son port confirmé. |
+| `timeline-loop-regressions` | 0/10 sur `10633a9` | 10/10 | Vraie boucle ; exception de dessin injectée puis image suivante. |
+| `frames-cache-regressions` | 1/5 sur `10633a9` | 5/5 | Vraie fonction de préparation ; navigateur/compilateur simulés. |
+| `initial-code-mode` | 2/3 sur `10633a9` | 3/3 | Branche initiale réelle, classes des trois contrôles. |
+| `code-playback-regressions` | Fonction absente de `10633a9` | 53/53 | Nouvelle file : annulation, générations, budgets, verrou et PID, attente de fermeture. Une absence de fonctionnalité n'est pas présentée comme 53 anciens bugs. |
+| `code-playback-ui` | Premier prototype : 11 courses rouges parmi les 13 premiers cas | 21/21 | Nouvelle interface : opérations tardives, retour au direct, média prêt, mode MP4, son et dimensions. |
+| `code-playback-routes` | Huit retraits ciblés de protections provoquent chacun des échecs | 20/20 | Vrais helpers/routes exécutés en VM : propriétaires partagés, annulation avant création, génération modifiée pendant un GET. |
+| `code-playback-sources` | Premier prototype : 8/14, dont un compromis binaire documenté | 14/14 | Vrais fichiers de test ; contenu du code/JSON, taille/date des médias, budgets, jonctions et périmètre. |
+| `code-playback-render-regressions` | Nouvelle voie, sans équivalent antérieur | 17/17 | Processus simulés : entrée, résolution réelle, fermeture, annulation, disparition du parent. |
+| `render-activity` | Avant le passage au HTTP natif : 26/31 | 31/31 | Vrais GET temporaires sur 4190, plus erreurs/annulation simulées. |
+| `project-patches` / `project-patches-e15` | Défauts des copies d'origine : handles abandonnés, remontage, chargements massifs | 14/14 + 1/1 | Tests locaux des sources copiées ; limites de portée précisées dans la section moteurs. |
+
+Commandes reproductibles depuis le worktree, sans changer de branche :
+
+```powershell
+node tests/audio-regressions.mjs --revision 10633a9
+node tests/preview-lifecycle.mjs --reference 10633a9
+node tests/player-build-regressions.mjs --baseline
+node tests/preview-transaction-regressions.mjs --baseline 10633a9
+node tests/preview-protocol-regressions.mjs --baseline 10633a9
+node tests/preview-server-regressions.mjs --baseline
+node tests/timeline-loop-regressions.mjs --baseline
+node tests/frames-cache-regressions.mjs --baseline
+node tests/initial-code-mode.mjs --baseline 10633a9
+```
+
+Les commandes de référence sont volontairement rouges. Pour le code corrigé, retirer leur option de référence ou utiliser les suites correspondantes de `tests/run-all.mjs --only …`. Les noms d'options diffèrent entre les tests ; `audio-regressions` utilise bien `--revision`.
+
+### Navigateur et mesures finales
+
+| Suite existante ou intégrée | Dernier résultat |
+|---|---:|
+| `typecheck` | 1/1 |
+| `preview-memory` | 8/8 |
+| `preview-speed` sur E03 | 7/7 |
+| `sound-watch` | 16/16 |
+| `sound-recovery` sur E03 | 10/10 |
+| `sound-tab` avec politique d'onglet normal | 4/4 |
+| `review-sound` | 9/9 |
+| `preview-wait` | 5/5 |
+| `preview-premount` explicite | 4/4 |
+| `timeline-draw` | 4/4 |
+| `code-playback-browser` | 13/13 |
+
+Pour la mémoire après cinq vrais changements visuels : une iframe finale et un document dans chacun des processus mesurés ; parent 1 → 2 Mo de tas JS, iframe 4 → 4 Mo, 25 390 nœuds avant/après dans l'iframe. Cela ne mesure ni la VRAM ni tous les processus Chromium. Un commentaire seul conserve la génération **1 → 1**, le même élément iframe et le même document. Trace : `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\preview-memory-test\mesures.json`.
+
+Sur E03, un refus temporaire du périphérique sonore a été récupéré en **3,8 s**, dans la même iframe, sans F5. Les pannes durables simulées, l'horloge figée, le contexte fermé et l'erreur de périphérique sont annoncés, puis le bouton son permet de reconstruire à la même image ; Lecture reprend le son. Les tests ne diffusent rien sur les haut-parleurs.
+
+Le test réel du cache calcule deux plages de 30 images, 640 × 360, avec son. Exécution finale : **10,743 s**, puis **8,609 s** ; réutilisation HTTP **233 ms** ; affichage dans l'interface **799 ms**. Lecture : **29,987 images/s sur 22 images observées**, environ 0,7 s — preuve courte, pas test d'endurance. Les deux fichiers durent 1,003 s, à 30/1 images/s ; 61 329 et 59 197 octets. Une modification du code à taille/date conservées change réellement les pixels rouges `[208,32,31]` en verts `[31,175,63]`. Ancienne URL : HTTP 410 ; demande portant l'ancienne version : HTTP 409. Le Player est démonté, l'iframe conservée, la frise suit la vidéo, les annotations restent accessibles et le retour au direct conserve l'image.
+
+Preuves finales : `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\code-playback-browser\essai-8UGUgh\resultat.json` et `lecture-calculee.png`. Le screenshot a été inspecté ; il a aussi révélé le mauvais bouton de source sélectionné au démarrage, corrigé par `2839ee1` et son test. Aucune nouvelle mesure de performance n'est déduite de ce correctif purement visuel.
+
+Deux vrais défauts supplémentaires ont donc été trouvés pendant l'intégration, avant de déclarer le chemin utilisable : le Player détruit à l'ouverture d'un lien `#f=270`, et le cache interne d'esbuild conservant un ancien contenu à taille/date constantes. Leurs tests échouaient avant les corrections et passent après.
+
+Les premières suites concernées ont été lancées par `node tests/run-all.mjs --only typecheck,preview-wait,preview-premount,sound-tab,timeline-draw,review-sound` : **27 réussites, aucun échec**. La fixture de master utilise maintenant une déclaration explicite, et le test de prémontage déclare 45 images ; il ne dépend plus du prémontage global retiré.
+
+Une exécution intermédiaire de la suite mémoire a été arrêtée parce qu'elle attendait des nouvelles générations après de simples commentaires. Seul l'arbre du processus de test créé a été arrêté. Le test est corrigé pour vérifier les deux comportements ; sa comparaison de libellé a ensuite été remplacée par une comparaison du vrai numéro de génération, car « compilation en cours » change le libellé sans changer la version. Deux compteurs de résultats des patchs projets ont aussi été adaptés au format du lanceur, et le test de collecte libère explicitement le nouveau bail de démarrage. Ces interruptions ne sont pas comptées comme des validations réussies.
+
+La garde de test a révélé une particularité réelle : `fetch()` de Node refuse le port 4190 avant toute requête réseau. Le contrôle utilise désormais un GET HTTP natif, avec délai et réponse limitée à 1 Mio. Un vrai serveur temporaire sur 4190 a vérifié ce contrôle ; il a été fermé. Le hub connu sur 4170 est reconnu uniquement après un GET `/api/ping` déclarant `hub: true`. Une réponse invalide ou un statut inaccessible d'un studio reste bloquant.
+
+Les tests ont utilisé leurs studios et navigateurs muets, avec vérification du bac à sable. Pour E03, le worktree possède son propre dossier `sandbox\07_Episodes\E03 - The Secret Garden`, une copie de la frise et des liens physiques de lecture vers la vidéo/proxy du bac existant ; aucun export n'a remplacé ces fichiers. Aucun studio utilisateur n'a été piloté. À la vérification de fin, aucun serveur/worker/test appartenant au worktree n'était encore actif.
+
+### Repères dans le code corrigé
+
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\player\sequence-window.tsx:51` : propriétaire et nettoyage ; ligne 81 : `useDelayRender` ; ligne 111 : séquences sans prémontage implicite.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\player\ready.ts:20` : disponibilité et handles non attribués.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\player\r3f.ts:170` : sommeil/réveil de toutes les racines.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\player\sound.ts:15` : contexte réel du Player.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\lib\review-sound.mjs:15` : master explicite et cache.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\lib\player-build.mjs:124` : publication immuable et empreinte des sorties.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\page\studio\01-preview.js:67` : transaction d'adoption.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\page\studio\08-timeline.js:483` : reprise de la boucle après exception.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\studio-server.mjs:132` : association frise/code ; ligne 156 : barrière de génération avant calcul de plage.
+- `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\lib\code-playback.mjs:17` : file, budgets et annulation ; `lib\code-playback-render.mjs:10` : propriété du processus.
+
+## Patchs exacts des projets
+
+Les quatre patchs comportent un en-tête « correction / risque / vérification » et ont passé `git apply --check`, une application effective sur une seconde copie, puis une comparaison octet par octet. Les empreintes des 25 fichiers réels consultés sont restées identiques. Les projets réels peuvent évoluer dans les autres sessions : refaire `git apply --check` sur leur nouvelle copie avant intégration.
+
+| Patch complet | Moteur cible en lecture seule | Validation et risque |
+|---|---|---|
+| `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\patchs-projets\lesson0.patch` | `C:\Users\owner\Desktop\Youtube\Jap for Eng\06_Theatre\06_Remotion` | Cycle de vie/Freeze/master vérifiés sur copie. Risque faible à moyen ; vérifier les fondus et rigs. |
+| `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\patchs-projets\brambleshire.patch` | `C:\Users\owner\Desktop\Youtube\music\Brambleshire\Théatre\06_Remotion` | Sélection E15 et cache à baux testés ; rendu final garde le chemin natif. Risque élevé pour dépendances des plans et finesse des textures d'aperçu. |
+| `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\patchs-projets\aitelier.patch` | `C:\Users\owner\Desktop\Youtube\AItelier\remotion` | Bobines bornées, nettoyage et flou final conservé testés. Risque moyen à élevé ; vérifier les fondus lisant deux positions éloignées. |
+| `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\patchs-projets\uchuchan.patch` | `C:\Users\owner\Desktop\Youtube\宇宙\relance\theatre\06_Remotion` | Attentes, pilote et vidéos vérifiés sur copie. Risque faible à moyen ; vérifier les transitions cockpit/page. |
+
+Preuves : même dossier, `sources-sha256.json`, `verification-originaux.json`, `validation.json`, `validation-e15.json`, `validation-application.json`. Explications détaillées : `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\patchs-projets-rapport.md`. Copies : `C:\Users\owner\Documents\ChatGPT\Dev\coulisses-revue-astra\.cache\revue-astra\projets-copies`.
+
+Les 14 tests des patchs et le test de sélection E15 sont des validations locales utilisant ces snapshots et des dépendances déjà disponibles. Ils ne prouvent pas une comparaison de pixels ni les FPS des projets réels. Sans ces snapshots sur une autre machine, ils signalent explicitement qu'ils sont sautés.
+
+## Ordre d'intégration recommandé et points ouverts
+
+1. Relire et intégrer les corrections de base Coulisses : attentes possédées, son, transaction d'iframe, publications immuables, frise et diagnostic. Les tests contre `10633a9` doivent rester rouges, ceux du code corrigé verts.
+2. Faire appliquer les patchs moteurs par leurs sessions propriétaires, en commençant par Lesson 0 (`Freeze`, cleanup, master) et les nettoyages des trois autres moteurs. Aucun correctif de la page ne peut attribuer avec certitude une ancienne poignée globale à un composant dont il ignore le propriétaire.
+3. Valider les profils de charge E15/AItelier sur copies avec comparaison de pixels et mesures de mémoire/processus/GPU. Les plafonds des patchs sont des budgets de ressources connues, pas une limite absolue de VRAM de Chrome. Ne pas annoncer 30 images/s pour ces films avant ces mesures.
+4. Relire le chemin « Préparer 30 s » comme une première version utilisable et explicite du cache de code. Il reste à optimiser le coût fixe du navigateur/bundle et à mesurer les vraies plages lourdes. Le serveur ne prépare pas automatiquement toutes les modifications ; il n'invente pas de dépendances de plans.
+5. Ensuite seulement : dépendances code→plages pour invalidation ciblée, worker persistant avec budget mémoire, proxies vidéo versionnés, et frontières de composants autorisant la conservation d'état lors d'un vrai changement. Une recharge intégrale reste le repli correct pour un module incompatible.
+
+Limites supplémentaires : première ouverture d'une scène lourde encore coûteuse ; ressources non déclarées impossibles à certifier ; cache de plages utilisant un rendu Remotion susceptible de différer d'un composant qui branche volontairement son apparence sur `isPlayer` ; fidélité du contenu de rendu conservée, mais pas des interactions de mise en scène non enregistrées (la préparation est désactivée en mise en scène). Le budget disque n'est pas une limite RAM de tout le moteur. Une acquisition de verrou interrompue à un instant exceptionnel peut rester bloquée et demander un nettoyage explicite plutôt que lancer deux calculs concurrents.
+
+## Résumé transmissible
+
+Les défauts de lecture relevant de Coulisses sont corrigés dans une branche séparée, avec tests de régression et essais navigateur. Les patchs des quatre moteurs sont fournis sans toucher aux projets réels. Le mode Code conserve désormais son aperçu quand le résultat visuel ne change pas et propose une préparation de plage pour une lecture régulière après calcul. Les premières préparations restent coûteuses ; les FPS des quatre vrais projets après patch ne sont pas encore mesurés. Rien n'est fusionné, poussé ou installé.
