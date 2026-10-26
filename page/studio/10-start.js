@@ -63,7 +63,9 @@
       const showProxy = () => { proxyTxt.textContent = coming(META.proxy) ? T('st.start.proxy') : ''; };
       showProxy();
       if (!META.render && META.features?.code) {   // nothing exported yet: the code is the video
-        proxyTxt.textContent = ''; mode = 'code'; media.classList.add('code'); loadCode(); return;
+        proxyTxt.textContent = ''; mode = 'code'; media.classList.add('code');
+        $('#srcVideo').classList.remove('on'); $('#srcCode').classList.add('on'); $('#bSrc').classList.add('on');
+        loadCode(); return;
       }
       v.src = META.proxy === 'ready' ? '/video/revue' : '/video/original';
       if (coming(META.proxy)) (function waitProxy() {
