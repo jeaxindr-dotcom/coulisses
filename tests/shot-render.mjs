@@ -9,8 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { launch, requireSandbox } from './cdp.mjs';
+import { freePort } from './where.mjs';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'shot-render-test');
@@ -22,14 +24,37 @@ process.env.COULISSES_MEDIAS = path.join(SCR, 'medias');
 const EXPLORER = path.join(SCR, 'explorer.log');
 const { makeFixture, PROJET } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
-const PORT = 4189, U = `http://127.0.0.1:${PORT}`;
+const PORT = await freePort(4240);
+let U = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const probe = (f) => { try { const j = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height:format=duration', '-of', 'json', f], { encoding: 'utf8' })); const v = j.streams.find((s) => s.codec_type === 'video'); return { w: v?.width, h: v?.height, audio: j.streams.some((s) => s.codec_type === 'audio'), d: +j.format.duration }; } catch { return null; } };
-let st = null, p = null;
+let st = null, p = null, serverOutput = '', sandboxChecked = false;
+const injectNavigationFailure = process.argv.includes('--navigation-failure');
+await waitForRenderIdle();
 try {
   makeFixture();
+  if (injectNavigationFailure) {
+    // Injection limitée au processus d'essai du plan : aucun fichier du SDK ni
+    // du projet réel n'est modifié. Rejoue exactement l'erreur observée au rendu.
+    const preload = path.join(SCR, 'navigation-failure.mjs');
+    fs.writeFileSync(preload, `import path from 'node:path';
+import {createRequire} from 'node:module';
+if (process.argv[1]?.endsWith('shot-render-run.mjs')) {
+  const require = createRequire(${JSON.stringify(path.join(PROJET, 'package.json'))});
+  const file = path.join(path.dirname(require.resolve('@remotion/renderer/package.json')), 'dist', 'render-media.js');
+  const implementation = require(file), original = implementation.renderMedia;
+  let first = true;
+  implementation.renderMedia = async (options) => {
+    if (first) { first = false; console.log('INJECTION TEST : navigation locale sans réponse'); throw new Error('Visited "http://localhost:3001/index.html" but got no response.'); }
+    console.log('INJECTION TEST : véritable rendu après reprise');
+    return original(options);
+  };
+}
+`);
+    process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
+  }
   // the « Short »: a Remotion project folder whose public\mg\plan.mp4 the shot becomes
   const SHORT = path.join(SCR, 'short'), CLIP = path.join(SHORT, 'public', 'mg', 'plan.mp4');
   fs.mkdirSync(path.dirname(CLIP), { recursive: true });
@@ -42,9 +67,13 @@ try {
   const file = spawnSync(process.execPath, [path.join(STUDIO, 'studio-cli.mjs'), 'projet', 'creer', '--depuis', spec], { encoding: 'utf8', env: process.env }).stdout.trim();
   const shot = importProject(file);
   st = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', shot.revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: { ...process.env, COULISSES_EXPLORER_LOG: EXPLORER }, stdio: ['ignore', 'pipe', 'pipe'] });
-  let out = ''; st.stdout.on('data', (d) => { out += d; }); st.stderr.on('data', (d) => { out += d; });
-  for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
-  p = await launch({ port: 9391 });
+  st.stdout.on('data', (d) => { serverOutput += d; }); st.stderr.on('data', (d) => { serverOutput += d; });
+  for (let i = 0; i < 160 && !/Ouvre : http/.test(serverOutput); i++) await sleep(250);
+  U = /Ouvre : (http:\/\/127\.0\.0\.1:\d+)/.exec(serverOutput)?.[1];
+  if (!U) throw new Error(`Le studio d’essai ne démarre pas : ${serverOutput}`);
+  await requireSandbox(U, SCR);
+  sandboxChecked = true;
+  p = await launch({ port: await freePort(9391) });
   await p.goto(U + '/');
   await p.until(`window.__studio && document.querySelector('button[data-tab=lots]')`, 60000);
   await p.eval(`window.confirm = () => true; document.querySelector('button[data-tab=lots]').click(); return 1`);
@@ -56,8 +85,20 @@ try {
   await p.eval(`document.querySelector('.shGo').click(); return 1`);
   let s = null;
   for (let i = 0; i < 600; i++) { await sleep(500); s = (await (await fetch(U + '/api/status')).json()).shot; if (s && s.state !== 'running') break; }
+  if (s?.state !== 'done') {
+    console.log(`  Diagnostic du rendu : ${JSON.stringify(s)}\n${fs.existsSync(path.join(shot.revue, 'shot-render.log')) ? fs.readFileSync(path.join(shot.revue, 'shot-render.log'), 'utf8') : '(journal absent)'}`);
+    throw new Error(`Rendre ce plan a échoué : ${s?.error ?? s?.state ?? 'aucun état reçu'}`);
+  }
+  // La vérification d’annulation plus bas remplace le journal du plan : conserver
+  // d’abord la trace du véritable rendu terminé pour les diagnostics.
+  fs.copyFileSync(path.join(shot.revue, 'shot-render.log'), path.join(SCR, 'shot-render-success.log'));
   const now = probe(CLIP), kept = fs.existsSync(path.join(shot.revue, 'shot-backups')) ? fs.readdirSync(path.join(shot.revue, 'shot-backups')) : [];
   check(s?.state === 'done' && now?.w === 960 && now?.h === 540 && !now.audio && Math.abs(now.d - 10) < 0.2, `2. rendered from the code, in the clip's format (${now?.w} × ${now?.h}, ${now?.audio ? 'with sound' : 'no sound'}, ${now?.d?.toFixed(2)} s: the composition's 300 frames at scale 0.5)`);
+  if (injectNavigationFailure) {
+    const trace = fs.readFileSync(path.join(shot.revue, 'shot-render.log'), 'utf8');
+    check(trace.includes('INJECTION TEST : navigation locale sans réponse') && trace.includes('Navigation du rendu local sans réponse : reprise unique'), 'La panne de navigation réelle du SDK est injectée puis reconnue par le produit');
+    check(trace.includes('INJECTION TEST : véritable rendu après reprise') && s?.state === 'done', 'Le véritable encodage et remplacement réussissent après la reprise');
+  }
   check(kept.length === 1 && Math.abs(probe(path.join(shot.revue, 'shot-backups', kept[0]))?.d - old.d) < 0.1 && !fs.existsSync(CLIP.replace(/\.mp4$/, '.coulisses-tmp.mp4')), `the old clip kept in revue\\shot-backups (${kept[0]}), no temporary file left`);
   await p.until(`/Plan rendu/.test(document.querySelector('#renderCard').innerText)`, 15000).catch(() => {});
   check(/Plan rendu.*remis dans « Short essai »/.test(await p.eval(`return document.querySelector('#renderCard').innerText`)) && !!(await p.eval(`return document.querySelector('.shUndo') ? 1 : 0`)), 'the card: « Plan rendu … et remis dans « Short essai » », « Remettre la version d\'avant »');
@@ -81,6 +122,11 @@ try {
 } catch (e) {
   check(false, `erreur : ${e.stack ?? e.message}`);
 } finally {
+  fs.writeFileSync(path.join(SCR, 'server.log'), serverOutput);
+  if (sandboxChecked) try {
+    const state = (await (await fetch(U + '/api/status')).json()).shot;
+    if (state?.state === 'running') await fetch(U + '/api/shot/stop', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+  } catch { /* Notre studio d’essai est déjà fermé. */ }
   if (p) await p.close();
   if (st) { try { execFileSync('taskkill', ['/PID', String(st.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } }
 }
