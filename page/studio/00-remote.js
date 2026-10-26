@@ -20,7 +20,7 @@
     const d = e.data; if (!d || d.coulissesPreview !== 1) return;
     const r = remotes.get(e.source); if (r) r.receive(d);
     // a key typed in the preview that is the studio's (player/keys.ts toParent): played here as if typed here
-    if (d.key && (r || remotes.size)) window.dispatchEvent(new KeyboardEvent(d.key.type, { key: d.key.key, code: d.key.code, shiftKey: d.key.shiftKey, ctrlKey: d.key.ctrlKey, altKey: d.key.altKey, metaKey: d.key.metaKey, bubbles: true }));
+    if (d.key && r) window.dispatchEvent(new KeyboardEvent(d.key.type, { key: d.key.key, code: d.key.code, shiftKey: d.key.shiftKey, ctrlKey: d.key.ctrlKey, altKey: d.key.altKey, metaKey: d.key.metaKey, bubbles: true }));
   });
   // the user's keys changed (Aide › Raccourcis clavier): the previews read them again (their staging keys W / E / R)
   window.Shortcuts?.onChange?.(() => { for (const w of remotes.keys()) try { w.postMessage({ coulissesPreview: 1, shortcuts: 1 }, PREVIEW_ORIGIN); } catch { /* gone */ } });
@@ -28,20 +28,21 @@
   const zeroDelta = (d) => !d || ((d.p ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && (d.r ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && Math.abs((d.s ?? 1) - 1) < 1e-9);
   // ver: the version this player loads (?v= of its address): a hello from the document that frame is leaving is not its own
   // Calls end: an answer, or after their time (a preview whose process hangs or crashed never answers: the pointer,
-  // the staging, the identify kept waiting for ever — code review 18/10/2026); whenReady / whenFrameReady have none (their
-  // callers race them with their own). The page's own writes (a seek, play / pause, an offset) are numbered: the state
+  // the staging, the identify kept waiting for ever — code review 18/10/2026), y compris les appels de préparation.
+  // The page's own writes (a seek, play / pause, an offset) are numbered: the state
   // the preview sent before it had them (its `seen`) does not take them back.
-  const NO_LIMIT = new Set(['whenReady', 'whenFrameReady']), WRITE_F = new Set(['seek', 'play', 'pause', 'recover']), WRITE_S = new Set(['stage.setDelta', 'stage.reset', 'stage.select', 'stage.addCutout']);
+  const PREPARING = new Set(['whenReady', 'whenFrameReady', 'prepare', 'resume']), WRITE_F = new Set(['seek', 'play', 'pause', 'recover', 'prepare', 'unload', 'resume']), WRITE_S = new Set(['stage.setDelta', 'stage.reset', 'stage.select', 'stage.addCutout']);
   function remotePlayer(win, ver = null) {
-    const M = { hello: null, frame: 0, playing: false, ready: true, loading: false, crashed: false, st: null, infos: new Map() };
-    let seq = 0, helloRes = null, wroteF = 0, wroteS = 0, gone = false;
+    const M = { hello: null, frame: 0, playing: false, buffering: false, ready: false, loading: false, crashed: false, st: null, infos: new Map() };
+    let seq = 0, helloRes = null, wroteF = 0, wroteS = 0, gone = false, lastSeen = performance.now(), silent = false;
     const waits = new Map(), evOn = new Set(), stOn = new Set();
     const hello = new Promise((r) => { helloRes = r; });
     const callWith = (extra, path, ...args) => new Promise((res, rej) => {
       if (gone) { rej(new Error('preview gone')); return; }
       const id = ++seq;
       if (WRITE_F.has(path)) wroteF = id; if (WRITE_S.has(path)) wroteS = id;
-      const timer = NO_LIMIT.has(path) ? 0 : setTimeout(() => { if (waits.delete(id)) rej(new Error(`preview: no answer (${path})`)); }, path === 'stage.snapshot' || path === 'pickMany' || path === 'pick' ? 30000 : 15000);
+      const timeout = PREPARING.has(path) ? 95000 : path === 'stage.snapshot' || path === 'pickMany' || path === 'pick' ? 30000 : 15000;
+      const timer = setTimeout(() => { if (waits.delete(id)) rej(new Error(`Aperçu sans réponse (${path})`)); }, timeout);
       waits.set(id, { res, rej, timer });
       try { win.postMessage({ coulissesPreview: 1, call: path, id, args: plain(args), ...extra }, PREVIEW_ORIGIN); } catch (e) { clearTimeout(timer); waits.delete(id); rej(e); }
     });
@@ -51,7 +52,7 @@
       if (!s) return;
       const freshF = !(s.seen < wroteF), freshS = !(s.seen < wroteS);   // (sent before the preview had the page's last write: not its frame / offsets)
       if (freshF) { M.frame = s.frame ?? M.frame; M.playing = !!s.playing; }
-      M.ready = s.ready !== false; M.loading = !!s.loading; M.crashed = !!s.crashed; M.scene3d = !!s.scene3d;
+      M.ready = s.ready === true; M.loading = !!s.loading; M.crashed = !!s.crashed; M.scene3d = !!s.scene3d; M.buffering = !!s.buffering;
       if (s.stage !== undefined && freshS) {
         M.st = s.stage;
         if (s.stage) {   // the objects moved, as the preview says; the one chosen kept (its info from its « select »)
@@ -62,9 +63,11 @@
       }
     };
     function receive(d) {
+      if (gone || (d.v !== undefined && ver !== null && String(d.v) !== String(ver))) return;
+      lastSeen = performance.now(); silent = false;
       if (d.hello) { if (ver !== null && d.hello.v !== undefined && String(d.hello.v) !== String(ver)) return; M.hello = d.hello; setState(d.state); helloRes(api); return; }
-      if (d.re) { const w = waits.get(d.re); if (w) { clearTimeout(w.timer); waits.delete(d.re); if (d.ok) w.res(d.value); else w.rej(new Error(d.error ?? 'preview')); } return; }
       if (d.state) setState(d.state);
+      if (d.re) { const w = waits.get(d.re); if (w) { clearTimeout(w.timer); waits.delete(d.re); if (d.ok) w.res(d.value); else w.rej(new Error(d.error ?? 'preview')); } return; }
       if (d.ev) {
         const ev = d.ev;
         const freshF = !(ev.seen < wroteF);   // (a frame of before the page's last seek: not taken)
@@ -74,6 +77,8 @@
         else if (ev.type === 'loading') { M.loading = true; M.ready = false; }
         else if (ev.type === 'loaded') { M.loading = false; M.ready = true; }
         else if (ev.type === 'error') M.crashed = true;
+        if (ev.type === 'waiting') M.buffering = true;
+        if (ev.type === 'resume') M.buffering = false;
         for (const f of evOn) f(ev);
       }
       if (d.stageEv) {
@@ -115,23 +120,37 @@
       get durationInFrames() { return M.hello?.durationInFrames ?? 0; }, get fps() { return M.hello?.fps; }, get width() { return M.hello?.width; }, get height() { return M.hello?.height; },
       get ok() { return !!M.hello?.ok; }, get generic() { return !!M.hello?.generic; }, get composition() { return M.hello?.composition; }, get episode() { return M.hello?.episode; }, get hyperframes() { return !!M.hello?.hyperframes; },
       get stage() { return M.hello?.stage ? stage : undefined; },
-      frame: () => M.frame, isPlaying: () => M.playing, frameReady: () => M.ready, frameLoading: () => M.loading, crashed: () => M.crashed,
+      frame: () => M.frame, isPlaying: () => M.playing, isBuffering: () => M.buffering, frameReady: () => M.ready, frameLoading: () => M.loading, crashed: () => M.crashed,
       seek: (f) => { M.frame = Math.max(0, Math.min((M.hello?.durationInFrames ?? 1) - 1, Math.round(f))); send('seek', f); },
-      play: () => { M.playing = true; send('play'); }, pause: () => { M.playing = false; send('pause'); },
+      play: () => { M.playing = true; return call('play').catch((error) => { M.playing = false; throw error; }); }, pause: () => { M.playing = false; send('pause'); },
       setRate: (r) => send('setRate', r), setVolume: (v) => send('setVolume', v), mute: () => send('mute'), unmute: () => send('unmute'),
       restoreSound: () => call('restoreSound').catch(() => null),   // (« Rétablir le son », player/sound.ts; true: unmuted)
       sleep: (on) => send('sleep', on), recover: (f) => { M.crashed = false; send('recover', f); }, __crash: () => send('__crash'),
+      unload: () => { M.playing = false; M.ready = false; return call('unload'); },
+      resume: (f) => call('resume', f),
       whenReady: () => call('whenReady'), whenFrameReady: () => call('whenFrameReady'),
+      prepare: (frame) => call('prepare', frame),
       pick: (f, x, y) => call('pick', f, x, y), hover: (f, x, y) => call('hover', f, x, y), pickMany: (f, pts) => call('pickMany', f, pts),
       objects: () => call('objects'), cameraPos: () => call('cameraPos'),
       on: (fn) => { evOn.add(fn); return () => evOn.delete(fn); },
       // the frame of this player gone: its waiting calls end, its messages are no longer read
       dispose: () => {
-        gone = true; if (remotes.get(win) === entry) remotes.delete(win);
+        if (!gone) send('dispose');
+        gone = true; clearInterval(health); if (remotes.get(win) === entry) remotes.delete(win);
         for (const w of waits.values()) { clearTimeout(w.timer); w.rej(new Error('preview gone')); } waits.clear(); evOn.clear(); stOn.clear(); helloRes(null);
       },
     };
     const entry = { receive };
+    // Une absence de message est un diagnostic de transport, pas une preuve de panne GPU.
+    // Un onglet caché est ralenti par Chrome : aucune alarme tant qu'il reste caché.
+    const health = setInterval(() => {
+      const now = performance.now();
+      if (document.hidden) { lastSeen = now; return; }
+      if (!M.hello || gone || silent || now - lastSeen < 30000) return;
+      silent = true; M.playing = false; M.ready = false; M.crashed = true;
+      const ev = { type: 'error', frame: M.frame, error: { kind: 'transport', message: 'L’aperçu ne répond plus depuis 30 secondes. Réessayer pour le recharger.', where: 'communication avec l’aperçu', stack: '' } };
+      for (const f of evOn) f(ev);
+    }, 1000);
     remotes.set(win, entry);
     return { api, hello };
   }

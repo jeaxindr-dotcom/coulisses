@@ -406,10 +406,12 @@
     b.querySelector('.t').textContent = a.watching ? T('st.agent.on', { name: a.agent?.name ? ' · ' + a.agent.name : '' }) : T('st.agent.connect');
     b.title = a.watching ? T('st.agent.watchTitle', { name: a.agent?.name ?? T('st.agent.Yours'), since: hhmm(a.since) }) : T('st.agent.clickTitle');
     const ver = STATUS.code?.version ?? 0;
-    if (SP && ver !== codeVer && STATUS.code?.status === 'ready') {
-      if (mode === 'code') { if (codeLoad?.ver !== ver) loadCode(); }   // shown when ready, at the frame and in the state of now
-      else if (codeLoad?.ver !== ver) loadCode();   // the MP4 shown: the preview made ready behind, asleep (01-preview.js)
-    } else if (!SP && mode === 'code' && STATUS.code?.status === 'ready' && !codeLoading) loadCode();   // the preview was not built yet at the start
+    if (mode === 'code' && STATUS.code?.status === 'ready' && codeFailedVer !== ver) {
+      if (SP && ver !== codeVer) {
+        if (SP.isPlaying()) showCodeNote(`Version ${ver} disponible à la prochaine pause`);
+        else if (codeLoad?.ver !== ver) loadCode();
+      } else if (!SP && !codeLoading) loadCode();
+    }
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
     showCodeStatus();
     renderPill(); onHeld(); markGo();

@@ -124,9 +124,20 @@ const timeline = B ? timelineBuilder({ remotionDir: P.remotionDir, episode: ep, 
 // the review sound of a Remotion project (lib/review-sound.mjs): its timeline's audio tracks mixed once — the page's clock
 // (off: settings.json « reviewSound »: false, or COULISSES_REVIEW_SOUND=0 — the tests of the preview's own sound)
 const rsWanted = () => { if (process.env.COULISSES_REVIEW_SOUND === '0') return false; try { return readSettings().reviewSound !== false; } catch { return true; } };
-const RSND = G && P.remotionDir && rsWanted() ? reviewSound({ cacheDir: path.join(CACHE, 'revue-son'), publicDir: path.join(P.remotionDir, 'public'), log }) : null;
-const rsNow = () => { if (!RSND) return null; const s = RSND.update(timeline.state.data, timeline.state.version); return { state: s.state, sig: s.sig, why: s.why, clips: s.clips }; };
-const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: () => timeline.build(), watchAlso: G ? P.EP : null,
+const RSND = G && P.remotionDir && rsWanted() ? reviewSound({ cacheDir: path.join(CACHE, 'revue-son'), publicDir: path.join(P.remotionDir, 'public'), masterOnly: process.env.COULISSES_REVIEW_SOUND !== 'legacy', log }) : null;
+let timelineCodeVersion = null, timelineChain = Promise.resolve(), timelineRequest = 0;
+const syncTimeline = (state) => {
+  const version = state?.version, request = ++timelineRequest;
+  timelineCodeVersion = null;
+  timelineChain = timelineChain.catch(() => {}).then(async () => {
+    await timeline.build();
+    if (request === timelineRequest && player.state.status === 'ready' && version === player.state.version && timeline.state.status === 'ready') timelineCodeVersion = version;
+  });
+  return timelineChain;
+};
+const rsNow = () => { if (!RSND) return null; const valid = player.state.status === 'ready' && timelineCodeVersion === player.state.version;
+  const s = RSND.update(valid ? timeline.state.data : null, timeline.state.version); return { state: s.state, sig: s.sig, why: s.why, clips: s.clips, codeVersion: valid ? timelineCodeVersion : null }; };
+const player = HFP ? hfPlayerBuilder(P, { log, onBuilt: () => timeline.build() }) : CODE ? playerBuilder({ remotionDir: P.remotionDir, episode: ep, log, onBuilt: syncTimeline, watchAlso: G ? P.EP : null,
   generic: G ? { module: P.remotion.module, composition: P.remotion.composition, props: P.remotion.props, tag: P.id } : null })
   : { state: { status: 'none', version: 0, error: null, builtAt: null }, build: async () => {}, watch: () => {} };
 // ---- the plans of the versions (lib/plans.mjs; user request, 19/10/2026: « quand l'agent rallonge la vidéo, la note doit
@@ -215,7 +226,7 @@ function meta() {
     snapshotMatches: !!(snapshot?.video && render && snapshot.video.size === render.size),
     proxy: proxyState === 'ready' && !proxyFresh(P) ? 'stale' : proxyState,
     notesFile: NOTES, maxEdits: MAX_EDITS, plans: plansNow(),
-    code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt },
+    code: { status: player.state.status, version: player.state.version, hash: player.state.hash, error: player.state.error, builtAt: player.state.builtAt },
     agent: agentState(), connectLine: connectLine(P),
     hub: args.includes('--hub') ? args[args.indexOf('--hub') + 1] : null, held,
     lang: lang(), langSource: langSource(), coulissesFile: coulissesOf(P),
@@ -260,7 +271,7 @@ const fpsNow = () => (Date.now() - fpsMemo.t < 10000 ? fpsMemo.v : (fpsMemo = { 
 function status() {   // what changes often: polled by the page every 3 s with the replies
   const replies = readJson(REPLIES, { notes: {} }), video = pickVideo(P);
   refreshProxy();
-  return { code: { status: player.state.status, version: player.state.version, error: player.state.error, builtAt: player.state.builtAt }, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
+  return { code: { status: player.state.status, version: player.state.version, hash: player.state.hash, error: player.state.error, builtAt: player.state.builtAt }, agent: agentState(), lots: lotsSummary(P, replies, listRuns(P)), timeline: { version: timeline.state.version, status: timeline.state.status, error: timeline.state.error },
     render: B ? renderState(P) : null, export: XP ? exportState(P) : null, shot: G && P.uses?.length ? shotState(P) : null, shotTargets: G && P.uses?.length ? shotTargets(P) : null, held, video: video ? stamp(video) : null, compare: compareItems(P).map((x) => x.id), proxy: proxyState, speed: speedState(P), plans: plansNow(), reviewSound: rsNow() };
 }
 // The user's notes (revue/notes.json), the page's file. Code review 18/10/2026: an unreadable notes.json (cut short by
@@ -615,10 +626,28 @@ const server = http.createServer(async (req, res) => {
     }
     if (HFP && pn.startsWith('/hf/')) return sendFile(req, res, inside(P.hf.projet, pn.slice(4)));
     if (pn === '/player.html') {
+      const release = player.getRelease?.(url.searchParams.get('v') ?? player.state.version);
+      if (!release) return json(res, { error: 'Cette version de l’aperçu n’est plus disponible.' }, 410);
+      player.retain(release.hash, `bootstrap-${release.hash}`, 60000);
+      const cfg = JSON.stringify({ version: release.version, hash: release.hash }).replace(/</g, '\\u003c');
+      const base = `/player-assets/${release.hash}/`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-      return res.end(fs.readFileSync(path.join(HERE, 'player', 'player.html'), 'utf8').replace('__V__', String(player.state.version)));
+      return res.end(fs.readFileSync(path.join(HERE, 'player', 'player.html'), 'utf8')
+        .replace('__RELEASE__', cfg).replace('__SCRIPT__', base + release.entry)
+        .replace('__STYLE__', release.css ? `<link rel="stylesheet" href="${base}${release.css}">` : ''));
     }
-    if (pn === '/player.js') return sendFile(req, res, player.state.file, 'text/javascript; charset=utf-8');
+    if (pn === '/player.js') return sendFile(req, res, player.getRelease?.(url.searchParams.get('v') ?? player.state.version)?.file, 'text/javascript; charset=utf-8');
+    if (pn.startsWith('/player-assets/')) {
+      const [, , hash, ...parts] = pn.split('/'), file = player.asset?.(hash, parts.join('/'));
+      if (!file) return json(res, { error: 'Ressource de cette version introuvable.' }, 404);
+      return sendFile(req, res, file, parts.at(-1)?.endsWith('.css') ? 'text/css; charset=utf-8' : undefined);
+    }
+    if (pn === '/api/preview-lease' && req.method === 'POST') {
+      const b = JSON.parse((await body(req)).toString('utf8') || '{}');
+      if (typeof b.owner !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(b.owner)) return json(res, { ok: false }, 400);
+      if (b.release) { player.release?.(b.owner); return json(res, { ok: true }); }
+      return json(res, { ok: !!player.retain?.(b.hash, b.owner) });
+    }
     // the preview's messages with the page (player/bridge.js): the preview is shown from another site, in its own process
     if (pn === '/player-bridge.js') return sendFile(req, res, path.join(HERE, 'player', 'bridge.js'), 'text/javascript; charset=utf-8');
     // the review sound (lib/review-sound.mjs): only the current mix, by its signature
@@ -794,7 +823,12 @@ server.on('listening', () => {
   try { writeJson(LOCK, { pid: process.pid, port, url: `http://127.0.0.1:${port}/`, since: nowIso() }); } catch { /* a read-only revue: no lock */ }
 });
 process.on('exit', () => { try { if (readJson(LOCK, null)?.pid === process.pid) fs.rmSync(LOCK, { force: true }); } catch { /* */ } });
-for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, () => process.exit(0));
+let closing = false;
+async function shutdown() {
+  if (closing) return; closing = true; server.close(); RSND?.stop();
+  await player.dispose?.(); process.exit(0);
+}
+for (const s of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(s, shutdown);
 const first = [];
 if (!B) { const v = pickVideo(P); if (v) first.push(probeNow(v, probeKey(v))); }
 if (XP && exportAvailable(P).ok) first.push(exportOptionsReady(P));

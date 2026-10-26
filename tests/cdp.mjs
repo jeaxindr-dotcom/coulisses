@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
 
 // The suites check Coulisses' French texts (lib/i18n.mjs): a studio started by hand for them must speak French
 // (COULISSES_LANG=fr). Exits with a clear message otherwise.
@@ -40,6 +41,7 @@ function sweepProfiles() {
 // autoplay: 'free' (the Coulisses window: --autoplay-policy=no-user-gesture-required, app/Launcher.cs) or 'tab' (a studio opened
 // in a tab of a normal Chrome: sound and play only after a click — user report 24/10/2026, tests/sound-tab.mjs)
 export async function launch({ port = 9333, headless = true, args = [], autoplay = 'free' } = {}) {
+  await waitForRenderIdle();
   sweepProfiles();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-cdp-'));
   const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [

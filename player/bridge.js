@@ -17,13 +17,32 @@
   // the studio page only: a loopback address on this very port (another local page framing the preview cannot drive it)
   const loop = (o) => { try { const u = new URL(o); return /^(127\.0\.0\.1|localhost|\[::1\])$/i.test(u.hostname) && u.port === location.port; } catch { return false; } };
   const fromParent = (o) => o === location.origin || loop(o);   // (the same address: ?apercu=page, or the iPad through Tailscale)
+  const release = window.__COULISSES_PREVIEW_RELEASE__ ?? { version: new URLSearchParams(location.search).get('v') };
+  const owner = globalThis.crypto?.randomUUID?.() ?? `apercu-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let leaseLost = false;
+  const lease = (drop = false) => {
+    if (!release.hash) return;
+    fetch('/api/preview-lease', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hash: release.hash, owner, release: drop }), keepalive: drop }).then(async (response) => {
+      const state = await response.json();
+      if (!drop && (!response.ok || state.ok === false) && !leaseLost) {
+        leaseLost = true;
+        post({ ev: { type: 'error', seen, frame: sp()?.frame() ?? 0, error: { kind: 'transport',
+          message: 'Les ressources de cette ancienne version ont expiré. Réessayer pour charger une version disponible.', where: 'conservation de la version', stack: '' } } });
+      } else if (!drop && response.ok && state.ok) leaseLost = false;
+    }).catch(() => {});
+  };
+  lease();
+  let leaseTimer = setInterval(lease, 20000);
+  window.addEventListener('pageshow', () => { lease(); clearInterval(leaseTimer); leaseTimer = setInterval(lease, 20000); });
+  document.addEventListener?.('visibilitychange', () => { if (!document.hidden) lease(); });
   let seen = 0;   // the last call of the page this preview has done (in every state and event: the page knows what is fresh)
   const plainOf = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const post = (m) => {
-    const msg = { coulissesPreview: 1, ...m };
+    const msg = { coulissesPreview: 1, v: release.version, ...m };
     try { window.parent.postMessage(msg, parentOrigin); return; } catch { /* below */ }
     try { window.parent.postMessage(plainOf(msg), parentOrigin); return; } catch { /* below */ }   // (a value that cannot be copied: as JSON)
-    if (m.re) try { window.parent.postMessage({ coulissesPreview: 1, re: m.re, ok: false, error: 'not to be sent' }, parentOrigin); } catch { /* */ }   // (the page's call still ends)
+    if (m.re) try { window.parent.postMessage({ coulissesPreview: 1, v: release.version, re: m.re, ok: false, error: 'not to be sent' }, parentOrigin); } catch { /* */ }   // (the page's call still ends)
   };
   const sp = () => window.StudioPlayer;
   const stageState = () => {
@@ -33,7 +52,7 @@
   };
   const stateOf = (withStage) => {
     const p = sp(); if (!p) return null;
-    const s = { seen, frame: p.frame(), playing: !!p.isPlaying(), ready: p.frameReady?.() !== false, loading: !!p.frameLoading?.(), crashed: !!p.crashed?.(), scene3d: !!p.stage?.scene3d };
+    const s = { seen, frame: p.frame(), playing: !!p.isPlaying(), buffering: !!p.isBuffering?.(), ready: p.frameReady?.() !== false, loading: !!p.frameLoading?.(), crashed: !!p.crashed?.(), scene3d: !!p.stage?.scene3d };
     if (withStage) s.stage = stageState();
     return s;
   };
@@ -50,23 +69,41 @@
     let value, ok = true, error = null;
     seen = Math.max(seen, d.id || 0); inCall = true;
     try {
+      if (d.call === 'prepare') {
+        const p = sp();
+        if (!p) throw new Error('Lecteur absent');
+        const frame = Math.max(0, Math.min(p.durationInFrames - 1, Math.round(Number(d.args?.[0]) || 0)));
+        p.pause(); p.seek(frame);
+        await p.whenReady();
+        if (p !== sp() || p.frame() !== frame || p.frameReady?.() === false || p.isBuffering?.() || p.crashed?.()) throw new Error('L’image demandée n’est pas prête');
+        value = { frame, ready: true };
+      } else {
       const parts = d.call.split('.'), name = parts.pop();
       let o = sp(); for (const k of parts) o = o?.[k];
       if (!o) throw new Error(`StudioPlayer.${d.call}: absent`);
       let r;
       if (typeof o[name] === 'function') { quiet = !!d.quiet; try { r = o[name](...(d.args ?? [])); } finally { quiet = false; inCall = false; } } else r = o[name];
       value = await r;
+      }
     } catch (err) { ok = false; error = String(err?.message ?? err); }
     inCall = false;
-    if (d.id) post({ re: d.id, ok, value: ok ? value : undefined, error });
-    post({ state: stateOf(d.call.startsWith('stage.') || d.call === 'recover') });
+    const state = stateOf(d.call.startsWith('stage.') || d.call === 'recover');
+    if (d.id) post({ re: d.id, ok, value: ok ? value : undefined, error, state });
+    else post({ state });
   });
   // the player there: what it is, then its events
   (function hello() {
     const p = sp();
     if (!p) { setTimeout(hello, 50); return; }
-    post({ hello: { v: new URLSearchParams(location.search).get('v'), durationInFrames: p.durationInFrames, fps: p.fps, width: p.width, height: p.height, ok: p.ok, generic: !!p.generic, composition: p.composition ?? null, episode: p.episode ?? null, stage: !!p.stage, hyperframes: !!p.hyperframes }, state: stateOf(true) });
+    post({ hello: { v: release.version, hash: release.hash, durationInFrames: p.durationInFrames, fps: p.fps, width: p.width, height: p.height, ok: p.ok, generic: !!p.generic, composition: p.composition ?? null, episode: p.episode ?? null, stage: !!p.stage, hyperframes: !!p.hyperframes }, state: stateOf(true) });
     p.on((ev) => post({ ev: { ...ev, seen } }));
     p.stage?.on?.((ev) => { post({ stageEv: quiet ? { ...ev, quiet: true } : ev }); pushStage(); });
   })();
+  const health = setInterval(() => { if (sp()) post({ heartbeat: true, state: stateOf(false) }); }, 1000);
+  window.addEventListener('pagehide', () => { clearInterval(health); clearInterval(leaseTimer); lease(true); }, { once: true });
+  window.addEventListener('webglcontextlost', (e) => {
+    if (!e.target?.isConnected) return;
+    post({ ev: { type: 'error', seen, frame: sp()?.frame() ?? 0,
+      error: { kind: 'webgl', message: 'Le contexte graphique de l’aperçu a été perdu.', where: 'canvas WebGL', stack: '' } } });
+  }, true);
 })();

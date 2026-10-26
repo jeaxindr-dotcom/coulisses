@@ -481,6 +481,8 @@
   M.on('play', updateHud); M.on('pause', updateHud); M.on('seeked', () => { updateHud(); draw(); drawOv(); });
   let lastF = -1, lastView = '';
   (function tick() {
+    // Une erreur ponctuelle de dessin ne doit pas interrompre le transport.
+    requestAnimationFrame(tick);
     shuttleBackStep();
     if (!M.paused || shuttle) {
       const f = curFrame();
@@ -495,13 +497,13 @@
     // the timeline was drawn at every animation frame, 60 a second for a 30 i/s video, on the same thread as the preview)
     const vk = `${view.a}|${view.b}`;
     if (f !== lastF || vk !== lastView) {
-      lastView = vk;
       if (f !== lastF) { if (pickPt && pickPt.frame !== f) { pickPt = null; $('#pickBtn').style.display = 'none'; } hideHover(); }
       // a jump out of the view (↑ / ↓ to a cut, a frame step at its edge, a note chosen): the view follows the playhead
       if (f !== lastF && M.paused && !drag && DUR) { const t = f / FPS, span = view.b - view.a; if (t < view.a || t >= view.b) { view.a = t - span / 2; view.b = view.a + span; clampView(); } }
-      lastF = f; updateHud(); draw(); drawOv(); showShot();
+      updateHud(); draw(); drawOv(); showShot();
+      // Valider seulement un dessin complet : une image arrêtée est aussi retentée.
+      lastF = f; lastView = vk;
     }
     if (window.__cgReady) cgTick();   // the grade of the scene shown (part 11, evaluated after this first tick)
-    requestAnimationFrame(tick);
   })();
 

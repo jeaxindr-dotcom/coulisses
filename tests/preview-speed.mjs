@@ -9,7 +9,7 @@
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
 
 process.env.COULISSES_LANG = 'fr';
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,6 +22,8 @@ try {
   let out = ''; st.stdout.on('data', (d) => { out += d; });
   for (let i = 0; i < 200 && !/Ouvre : http/.test(out); i++) await sleep(250);
   const U = /Ouvre : (http:\/\/127\.0\.0\.1:[0-9]+)/.exec(out)?.[1];
+  if (!U || new URL(U).port !== '4186') throw new Error('Le port demandé pour le test n’est pas disponible.');
+  await requireSandbox(U, path.join(STUDIO, 'sandbox'));
   p = await launch({ port: 9384 });
   await p.size(1600, 1000);
   await p.goto(U + '/#f=6000');

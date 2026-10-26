@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <title>Aperçu vivant</title>
 <style>html, body, #root { margin: 0; height: 100%; background: #000; overflow: hidden; }</style>
+__STYLE__
 <script>
+  window.__COULISSES_PREVIEW_RELEASE__ = __RELEASE__;
   // staticFile('x.png') -> /public/x.png, served by the studio server from 06_Remotion/public
   window.remotion_staticBase = '/public';
 </script>
@@ -13,7 +15,7 @@
 <div id="root"></div>
 <!-- the studio's keys (player/keys.ts), the messages with the studio page (player/bridge.js: the preview has its own process) -->
 <script src="/shortcuts.js"></script>
-<script src="/player.js?v=__V__"></script>
+<script src="__SCRIPT__"></script>
 <script src="/player-bridge.js"></script>
 </body>
 </html>
