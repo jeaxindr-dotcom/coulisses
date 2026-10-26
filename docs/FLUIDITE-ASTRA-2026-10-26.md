@@ -87,7 +87,7 @@ Les diffs exacts Coulisses sont ceux des commits ci-dessous. La comparaison comp
 | `400b593` — Fournir les patchs des quatre moteurs et leurs validations sur copies | B3, G1/G2/G3 et nettoyages des moteurs. Quatre patchs exacts et preuves conservés dans Git ; copies non ajoutées. | 14 cas avant/après sur copies, sélection E15 1/1, application exacte des quatre patchs. |
 | `2839ee1` — Afficher le mode Code dès le démarrage sans export | L'interface sélectionnait visuellement « MP4 rendu » alors que son état réel était Code. | Vrai branchement de démarrage exécuté : 2/3 → 3/3. |
 
-Un dernier commit documentaire contient ce rapport, le relevé final et l'inscription du dernier test au lanceur. Son identifiant est fourni avec la livraison, sans chercher à inscrire le hash d'un document dans le document qui définit ce hash.
+Le commit documentaire `f273f8e` — « Documenter la fluidité, les limites et les 378 validations de la revue » — contient ce rapport, le relevé final et l'inscription du dernier test au lanceur. Cette copie livrée dans main précise aussi cet identifiant.
 
 ### Avant/après : défauts existants et nouvelles fonctionnalités distingués
 
@@ -266,6 +266,7 @@ Les tests croisés ont aussi décelé puis corrigé deux erreurs dans une premi�
 |---|---|
 | `9293fc3` — Livrer les réponses aux notes et confirmer explicitement leur lecture | G15 : file, réveil, migration, accusé explicite, images, interface et protocole ; tests CLI, interface et navigateur ci-dessus. |
 | `13e666a` — Fiabiliser les suites de connexion et traduire le cache de lecture | Test de connexion indépendant de l’agent qui l’exécute, vraie adoption d’une version du Player, ports réservés évités, tests enregistrés dans le lanceur, traductions et contrôles du binaire clairement signalés lorsqu’absent. |
+| `1de607c` — Documenter la réception des réponses et ses 235 vérifications | Présent complément et inventaire des journaux avec leurs empreintes. |
 
 Total de cette série : **11 suites, 235 vérifications réussies, aucun échec** dans leurs dernières exécutions ; 2 contrôles du binaire non exécutés. Le présent complément et l’inventaire sont enregistrés dans un commit documentaire séparé.
 
@@ -276,6 +277,7 @@ Précisions de validation : les suites ont utilisé des projets d’essai, leurs
 ### Résumé transmissible de ce complément
 
 Les réponses ajoutées aux notes étaient sauvegardées, mais `wait` ne les lisait jamais : il ne surveillait que les lots. Le correctif les conserve dans une file durable, les présente en premier à la reconnexion et affiche leur état sur la carte. Sans agent connecté, Coulisses l’indique et fournit la ligne de reconnexion. Une réponse reste « non vue » tant que l’agent n’a pas confirmé sa réception, même si sa sortie a été tronquée. Le parcours est testé ; les commits attendent la relecture et l’intégration de l’agent principal. Rien n’est fusionné, poussé ou installé.
+
 
 ## Complément — vérification indépendante avant fusion
 
