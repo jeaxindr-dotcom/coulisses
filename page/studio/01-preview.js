@@ -68,6 +68,9 @@
     if (preparedCode?.parked?.()) return preparedCode.wake().then(() => loadCode({ fresh }));
     if (preparedCode?.active()) return Promise.resolve(SP);
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
+    // La génération zéro n’a aucun bundle publié : le premier statut ready
+    // démarrera l’aperçu, sans iframe vouée à attendre son hello en vain.
+    if (!ver) return Promise.resolve(SP);
     if (SP && codeVer === ver && !fresh) return Promise.resolve(SP);
     if (SP?.isPlaying()) { showCodeNote(`Version ${ver} disponible à la prochaine pause`); return Promise.resolve(SP); }
     if (codeLoad && codeLoad.ver === ver && !fresh) return codeLoad.promise;
@@ -298,15 +301,25 @@
     setSave(TN('st.sound.restored'), 'ok');
   }
   $('#bSound').onclick = () => restoreSound();
-  let modeWant = null;
+  let modeWant = null, modeRequest = 0, modeWasPlaying = null;
   async function setMode(m) {
-    if (m === mode && modeWant === null) { if (m === 'code' && codeFailedVer !== null) await loadCode({ fresh: true }); return; }
+    if (m === mode) {
+      if (modeWant !== null) { modeWant = null; modeWasPlaying = null; modeRequest++; cancelCodePreparation(); }
+      else if (m === 'code' && codeFailedVer !== null) await loadCode({ fresh: true });
+      return;
+    }
+    const request = ++modeRequest;
     if (m !== 'code') cancelCodePreparation();
+    if (modeWant !== m) modeWasPlaying = null;
     modeWant = m;
-    let f = curFrame(); const was = !M.paused, planFrom = viewPlan(); M.pause();
-    if (m === 'code' && !(await loadCode())) { if (modeWant === m) modeWant = null; return; }
-    if (modeWant !== m) return;   // (another choice came while the code loaded: that one)
-    modeWant = null;
+    // Le MP4 peut continuer jusqu’à la première publication. onStatus reprendra
+    // cette intention avec l’image et l’état de lecture alors courants.
+    if (m === 'code' && !(STATUS.code?.version ?? META?.code?.version ?? 0)) return;
+    let f = curFrame(); const was = modeWasPlaying ?? !M.paused, planFrom = viewPlan();
+    modeWasPlaying = was; M.pause();
+    if (m === 'code' && !(await loadCode())) { if (modeWant === m && request === modeRequest) { modeWant = null; modeWasPlaying = null; } return; }
+    if (modeWant !== m || request !== modeRequest) return;   // (another choice came while the code loaded: that one)
+    modeWant = null; modeWasPlaying = null;
     if (m === mode) return;
     if (m === 'video' && SP) SP.pause();
     mode = m;

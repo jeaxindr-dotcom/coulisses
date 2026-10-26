@@ -486,11 +486,12 @@
     b.querySelector('.t').textContent = a.watching ? T('st.agent.on', { name: a.agent?.name ? ' · ' + a.agent.name : '' }) : T('st.agent.connect');
     b.title = a.watching ? T('st.agent.watchTitle', { name: a.agent?.name ?? T('st.agent.Yours'), since: hhmm(a.since) }) : T('st.agent.clickTitle');
     const ver = STATUS.code?.version ?? 0;
+    if (modeWant === 'code' && mode !== 'code' && STATUS.code?.status === 'ready' && codeFailedVer !== ver && codeLoad?.ver !== ver) setMode('code');
     if (mode === 'code' && STATUS.code?.status === 'ready' && codeFailedVer !== ver) {
       if (SP && ver !== codeVer) {
         if (SP.isPlaying()) showCodeNote(`Version ${ver} disponible à la prochaine pause`);
         else if (codeLoad?.ver !== ver) loadCode();
-      } else if (!SP && !codeLoading) loadCode();
+      } else if (!SP && codeLoad?.ver !== ver) loadCode();
     }
     if ((STATUS.timeline?.version ?? 0) !== liveVer) loadLive();
     showCodeStatus();

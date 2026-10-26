@@ -84,7 +84,25 @@ try {
   await until(`window.__studio && document.querySelector('#v').readyState >= 2`, 60000);
   check(!(await ev(`return document.body.classList.contains('novideo')`)) && (await ev(`return getComputedStyle(document.querySelector('#srcVideo')).display !== 'none'`)), 'the export arrived: reloaded, MP4 ⇄ code offered');
   await sleep(800); await p.shot(path.join(shots, 'coulisses-2-export.png'));
-} catch (e) { ko++; console.log('  ✗ ERREUR', e.message); } finally {
+} catch (e) {
+  ko++; console.log('  ✗ ERREUR', e.message);
+  // Conserver l'état avant la fermeture : un délai dépassé ne dit pas si la
+  // navigation, le démarrage du studio ou l'adoption du Player a échoué.
+  const diagnostic = await ev(`return {
+    url: location.href,
+    studio: window.__studio?.state?.() ?? null,
+    preview: window.__preview ? {durationInFrames: __preview.durationInFrames, frame: __preview.frame?.(), ready: __preview.frameReady?.()} : null,
+    codeStatus: document.querySelector('#codeStatus')?.textContent ?? null,
+    save: document.querySelector('#save')?.textContent ?? null,
+    erreur: document.querySelector('#codeErr')?.textContent ?? null,
+    accueil: [...document.querySelectorAll('.card .err')].map(e => e.textContent).filter(Boolean),
+    iframes: [...document.querySelectorAll('#media iframe')].map(e => ({url: e.src, classe: e.className})),
+    code: await fetch('/api/status').then(r => r.ok ? r.json() : null).then(s => s?.code ?? null).catch(() => null)
+  }`);
+  console.log('État au moment de l’échec :', JSON.stringify(diagnostic));
+  console.log('Dernière sortie de l’accueil :\n' + hubOut.slice(-8000));
+  if (p.logs.length) console.log('Derniers messages de la page :\n' + p.logs.slice(-15).join('\n'));
+} finally {
   const errs = p.logs.filter((l) => /exception|\[error\]/.test(l) && !/WebGL|X4000|503|404|Failed to load resource/.test(l));
   if (errs.length) console.log('page errors:\n' + errs.slice(0, 6).join('\n'));
   await p.close();

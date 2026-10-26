@@ -28,6 +28,7 @@ const RENDER_SOURCE = path.join(SANDBOX, 'E03 - The Secret Garden', 'E03 - The S
 const SUITES = [
   ['isolation-runtime-test', 'self'],
   ['shot-render-regressions', 'self'],
+  ['initial-publication-regressions', 'self'],
   ['reply-delivery', 'self'], ['reply-delivery-ui', 'self'], ['reply-images', 'self'], ['reply-delivery-browser', 'self'],
   ['code-playback-i18n', 'self'],
   ['audio-regressions', 'self'], ['player-build-regressions', 'self'], ['preview-transaction-regressions', 'self'], ['initial-code-mode', 'self'], ['preview-protocol-regressions', 'self'], ['preview-lifecycle', 'self'], ['preview-server-regressions', 'self'], ['project-patches', 'self'], ['project-patches-e15', 'self'], ['timeline-loop-regressions', 'self'], ['code-playback-regressions', 'self'], ['code-playback-render-regressions', 'self'], ['frames-cache-regressions', 'self'], ['code-playback-sources', 'self'], ['code-playback-ui', 'self'], ['code-playback-routes', 'self'], ['render-activity', 'self'], ['code-playback-browser', 'self'],
