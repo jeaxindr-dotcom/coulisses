@@ -1,0 +1,3 @@
+# Les diffs livrés conservent les fins de ligne des sources Windows et les
+# espaces de leurs lignes de contexte ; ils ne sont pas du code à reformater.
+.cache/revue-astra/patchs-projets/*.patch -text -whitespace
