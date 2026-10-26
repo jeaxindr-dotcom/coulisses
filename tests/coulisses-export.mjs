@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launch } from './cdp.mjs';
+import { launch, requireSandbox } from './cdp.mjs';
+import { freePort } from './where.mjs';
+import { waitForRenderIdle } from '../lib/render-activity.mjs';
 
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCR = path.join(STUDIO, '.cache', 'coulisses-export-test');
@@ -18,16 +20,20 @@ process.env.COULISSES_LANG = 'fr';   // the suite checks the French texts (lib/i
 const { makeFixture, RUN } = await import('./coulisses-fixture.mjs');
 const { importProject } = await import('../lib/projects.mjs');
 const { exportAvailable } = await import('../lib/export.mjs');
-const PORT = 4187, U = `http://127.0.0.1:${PORT}`, OUT = path.join(RUN, '07-renders');
+const PORT = await freePort(4250), OUT = path.join(RUN, '07-renders');
+let U = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (+(process.env.COULISSES_TEST_SLOW ?? 1) || 1)));   // COULISSES_TEST_SLOW=2: a slower PC
 let ok = 0, ko = 0;
 const check = (c, w) => { c ? ok++ : ko++; console.log(`  ${c ? '✓' : '✗'} ${w}`); };
 const get = async (u) => (await fetch(U + u)).json();
-const post = async (u, b = {}) => (await fetch(U + u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
+const post = async (u, b = {}) => {
+  if (u === '/api/export') await waitForRenderIdle();
+  return (await fetch(U + u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).json();
+};
 const finals = () => (fs.existsSync(OUT) ? fs.readdirSync(OUT).filter((f) => /^essai-.*\.mp4$/.test(f) && !/\.tmp\./.test(f) && !/remplace/.test(f)) : []);
 const frames = (f) => +execFileSync('ffprobe', ['-v', 'error', '-count_packets', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', f], { encoding: 'utf8' }).trim().replace(/,$/, '');
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-let studio = null, studioOut = '';   // (its output: shown when the test fails, the studio may have said why)
+let studio = null, studioOut = '', sandboxChecked = false, activeExport = null;
 async function startStudio(revue) {
   studio = spawn(process.execPath, [path.join(STUDIO, 'studio-server.mjs'), '--project', revue, '--no-open', '--port', String(PORT)], { cwd: STUDIO, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = ''; studio.stdout.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); }); studio.stderr.on('data', (d) => { out += d; studioOut = (studioOut + d).slice(-20000); });
@@ -36,11 +42,46 @@ async function startStudio(revue) {
 `; });
   for (let i = 0; i < 160 && !/Ouvre : http/.test(out); i++) await sleep(250);
   if (!/Ouvre : http/.test(out)) throw new Error('le studio ne démarre pas : ' + out.split('\n').slice(-3).join(' '));
+  U = /Ouvre : (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1];
+  if (!U) throw new Error('Adresse du studio d’essai absente');
+  await requireSandbox(U, RUN);
+  sandboxChecked = true;
 }
 const stopStudio = () => { if (studio) { try { execFileSync('taskkill', ['/PID', String(studio.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } studio = null; } };
 async function until(fn, ms, what) { const t0 = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error(`délai dépassé : ${what}`); await sleep(500); } }
 
+// La fixture partagée est recréée par la suite suivante. Garder ici les preuves
+// de chaque export avant qu’un autre export remplace son journal.
+async function saveExport(label, state, started = activeExport) {
+  const dir = path.join(SCR, 'exports'); fs.mkdirSync(dir, { recursive: true });
+  let log = '';
+  try { log = fs.readFileSync(path.join(RUN, 'revue', 'export.log'), 'utf8'); } catch { /* Pas encore de journal. */ }
+  fs.writeFileSync(path.join(dir, `${label}.json`), JSON.stringify({ started, state }, null, 2));
+  fs.writeFileSync(path.join(dir, `${label}.log`), log);
+  fs.writeFileSync(path.join(SCR, 'studio.log'), studioOut);
+  return log;
+}
+async function exportDone(started, label, observe = () => {}) {
+  activeExport = started;
+  if (!started?.ok || started.state !== 'running' || !started.pid) {
+    await saveExport(label, null, started);
+    throw new Error(`Export ${label} non lancé : ${JSON.stringify(started)}`);
+  }
+  const done = await until(async () => {
+    const status = await get('/api/status'), state = status.export;
+    observe(state, status);
+    return state && state.state !== 'running' ? state : null;
+  }, 240000, `export ${label}`);
+  const log = await saveExport(label, done, started);
+  if (done.pid !== started.pid || done.state !== 'done' || typeof done.file !== 'string' || !done.file || !fs.existsSync(done.file)) {
+    console.log(`  Diagnostic export ${label} : ${JSON.stringify({ started, state: done })}\n${log}`);
+    throw new Error(`Export ${label} non terminé : ${done.state}, PID ${done.pid} attendu ${started.pid}, ${done.error ?? 'fichier final absent'}`);
+  }
+  return done;
+}
+
 try {
+  await waitForRenderIdle();
   const file = makeFixture();
   const imp = importProject(file);
   check(imp.kind === 'remotion', `the sample run is imported (${imp.revue})`);
@@ -53,7 +94,7 @@ try {
   check(meta.exportOptions?.map((o) => o.id).join('|') === 'final|test|remplace', `the script's variants are offered (${meta.exportOptions?.map((o) => o.label).join(', ')})`);
 
   // 1) the button, in the page
-  const p = await launch({ port: 9346 });
+  const p = await launch({ port: await freePort(9346) });
   try {
     await p.goto(U + '/');
     await sleep(1500); await p.eval(`document.querySelector('[data-tab="lots"]').click(); return 1`).catch(() => {});
@@ -72,7 +113,7 @@ try {
   check(!twice.ok && /tourne déjà/.test(twice.why), 'a second export is refused while one runs');
   let seen = 0;
   let seenFrames = null;   // (« image N / 300 »: the script says its frames, COULISSES IMAGES)
-  const done = await until(async () => { const x = (await get('/api/status')).export; if (x?.pct > seen) seen = x.pct; if (x?.state === 'running' && x.frames?.done > 0) seenFrames = x.frames; return x && x.state !== 'running' ? x : null; }, 240000, 'export');
+  const done = await exportDone(s1, '01-complet', (x) => { if (x?.pct > seen) seen = x.pct; if (x?.state === 'running' && x.frames?.done > 0) seenFrames = x.frames; });
   check(seenFrames?.total === 300 && seenFrames.done > 0 && seenFrames.done <= 300 && done.frames?.done === 300, `the frames done out of all, read from the script (${seenFrames ? `${seenFrames.done} / ${seenFrames.total}` : 'none'}, then ${done.frames?.done} / ${done.frames?.total})`);
   check(done.state === 'done' && done.pct === 100 && seen > 0 && fs.existsSync(done.file ?? ''), `export done (${path.basename(done.file ?? '')}, progress seen up to ${seen} %)`);
   check(finals().length === before + 1 && !fs.readdirSync(OUT).some((f) => /\.tmp\./.test(f)) && frames(done.file) === 300, 'one new final file, no .tmp left, every frame (300)');
@@ -88,12 +129,13 @@ try {
 
   // 2b) the test variant: --qualite test (30 frames here)
   const sT = await post('/api/export', { qualite: 'test' });
-  const dT = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'test export');
-  check(sT.ok && sT.qualite === 'test' && dT.state === 'done' && frames(dT.file) === 30, `the test variant runs with --qualite test (${frames(dT.file ?? '')} frames)`);
+  const dT = await exportDone(sT, '02-test');
+  const testFrames = frames(dT.file);
+  check(sT.ok && sT.qualite === 'test' && dT.state === 'done' && testFrames === 30, `the test variant runs with --qualite test (${testFrames} frames)`);
   // « Encoder avec le GPU » unticked: the next export is told « cpu », and its file is x264's; ticked again afterwards
   const off = await post('/api/gpu', { on: false });
   const sC = await post('/api/export', { qualite: 'test' });
-  const dC = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'cpu export');
+  const dC = await exportDone(sC, '03-cpu');
   const logC = await (await fetch(U + '/api/export/log')).text(), x264 = dC.file && fs.readFileSync(dC.file).includes('x264 - core');
   const on = await post('/api/gpu', { on: true });
   check(off.ok && off.gpu.off && off.gpu.mode === 'cpu' && sC.ok && dC.state === 'done' && /encodeur : cpu/.test(logC) && x264 && on.ok && !on.gpu.off && on.gpu.mode === want,
@@ -101,7 +143,7 @@ try {
   // the dial of the speed (lib/export-run.mjs): ×1,5 gives the ×1 file and its copy « -x1.5 »; the studio keeps reviewing
   // the ×1 one (its frames are the code's); a speed between two notches is refused
   const sV = await post('/api/export', { qualite: 'test', vitesse: 1.5 });
-  const dV = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'export ×1.5');
+  const dV = await exportDone(sV, '04-vitesse');
   await sleep(21000);
   const stV = await get('/api/status');
   const durV = dV.file ? +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', dV.file], { encoding: 'utf8' }).trim() : 0;
@@ -113,16 +155,16 @@ try {
 
   // 2c) replacing the very video under review while it is being played (a stream open on it)
   const r1 = await post('/api/export', { qualite: 'remplace' });
-  const d1 = await until(async () => { const x = (await get('/api/status')).export; return x && x.state !== 'running' ? x : null; }, 240000, 'first replace export');
+  const d1 = await exportDone(r1, '05-premier-remplacement');
   await sleep(21000);
   const under = (await get('/api/status')).video;
   const ac = new AbortController();
   const reading = fetch(U + '/video', { signal: ac.signal }).then((r) => r.body.getReader().read()).catch(() => null);   // keeps the file open
   await sleep(800);
   const sz0 = fs.statSync(d1.file).mtimeMs;
-  await post('/api/export', { qualite: 'remplace' });
+  const r2 = await post('/api/export', { qualite: 'remplace' });
   let sawHeld = false;
-  const d2 = await until(async () => { const s = await get('/api/status'); if (s.held) sawHeld = true; const x = s.export; return x && x.state !== 'running' ? x : null; }, 240000, 'replace export');
+  const d2 = await exportDone(r2, '06-remplacement-en-lecture', (_x, s) => { if (s.held) sawHeld = true; });
   ac.abort(); await reading; await sleep(2000);   // the studio takes the video back at its next look (1 s)
   const after = await get('/api/status');
   console.log('    (remplacement : ' + JSON.stringify({ r1: r1.ok, revue: under?.name, etat: d2.state, remplace: fs.statSync(d2.file).mtimeMs > sz0, vu: sawHeld, tenu: after.held }) + ')');
@@ -132,10 +174,12 @@ try {
   // 3) stopped half-way: no final file
   const n2 = finals().length;
   const s2 = await post('/api/export');
+  activeExport = s2;
   await until(async () => ((await get('/api/status')).export?.pct ?? 0) >= 6, 120000, 'rendering');
   const stop = await post('/api/export/stop');
   await sleep(2500);
   const x2 = (await get('/api/status')).export;
+  await saveExport('07-arret', x2);
   check(stop.ok && x2.state === 'stopped' && !alive(s2.pid), 'Arrêter: the export and its children are ended');
   check(finals().length === n2, 'and no final file appeared (only a .tmp.mp4 may be left)');
   for (const f of fs.readdirSync(OUT).filter((x) => /\.tmp\.mp4$/.test(x))) fs.rmSync(path.join(OUT, f), { force: true });
@@ -143,14 +187,27 @@ try {
   // 4) the studio closed during an export: it goes on, and the studio finds it done when it comes back
   const n3 = finals().length;
   const s3 = await post('/api/export');
+  activeExport = s3;
   await sleep(3000);
   stopStudio();
   await until(() => finals().length === n3 + 1 || !alive(s3.pid), 240000, 'export without the studio');
   check(finals().length === n3 + 1, 'the export went on with the studio closed');
   await startStudio(imp.revue);
   const x3 = (await get('/api/status')).export;
+  await saveExport('08-studio-ferme', x3);
   check(x3.state === 'done' && x3.pid === s3.pid, 'reopened, the studio shows it done');
-} catch (e) { ko++; console.log('  ✗ ERREUR', e.stack, e.cause ?? ''); console.log('  --- les dernières lignes du studio ---' + String.fromCharCode(10) + studioOut.split(String.fromCharCode(10)).slice(-15).join(String.fromCharCode(10))); } finally {
+} catch (e) {
+  ko++;
+  let state = null;
+  try { state = (await get('/api/status')).export; } catch { /* Studio fermé. */ }
+  await saveExport('99-echec', state);
+  console.log('  ✗ ERREUR', e.stack, e.cause ?? '');
+  console.log('  --- les dernières lignes du studio ---' + String.fromCharCode(10) + studioOut.split(String.fromCharCode(10)).slice(-15).join(String.fromCharCode(10)));
+} finally {
+  if (sandboxChecked && studio) try {
+    const state = (await get('/api/status')).export;
+    if (state?.state === 'running') await post('/api/export/stop');
+  } catch { /* Notre studio d’essai est déjà fermé. */ }
   stopStudio();
   console.log(`\n${ok} ok, ${ko} échec(s)`);
   process.exit(ko ? 1 : 0);
