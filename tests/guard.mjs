@@ -57,6 +57,8 @@ try {
   const evil = await ask(port, '/api/notes', { origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' }, 'POST');
   check(evil.code === 403 && /refused/.test(evil.body), 'another site\'s page (Origin https://evil.example): refused (403)');
   check((await ask(port, '/api/meta', { host: `evil.example:${port}` })).code === 403, 'a DNS-rebinding name (Host evil.example): refused');
+  check((await ask(port, '/player.html', { host: `pmhd3k2x.localhost:${port}` })).code === 200, 'the name of the replacement of a frozen preview (Host p….localhost, 31/10/2026): allowed');
+  check((await ask(port, '/api/meta', { host: `evil.localhost.example:${port}` })).code === 403 && (await ask(port, '/api/meta', { host: `evil-site.localhost:${port}` })).code === 403, 'any other *.localhost-like name: refused');
   check((await ask(port, '/api/meta', { 'sec-fetch-site': 'cross-site' })).code === 403, 'an <img> or a link of another site (cross-site, no Coulisses page behind): refused');
   check((await ask(port, '/api/meta', { origin: 'null' })).code === 403, 'a sandboxed frame or a file (Origin null): refused');
   // ---------- 2. one studio per project ----------

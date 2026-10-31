@@ -219,6 +219,18 @@ try {
   const back = { ...(await p.eval(`return { on: document.querySelector('#codeCrash').classList.contains('on'), crashed: !!window.__preview.crashed() }`)),
     ...(await p.frameEval('player.html', `return { canvas: !!document.querySelector('canvas'), fallback: /⚠/.test(document.getElementById('root').innerText) }`)) };
   check(!back.on && !back.crashed && back.canvas && !back.fallback, `the next move: the Player mounted again, the scene drawn (no « ⚠ » left) ${JSON.stringify(back)}`);
+  // the preview FROZEN (user report 31/10/2026, Lesson 1: « L'aperçu ne répond plus depuis 30 secondes », and « Réessayer »
+  // did nothing — the new preview was prepared behind the frozen one, in the same renderer process, frozen with it)
+  const fBefore = await p.eval('return __studio.state().frame');
+  await p.frameEval('player.html', `setTimeout(() => { for (;;) {} }, 50); return 1`);
+  await p.until(`document.querySelector('#codeCrash').classList.contains('on') && /ne répond plus/.test(document.querySelector('#codeCrash').innerText)`, 60000).catch(() => {});
+  const frozen = await p.eval(`return /ne répond plus/.test(document.querySelector('#codeCrash').innerText) && document.querySelector('#codeCrash').classList.contains('on')`);
+  await p.eval(`document.querySelector('#ceRetry').click(); return 1`);
+  await p.until(`window.__preview && !window.__preview.crashed() && window.__preview.frameReady()`, 150000).catch(() => {});
+  await sleep(1500);
+  const revived = await p.eval(`return { on: document.querySelector('#codeCrash').classList.contains('on'), ok: !!window.__preview && !window.__preview.crashed() && window.__preview.frameReady(), frame: __studio.state().frame, frames: document.querySelectorAll('iframe[src*="player.html"]').length }`);
+  check(frozen && !revived.on && revived.ok && Math.abs(revived.frame - fBefore) <= 2 && revived.frames === 1,
+    `a frozen preview: « ne répond plus » said, then « Réessayer » destroys it and loads a new one at the same image ${JSON.stringify({ frozen, ...revived, fBefore })}`);
   await p.eval(`document.querySelector('#srcVideo').click(); return 1`); await sleep(500);
   check((await p.eval('return __studio.state().mode')) === 'video', 'back to the MP4');
   // the preview stopped by an error while the MP4 is shown (user bug 17/10/2026, E11: « le pointeur ne détecte plus les

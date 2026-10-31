@@ -13,17 +13,29 @@
   // (from the iPad, through Tailscale — lib/remote.mjs: the page's own name only; « localhost » would be the iPad itself)
   const PREVIEW_OWN = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && !/[?&]apercu=page\b/.test(location.search);
   const PREVIEW_ORIGIN = !PREVIEW_OWN ? location.origin : `${location.protocol}//${location.hostname === 'localhost' ? '127.0.0.1' : 'localhost'}:${location.port}`;
-  const previewUrl = (q) => `${PREVIEW_ORIGIN}/player.html?${q}`;
+  // A preview whose process FROZE (an endless loop, a GPU hang) keeps that process for ever: Chrome puts every new frame of
+  // the same site in it, frozen too (measured 31/10/2026: still frozen 6 s after the frame was removed). « Réessayer »
+  // then loads the new preview from a name of its own (p<n>.localhost: always this machine for Chrome, another site):
+  // a new process. Every later version stays on that name.
+  let previewOrigin = PREVIEW_ORIGIN;
+  const previewOrigins = new Set([PREVIEW_ORIGIN]);
+  const freshPreviewOrigin = () => {
+    if (!PREVIEW_OWN) return previewOrigin;   // (the iPad: one name only)
+    previewOrigin = `${location.protocol}//p${Date.now().toString(36)}.localhost:${location.port}`; previewOrigins.add(previewOrigin);
+    return previewOrigin;
+  };
+  const previewUrl = (q) => `${previewOrigin}/player.html?${q}`;
   const remotes = new Map();   // a preview frame's window -> its remote player
   window.addEventListener('message', (e) => {
-    if (e.origin !== PREVIEW_ORIGIN) return;
+    if (!previewOrigins.has(e.origin)) return;
     const d = e.data; if (!d || d.coulissesPreview !== 1) return;
-    const r = remotes.get(e.source); if (r) r.receive(d);
+    const r = remotes.get(e.source); if (!r || r.origin !== e.origin) return;
+    r.receive(d);
     // a key typed in the preview that is the studio's (player/keys.ts toParent): played here as if typed here
     if (d.key && r) window.dispatchEvent(new KeyboardEvent(d.key.type, { key: d.key.key, code: d.key.code, shiftKey: d.key.shiftKey, ctrlKey: d.key.ctrlKey, altKey: d.key.altKey, metaKey: d.key.metaKey, bubbles: true }));
   });
   // the user's keys changed (Aide › Raccourcis clavier): the previews read them again (their staging keys W / E / R)
-  window.Shortcuts?.onChange?.(() => { for (const w of remotes.keys()) try { w.postMessage({ coulissesPreview: 1, shortcuts: 1 }, PREVIEW_ORIGIN); } catch { /* gone */ } });
+  window.Shortcuts?.onChange?.(() => { for (const [w, r] of remotes) try { w.postMessage({ coulissesPreview: 1, shortcuts: 1 }, r.origin); } catch { /* gone */ } });
   const ZERO_D = { p: [0, 0, 0], r: [0, 0, 0], s: 1 };
   const zeroDelta = (d) => !d || ((d.p ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && (d.r ?? [0, 0, 0]).every((v) => Math.abs(v) < 1e-9) && Math.abs((d.s ?? 1) - 1) < 1e-9);
   // ver: the version this player loads (?v= of its address): a hello from the document that frame is leaving is not its own
@@ -32,7 +44,7 @@
   // The page's own writes (a seek, play / pause, an offset) are numbered: the state
   // the preview sent before it had them (its `seen`) does not take them back.
   const PREPARING = new Set(['whenReady', 'whenFrameReady', 'prepare', 'resume']), WRITE_F = new Set(['seek', 'play', 'pause', 'recover', 'prepare', 'unload', 'resume']), WRITE_S = new Set(['stage.setDelta', 'stage.reset', 'stage.select', 'stage.addCutout']);
-  function remotePlayer(win, ver = null) {
+  function remotePlayer(win, ver = null, origin = previewOrigin) {
     const M = { hello: null, frame: 0, playing: false, buffering: false, ready: false, loading: false, crashed: false, st: null, infos: new Map() };
     let seq = 0, helloRes = null, wroteF = 0, wroteS = 0, gone = false, lastSeen = performance.now(), silent = false;
     const waits = new Map(), evOn = new Set(), stOn = new Set();
@@ -44,7 +56,7 @@
       const timeout = PREPARING.has(path) ? 95000 : path === 'stage.snapshot' || path === 'pickMany' || path === 'pick' ? 30000 : 15000;
       const timer = setTimeout(() => { if (waits.delete(id)) rej(new Error(`Aperçu sans réponse (${path})`)); }, timeout);
       waits.set(id, { res, rej, timer });
-      try { win.postMessage({ coulissesPreview: 1, call: path, id, args: plain(args), ...extra }, PREVIEW_ORIGIN); } catch (e) { clearTimeout(timer); waits.delete(id); rej(e); }
+      try { win.postMessage({ coulissesPreview: 1, call: path, id, args: plain(args), ...extra }, origin); } catch (e) { clearTimeout(timer); waits.delete(id); rej(e); }
     });
     const call = (path, ...args) => callWith(null, path, ...args);
     const send = (path, ...args) => { call(path, ...args).catch(() => {}); };
@@ -140,7 +152,7 @@
         for (const w of waits.values()) { clearTimeout(w.timer); w.rej(new Error('preview gone')); } waits.clear(); evOn.clear(); stOn.clear(); helloRes(null);
       },
     };
-    const entry = { receive };
+    const entry = { receive, origin };
     // Une absence de message est un diagnostic de transport, pas une preuve de panne GPU.
     // Un onglet caché est ralenti par Chrome : aucune alarme tant qu'il reste caché.
     const health = setInterval(() => {

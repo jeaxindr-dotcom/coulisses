@@ -64,8 +64,8 @@
   // validation de l'image qui restera affichée, avec ses offsets et sa caméra. Toute attente
   // est suivie d'une vérification de génération ; une erreur conserve la version visible.
   let codeLoad = null, codeFailedVer = null;
-  function loadCode({ fresh = false } = {}) {
-    if (preparedCode?.parked?.()) return preparedCode.wake().then(() => loadCode({ fresh }));
+  function loadCode({ fresh = false, frame = null } = {}) {
+    if (preparedCode?.parked?.()) return preparedCode.wake().then(() => loadCode({ fresh, frame }));
     if (preparedCode?.active()) return Promise.resolve(SP);
     const ver = STATUS.code?.version ?? META?.code?.version ?? 0;
     // La génération zéro n’a aucun bundle publié : le premier statut ready
@@ -75,7 +75,7 @@
     if (SP?.isPlaying()) { showCodeNote(`Version ${ver} disponible à la prochaine pause`); return Promise.resolve(SP); }
     if (codeLoad && codeLoad.ver === ver && !fresh) return codeLoad.promise;
     cancelCodePreparation();
-    const old = SP, inPlace = !old, target = old ? old.frame() : (!META.render ? hashFrame() ?? curFrame() : curFrame());
+    const old = SP, inPlace = !old, target = frame ?? (old ? old.frame() : (!META.render ? hashFrame() ?? curFrame() : curFrame()));
     const el = inPlace ? codeEl : document.createElement('iframe');
     if (!inPlace) { el.className = 'code-next'; el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k)); codeEl.after(el); }
     const job = { ver, frame: el, dropped: false, fresh };
@@ -232,11 +232,29 @@
   }
   function codeRecover(f = curFrame()) {
     if (!crash || !SP) return;
-    if (crash.kind === 'transport' || crash.kind === 'webgl') { SP.pause(); loadCode({ fresh: true }); return; }
+    if (crash.kind === 'transport' || crash.kind === 'webgl') { hardReload(crash.at ?? f, crash.kind); return; }
     crash = null; codeErrEl.classList.remove('on');
     SP.recover?.(f);
     if (mode === 'code') codeWaitEl.classList.add('on');   // the Player mounts again: the frame covered until it is complete (behind the MP4: nothing to cover)
     const sp = SP, my = ++cwSeq; setTimeout(() => Promise.resolve(sp.whenFrameReady?.()).then(() => { if (my === cwSeq && SP === sp) codeWaitEl.classList.remove('on'); }, (e) => { if (my === cwSeq && SP === sp) codeCrashed({ error: { message: e.message, where: 'préparation de l’image' }, frame: f }); }), 400);
+  }
+  // An aperçu that no longer answers (transport) or lost its GPU (webgl): its frame is DESTROYED first, then a new one is
+  // loaded in its place at the same image. Preparing the new one behind the frozen one could never work: both iframes
+  // share the renderer process of the preview's origin, frozen with it (user report 31/10/2026: « Réessayer » did nothing).
+  function hardReload(f, crash0 = null) {
+    const old = SP, at = Math.max(0, Math.min((old?.durationInFrames ?? FRAMES ?? 1) - 1, f ?? curFrame()));
+    cancelCodePreparation();
+    stUnsub?.(); stUnsub = null;
+    SP = null; codeVer = -1; window.__preview = null;
+    try { old?.dispose?.(); } catch { /* gone */ }
+    const el = document.createElement('iframe');
+    el.title = codeEl.title || ''; for (const k of ['allow', 'allowfullscreen']) if (codeEl.hasAttribute(k)) el.setAttribute(k, codeEl.getAttribute(k));
+    el.id = 'code'; codeEl.replaceWith(el); codeEl = el;   // the frozen frame leaves the page: Chrome can end its process
+    crash = null; codeErrEl.classList.remove('on');
+    if (mode === 'code') codeWaitEl.classList.add('on');
+    setSave(TN('st.sound.preparing'), '');
+    if (crash0 === 'transport') freshPreviewOrigin();   // (its process frozen: a new one)
+    return loadCode({ fresh: true, frame: at }).then((sp) => { if (sp && SP === sp) codeWaitEl.classList.remove('on'); return sp; });
   }
   $('#ceRetry').onclick = () => codeRecover();
   $('#ceCopy').onclick = () => { if (crash) copy(`${T('st.code.crash', { f: crash.at })}\n${crash.message}\n${crash.where ?? ''}`); };
