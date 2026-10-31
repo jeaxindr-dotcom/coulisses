@@ -6,9 +6,20 @@ export function createReady(opts: {
   playing: () => boolean;
   emit: (type: string, extra?: Record<string, unknown>) => void;
   timeoutMs?: number;
+  staleMs?: number;
 }) {
   let buffering = false, loading = false, raf = 0, timer: any = 0, started = 0, reported = '', disposed = false;
   const timeout = opts.timeoutMs ?? 30000;
+  // Une attente globale (delayRender sans propriétaire) jamais rendue par son producteur (ex. Stage.tsx démonté
+  // avant la fin de son chargement) ne doit pas masquer l'image pour toujours : au-delà de staleMs elle est tenue
+  // pour orpheline et ignorée (demande du 31/10/2026 : voile noir, puis « aperçu planté à l'image 1301 »).
+  const stale = opts.staleMs ?? 6000, seen = new Map<number, number>();
+  const freshLegacy = (handles: number[]) => {
+    const now = performance.now(), live = new Set(handles);
+    for (const h of [...seen.keys()]) if (!live.has(h)) seen.delete(h);
+    for (const h of handles) if (!seen.has(h)) seen.set(h, now);
+    return handles.filter((h) => now - (seen.get(h) ?? now) < stale);
+  };
   const shown = (el: Element) => {
     if (!(el as HTMLElement).getClientRects().length) return false;
     for (let e: Element | null = el, i = 0; e && i < 80; e = e.parentElement, i++) {
@@ -19,7 +30,8 @@ export function createReady(opts: {
   };
   const status = () => {
     const resources = (window as any).__coulissesReadiness?.snapshot?.() ?? { activePending: 0, legacyPending: [] };
-    const extra = { activePending: resources.activePending ?? 0, legacyPending: resources.legacyPending ?? [] };
+    const legacy: number[] = resources.legacyPending ?? [], fresh = freshLegacy(legacy);
+    const extra = { activePending: resources.activePending ?? 0, legacyPending: fresh, staleLegacy: legacy.length - fresh.length };
     const result = (state: string, reason: string | null) => ({ state, reason, verified: state === 'ready', ...extra });
     if (buffering) return result('loading', 'buffering');
     if (extra.activePending) return result('loading', 'resources');

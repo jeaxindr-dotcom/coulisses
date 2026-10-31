@@ -177,6 +177,17 @@ await test('G6 : une attente globale sans propriétaire reste explicitement non 
   const c = disponibilite(); c.window.__coulissesReadiness = { snapshot: () => ({ activePending: 0, legacyPending: [42] }) };
   assert.equal(c.ready.ready(), false); assert.equal(c.ready.status?.().state, 'unverified'); c.ready.dispose?.();
 });
+await test('31/10 : une attente sans propriétaire jamais rendue ne masque plus l’image ni ne fait planter l’aperçu', async () => {
+  const c = disponibilite(); c.window.__coulissesReadiness = { snapshot: () => ({ activePending: 0, legacyPending: [42] }) };
+  let result = 'attente';
+  c.ready.watch(); c.ready.when().then(() => { result = 'succès'; }, () => { result = 'rejet'; });
+  assert.equal(c.ready.ready(), false);
+  c.clock.advance(11000); await Promise.resolve();
+  assert.equal(c.ready.ready(), true, 'orpheline depuis plus de 6 s : l’image est montrée');
+  c.clock.advance(25000); await Promise.resolve();
+  assert.equal(result, 'succès'); assert.equal(c.events.some(e => e.type === 'ready-error'), false, 'aucun « aperçu planté »');
+  c.ready.dispose?.();
+});
 await test('G11 : toutes les racines retrouvent leur boucle après un réveil sur une autre scène', () => {
   const text = source('player/r3f.ts');
   const part = text.slice(text.indexOf('const shownCanvas'), text.indexOf('export const isAsleep')).replaceAll('export ', '');
